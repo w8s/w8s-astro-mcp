@@ -1,0 +1,31 @@
+[project]
+name = "w8s-astro-mcp"
+version = "0.1.0"
+description = "Astrological transit MCP server using Swiss Ephemeris"
+requires-python = ">=3.10"
+readme = "README.md"
+authors = [
+    { name = "Todd W. Schragg" }
+]
+
+dependencies = [
+    "mcp>=1.0.0",
+    "python-dateutil>=2.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+]
+
+[project.scripts]
+w8s-astro-mcp = "w8s_astro_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']

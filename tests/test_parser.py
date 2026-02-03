@@ -2,15 +2,15 @@
 
 from w8s_astro_mcp.parsers.swetest import parse_swetest_output
 
-# Your actual swetest output
+# Sample swetest output (using generic coordinates)
 test_output = """
 date (dmy) 3.2.2026 greg.   12:00:00 UT		version 2.10.03
 UT:  2461075.000000000     delta t: 68.888787 sec
 TT:  2461075.000797324
-geo. long -90.199400, lat 38.627000, alt 0.000000
+geo. long -74.006000, lat 40.713000, alt 0.000000
 Epsilon (t/m)     23°26'18"   23°26' 9"
 Nutation           0° 0' 7"    0° 0' 9"
-Houses system P (Placidus) for long= -90°11'58", lat=  38°37'37"
+Houses system P (Placidus) for long= -74°00'22", lat=  40°42'47"
 Sun             14 aq 39'38"    1° 0'50"
 Moon             4 vi 54'57"   13°34'41"
 Mercury         23 aq 54' 3"    1°46'23"

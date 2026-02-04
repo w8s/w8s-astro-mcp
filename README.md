@@ -61,7 +61,7 @@ swetest -h  # Should show version 2.10.03
 On first use, Claude will guide you through setting up your birth data:
 - Birth date, time, and location  
 - Coordinates will be looked up automatically
-- Configuration saved to `~/.config/w8s-astro-mcp/config.json`
+- Configuration saved to `~/.w8s-astro-mcp/config.json`
 
 ### Viewing Your Config
 
@@ -77,7 +77,7 @@ Ask Claude to set up new birth data using the `setup_astro_config` tool.
 **Option 2: Manual Edit**
 Edit the config file directly:
 ```bash
-nano ~/.config/w8s-astro-mcp/config.json
+nano ~/.w8s-astro-mcp/config.json
 ```
 
 Example config structure:

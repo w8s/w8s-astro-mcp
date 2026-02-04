@@ -25,8 +25,8 @@ class Config:
         if config_path:
             self.config_path = Path(config_path)
         else:
-            # Default: ~/.config/w8s-astro-mcp/config.json
-            self.config_path = Path.home() / ".config" / "w8s-astro-mcp" / "config.json"
+            # Default: ~/.w8s-astro-mcp/config.json
+            self.config_path = Path.home() / ".w8s-astro-mcp" / "config.json"
         
         self.data: Dict[str, Any] = {}
         self._ensure_config_dir()

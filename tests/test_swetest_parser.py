@@ -153,3 +153,25 @@ MC              15 sc 56'55"  361°17'40"
         # Verify metadata
         assert "date" in result["metadata"]
         assert "house_system" in result["metadata"]
+    
+    def test_empty_output_raises_error(self):
+        """Test that empty output raises SweetestParseError."""
+        from w8s_astro_mcp.parsers.swetest import SweetestParseError
+        
+        with pytest.raises(SweetestParseError, match="empty"):
+            parse_swetest_output("")
+        
+        with pytest.raises(SweetestParseError, match="empty"):
+            parse_swetest_output("   ")
+    
+    def test_malformed_output_raises_error(self):
+        """Test that output with no valid data raises SweetestParseError."""
+        from w8s_astro_mcp.parsers.swetest import SweetestParseError
+        
+        output = """
+This is not valid swetest output
+Just random text
+No planets or houses here
+"""
+        with pytest.raises(SweetestParseError, match="No data found"):
+            parse_swetest_output(output)

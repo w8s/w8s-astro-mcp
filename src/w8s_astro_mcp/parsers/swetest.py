@@ -5,6 +5,11 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 
+class SweetestParseError(Exception):
+    """Raised when swetest output cannot be parsed."""
+    pass
+
+
 # Zodiac sign mappings
 SIGNS = {
     "ar": "Aries", "ta": "Taurus", "ge": "Gemini",
@@ -67,7 +72,13 @@ def parse_swetest_output(output: str) -> Dict[str, Any]:
     
     Returns:
         Dictionary with parsed transit data
+        
+    Raises:
+        SweetestParseError: If output is empty or missing critical data
     """
+    if not output or not output.strip():
+        raise SweetestParseError("swetest output is empty")
+    
     result = {
         "planets": {},
         "houses": {},
@@ -183,5 +194,13 @@ def parse_swetest_output(output: str) -> Dict[str, Any]:
                             "degree": pos_data["degree"],
                             "formatted": pos_data["formatted"]
                         }
+    
+    # Validate that we got meaningful data
+    # Allow partial results for testing, but require at least something
+    if not result["planets"] and not result["houses"] and not result["points"] and not result["metadata"]:
+        raise SweetestParseError(
+            "No data found in swetest output. "
+            "Output may be malformed or from an error."
+        )
     
     return result

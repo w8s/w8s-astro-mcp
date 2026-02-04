@@ -13,18 +13,47 @@ Astrological transit MCP server using Swiss Ephemeris (swetest).
 
 ## Installation
 
+### Prerequisites
+
+**Swiss Ephemeris (swetest) is required.** If not installed, the MCP server will guide you through setup.
+
+### Quick Start
+
 ```bash
-# From repo directory
+# 1. Install this package
+cd ~/Documents/_git/w8s-astro-mcp
 pip install -e .
+
+# 2. Install Swiss Ephemeris
+# The MCP server will detect if swetest is missing and provide
+# interactive installation instructions when you first use it.
 ```
 
-## Requirements
+### Manual Swiss Ephemeris Installation
 
-- Python 3.10+
-- Swiss Ephemeris (`swetest` binary installed and in PATH)
-  - macOS: `brew install swisseph` (if available) or download from https://www.astro.com/swisseph/
-  - Linux: Install from package manager or source
-  - Windows: Download binary from https://www.astro.com/swisseph/
+If you prefer to install swetest manually:
+
+```bash
+# Clone Swiss Ephemeris
+cd ~/Documents/_git
+git clone https://github.com/aloistr/swisseph.git
+cd swisseph
+
+# Build
+make
+
+# Add to PATH (choose one method):
+
+# Method A: Symlink (requires sudo)
+sudo ln -s ~/Documents/_git/swisseph/swetest /usr/local/bin/swetest
+
+# Method B: Add to shell PATH
+echo 'export PATH="$HOME/Documents/_git/swisseph:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# Verify
+swetest -h  # Should show version 2.10.03
+```
 
 ## Configuration
 

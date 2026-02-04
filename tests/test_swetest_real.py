@@ -6,17 +6,24 @@ Run with: pytest tests/test_swetest_real.py -v
 
 import pytest
 import subprocess
+import os
 from datetime import datetime
 
 from w8s_astro_mcp.swetest_integration import SweetestIntegration, SweetestError
 from w8s_astro_mcp.config import Config
 
 
+def get_swetest_path():
+    """Get swetest path from environment or default."""
+    return os.environ.get("SWETEST_PATH", "swetest")
+
+
 def swetest_available():
     """Check if swetest binary is available."""
+    swetest_path = get_swetest_path()
     try:
         result = subprocess.run(
-            ["swetest", "-h"],
+            [swetest_path, "-h"],
             capture_output=True,
             timeout=5
         )
@@ -57,7 +64,8 @@ class TestRealSweetest:
     
     def test_get_transits_real_call(self, real_config):
         """Test actually calling swetest binary."""
-        integration = SweetestIntegration(real_config)
+        swetest_path = get_swetest_path()
+        integration = SweetestIntegration(real_config, swetest_path=swetest_path)
         
         # Get transits for a known date
         result = integration.get_current_transits(

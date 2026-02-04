@@ -56,12 +56,55 @@ swetest -h  # Should show version 2.10.03
 
 ## Configuration
 
-First run will prompt for:
-- Birth date, time, and location
-- Current location (optional)
-- House system preference (default: Placidus)
+### Initial Setup
 
-Configuration stored in `~/.config/w8s-astro-mcp/config.json`
+On first use, Claude will guide you through setting up your birth data:
+- Birth date, time, and location  
+- Coordinates will be looked up automatically
+- Configuration saved to `~/.config/w8s-astro-mcp/config.json`
+
+### Viewing Your Config
+
+Ask Claude: "Can you show me my astro configuration?"
+
+This will display your birth data, saved locations, and house system.
+
+### Updating Your Config
+
+**Option 1: Through Claude**
+Ask Claude to set up new birth data using the `setup_astro_config` tool.
+
+**Option 2: Manual Edit**
+Edit the config file directly:
+```bash
+nano ~/.config/w8s-astro-mcp/config.json
+```
+
+Example config structure:
+```json
+{
+  "birth_data": {
+    "date": "1990-05-15",
+    "time": "14:30",
+    "location": {
+      "name": "Richardson, TX",
+      "latitude": 32.9483,
+      "longitude": -96.7297,
+      "timezone": "America/Chicago"
+    }
+  },
+  "locations": {
+    "home": {
+      "name": "Richardson, TX",
+      "latitude": 32.9483,
+      "longitude": -96.7297,
+      "timezone": "America/Chicago"
+    },
+    "current": "home"
+  },
+  "house_system": "P"
+}
+```
 
 ## Usage
 

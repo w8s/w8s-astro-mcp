@@ -67,7 +67,14 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="setup_astro_config",
-            description="Configure birth data and locations for transit calculations",
+            description=(
+                "Configure birth data and location for transit calculations. "
+                "IMPORTANT: Ask the user for information conversationally in steps:\n"
+                "1. Ask: 'What's your birthday?' (get YYYY-MM-DD)\n"
+                "2. Ask: 'Do you know what time you were born? (If not, we can use 12:00)' (get HH:MM)\n"
+                "3. Ask: 'Where were you born?' (get city, state/country)\n"
+                "Then look up coordinates and confirm with user before saving."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -98,6 +105,14 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["birth_date", "birth_time", "birth_location_name", 
                            "birth_latitude", "birth_longitude", "birth_timezone"]
+            }
+        ),
+        Tool(
+            name="view_config",
+            description="View current astrological configuration (birth data and saved locations)",
+            inputSchema={
+                "type": "object",
+                "properties": {},
             }
         ),
         Tool(
@@ -191,6 +206,44 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             )]
         except ConfigError as e:
             return [TextContent(type="text", text=f"Configuration error: {e}")]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+    
+    elif name == "view_config":
+        try:
+            cfg = init_config()
+            
+            response = "# Current Configuration\n\n"
+            
+            # Birth data
+            birth_data = cfg.get_birth_data()
+            if birth_data:
+                response += "## Birth Data\n"
+                response += f"Date: {birth_data['date']}\n"
+                response += f"Time: {birth_data['time']}\n"
+                response += f"Location: {birth_data['location']['name']}\n"
+                response += f"Coordinates: {birth_data['location']['latitude']}, {birth_data['location']['longitude']}\n"
+                response += f"Timezone: {birth_data['location']['timezone']}\n\n"
+            else:
+                response += "## Birth Data\nNot configured. Use setup_astro_config to set up.\n\n"
+            
+            # Locations
+            if cfg.data.get('locations'):
+                response += "## Saved Locations\n"
+                current = cfg.data['locations'].get('current')
+                for name, loc in cfg.data['locations'].items():
+                    if name == 'current':
+                        continue
+                    marker = " (current)" if name == current else ""
+                    response += f"- {name}{marker}: {loc.get('name', name)} ({loc['latitude']}, {loc['longitude']})\n"
+                response += "\n"
+            
+            # House system
+            response += f"## House System\n{cfg.get_house_system()} (Placidus)\n\n"
+            
+            response += f"Config file: {cfg.config_path}\n"
+            
+            return [TextContent(type="text", text=response)]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
     

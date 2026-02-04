@@ -88,3 +88,22 @@ See ROADMAP.md for planned features.
 ## License
 
 MIT
+
+
+## Testing
+
+### Quick Tests (No Dependencies)
+```bash
+pytest tests/ -k "not real" -v  # 33+ unit tests with mocking
+```
+
+### Full Integration Tests (Requires swetest)
+```bash
+# Install Swiss Ephemeris first
+brew install swisseph  # macOS
+
+# Then run integration tests
+pytest tests/test_swetest_real.py -v
+```
+
+See `tests/README_TESTING.md` for detailed testing strategy.

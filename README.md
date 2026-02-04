@@ -34,8 +34,7 @@ pip install -e .
 If you prefer to install swetest manually:
 
 ```bash
-# Clone Swiss Ephemeris
-cd ~/Documents/_git
+# Clone Swiss Ephemeris to a directory of your choice
 git clone https://github.com/aloistr/swisseph.git
 cd swisseph
 
@@ -44,12 +43,12 @@ make
 
 # Add to PATH (choose one method):
 
-# Method A: Symlink (requires sudo)
-sudo ln -s ~/Documents/_git/swisseph/swetest /usr/local/bin/swetest
+# Method A: Symlink to system bin (requires sudo)
+sudo ln -s $(pwd)/swetest /usr/local/bin/swetest
 
-# Method B: Add to shell PATH
-echo 'export PATH="$HOME/Documents/_git/swisseph:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+# Method B: Add to shell PATH (no sudo needed)
+echo "export PATH=\"$(pwd):\$PATH\"" >> ~/.bashrc
+source ~/.bashrc
 
 # Verify
 swetest -h  # Should show version 2.10.03

@@ -82,11 +82,27 @@ class InstallationHelper:
             "/opt/homebrew/bin/swetest",
             str(Path.home() / "bin" / "swetest"),
             str(Path.home() / ".local" / "bin" / "swetest"),
-            # Check if user has it in common git locations
-            str(Path.home() / "Documents" / "_git" / "swisseph" / "swetest"),
-            str(Path.home() / "git" / "swisseph" / "swetest"),
+            # Common clone locations
             str(Path.home() / "swisseph" / "swetest"),
+            str(Path.home() / "software" / "swisseph" / "swetest"),
+            str(Path.home() / "git" / "swisseph" / "swetest"),
         ]
+        
+        # Also search common parent directories for swisseph subdirectory
+        search_dirs = [
+            Path.home() / "Documents",
+            Path.home() / "dev",
+            Path.home() / "projects",
+        ]
+        
+        for search_dir in search_dirs:
+            if search_dir.exists():
+                # Look for swisseph in subdirectories
+                for subdir in search_dir.iterdir():
+                    if subdir.is_dir():
+                        swetest_path = subdir / "swisseph" / "swetest"
+                        if swetest_path.exists():
+                            common_paths.append(str(swetest_path))
         
         for path in common_paths:
             if Path(path).exists():
@@ -110,9 +126,14 @@ class InstallationHelper:
 
 ### Step 1: Clone the Repository
 ```bash
-cd ~/Documents/_git
+# Clone to a directory of your choice (examples below)
 git clone https://github.com/aloistr/swisseph.git
 cd swisseph
+
+# Or clone to a specific location:
+# mkdir -p ~/software && cd ~/software
+# git clone https://github.com/aloistr/swisseph.git
+# cd swisseph
 ```
 
 ### Step 2: Build swetest
@@ -130,22 +151,33 @@ This creates three executables:
 
 Choose one method:
 
-**Method A: Symlink to /usr/local/bin (requires sudo)**
+**Method A: Symlink to system bin (requires sudo)**
 ```bash
-sudo ln -s ~/Documents/_git/swisseph/swetest /usr/local/bin/swetest
+# From inside the swisseph directory:
+sudo ln -s $(pwd)/swetest /usr/local/bin/swetest
 ```
 
 **Method B: Add to your shell PATH (no sudo needed)**
 
-For bash (~/.bashrc) or zsh (~/.zshrc):
+For bash (~/.bashrc):
 ```bash
-echo 'export PATH="$HOME/Documents/_git/swisseph:$PATH"' >> ~/.zshrc
+# From inside the swisseph directory:
+echo "export PATH=\"\$(pwd):\$PATH\"" >> ~/.bashrc
+source ~/.bashrc
+```
+
+For zsh (~/.zshrc):
+```bash
+# From inside the swisseph directory:
+echo "export PATH=\"\$(pwd):\$PATH\"" >> ~/.zshrc
 source ~/.zshrc
 ```
 
 For fish (~/.config/fish/config.fish):
 ```bash
-echo 'set -gx PATH $HOME/Documents/_git/swisseph $PATH' >> ~/.config/fish/config.fish
+# From inside the swisseph directory:
+set SWISSEPH_DIR (pwd)
+echo "set -gx PATH $SWISSEPH_DIR \$PATH" >> ~/.config/fish/config.fish
 source ~/.config/fish/config.fish
 ```
 
@@ -160,8 +192,8 @@ swetest -h
 If you don't want to modify PATH, you can configure w8s-astro-mcp to use the full path:
 
 ```python
-# In your MCP server config, specify:
-swetest_path = "/Users/yourusername/Documents/_git/swisseph/swetest"
+# When running the MCP server, specify the full path:
+# e.g., /home/username/software/swisseph/swetest
 ```
 
 ## Option 3: Download Pre-built Binary (macOS/Linux)
@@ -173,12 +205,12 @@ and download the appropriate binary for your platform.
 
 
 **Error: "swetest not found"**
-- Check if build succeeded: `ls ~/Documents/_git/swisseph/swetest`
+- Check if build succeeded: `ls ./swetest` (from swisseph directory)
 - Verify PATH: `echo $PATH | grep swisseph`
 - Try full path: `/path/to/swisseph/swetest -h`
 
 **Error: "Permission denied"**
-- Make executable: `chmod +x ~/Documents/_git/swisseph/swetest`
+- Make executable: `chmod +x ./swetest` (from swisseph directory)
 
 **Build errors:**
 - Install build tools: `xcode-select --install` (macOS)

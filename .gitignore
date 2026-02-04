@@ -44,3 +44,4 @@ data/*.db
 .pytest_cache/
 .coverage
 htmlcov/
+!note.md

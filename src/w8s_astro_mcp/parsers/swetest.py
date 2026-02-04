@@ -196,11 +196,11 @@ def parse_swetest_output(output: str) -> Dict[str, Any]:
                         }
     
     # Validate that we got meaningful data
-    # Allow partial results for testing, but require at least something
-    if not result["planets"] and not result["houses"] and not result["points"] and not result["metadata"]:
+    # Real swetest output ALWAYS contains both planets and houses
+    if not result["planets"] or not result["houses"]:
         raise SweetestParseError(
-            "No data found in swetest output. "
-            "Output may be malformed or from an error."
+            "Missing planets or houses in swetest output. "
+            "Output may be incomplete or from an error."
         )
     
     return result

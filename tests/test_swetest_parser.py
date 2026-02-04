@@ -58,6 +58,8 @@ class TestParseSweetestOutput:
 date (dmy) 3.2.2026 greg.   12:00:00 UT
 geo. long -74.006000, lat 40.713000, alt 0.000000
 Houses system P (Placidus) for long= -74°00'22", lat=  40°42'47"
+Sun             14 aq 39'38"    1° 0'50"
+house  1        23 cp 22' 8"  403°44'50"
 """
         result = parse_swetest_output(output)
         
@@ -74,6 +76,7 @@ Sun             14 aq 39'38"    1° 0'50"
 Moon             4 vi 54'57"   13°34'41"
 Mercury         23 aq 54' 3"    1°46'23"
 Mars             8 aq 41' 8"    0°47' 1"
+house  1        23 cp 22' 8"  403°44'50"
 """
         result = parse_swetest_output(output)
         
@@ -94,6 +97,7 @@ Mars             8 aq 41' 8"    0°47' 1"
     def test_parse_houses(self):
         """Test parsing house cusps."""
         output = """
+Sun             14 aq 39'38"    1° 0'50"
 house  1        23 cp 22' 8"  403°44'50"
 house  2         6 pi 55'37"  489°46'17"
 house 10        15 sc 56'55"  361°17'40"
@@ -113,6 +117,8 @@ house 10        15 sc 56'55"  361°17'40"
     def test_parse_special_points(self):
         """Test parsing Ascendant and MC."""
         output = """
+Sun             14 aq 39'38"    1° 0'50"
+house  1        23 cp 22' 8"  403°44'50"
 Ascendant       23 cp 22' 8"  403°44'50"
 MC              15 sc 56'55"  361°17'40"
 """
@@ -173,5 +179,5 @@ This is not valid swetest output
 Just random text
 No planets or houses here
 """
-        with pytest.raises(SweetestParseError, match="No data found"):
+        with pytest.raises(SweetestParseError, match="Missing planets or houses"):
             parse_swetest_output(output)

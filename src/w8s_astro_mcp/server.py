@@ -116,6 +116,14 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_natal_chart",
+            description="Get the natal chart (birth chart) planetary positions for the configured birth data",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+        Tool(
             name="get_transits",
             description="Get current planetary transits for a specific date and location",
             inputSchema={
@@ -242,6 +250,56 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             response += f"## House System\n{cfg.get_house_system()} (Placidus)\n\n"
             
             response += f"Config file: {cfg.config_path}\n"
+            
+            return [TextContent(type="text", text=response)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+    
+    elif name == "get_natal_chart":
+        try:
+            cfg = init_config()
+            
+            # Get birth data
+            birth_data = cfg.get_birth_data()
+            if not birth_data:
+                return [TextContent(
+                    type="text",
+                    text="No birth data configured. Please use setup_astro_config first."
+                )]
+            
+            # Get swetest path
+            swetest_path = get_swetest_path()
+            if not swetest_path:
+                helper = InstallationHelper()
+                diag = helper.diagnose()
+                return [TextContent(type="text", text=diag['message'])]
+            
+            # Calculate natal chart (birth positions)
+            integration = SwetestIntegration(swetest_path)
+            result = integration.get_transits(
+                date=birth_data['date'],
+                time=birth_data['time'],
+                latitude=birth_data['location']['latitude'],
+                longitude=birth_data['location']['longitude']
+            )
+            
+            # Format response
+            response = f"# Natal Chart for {birth_data['date']} at {birth_data['time']}\n"
+            response += f"Location: {birth_data['location']['name']}\n\n"
+            
+            response += "## Planetary Positions\n"
+            for planet_name, data in result['planets'].items():
+                response += f"- **{planet_name}** at {data['position']:.2f}° {data['sign']}\n"
+            
+            response += "\n## House Cusps\n"
+            for house_num, cusp in result['houses'].items():
+                response += f"- House {house_num}: {cusp['position']:.2f}° {cusp['sign']}\n"
+            
+            response += "\n## Angles\n"
+            response += f"- **Ascendant**: {result['special_points']['Ascendant']['position']:.2f}° "
+            response += f"{result['special_points']['Ascendant']['sign']}\n"
+            response += f"- **MC**: {result['special_points']['MC']['position']:.2f}° "
+            response += f"{result['special_points']['MC']['sign']}\n"
             
             return [TextContent(type="text", text=response)]
         except Exception as e:

@@ -35,32 +35,55 @@ PLANETS = {
 
 def parse_degree(degree_str: str) -> Dict[str, Any]:
     """
-    Parse a degree string like "14 aq 39'38\"" into components.
+    Parse a degree string like "14 aq 39'38\"" or "18 aq 42'50.9419" into components.
+    
+    Handles both formats:
+    - Quoted seconds: "14 aq 39'38""
+    - Decimal seconds: "18 aq 42'50.9419"
     
     Returns:
         dict with 'degree' (float), 'sign' (str), 'formatted' (str)
         Returns None if format is invalid or sign is not recognized
     """
-    # Pattern: "14 aq 39'38"" or "14 aq 39' 38"" or "14 aq 39' 8"" (various spacing)
+    # Try decimal format first: "18 aq 42'50.9419" or "18 aq 42' 50.9419" (with space)
+    match = re.match(r"(\d+)\s+([a-z]{2})\s+(\d+)'\s*([\d.]+)", degree_str.strip())
+    if match:
+        degrees, sign_abbr, minutes, seconds = match.groups()
+        
+        # Validate sign abbreviation
+        sign = SIGNS.get(sign_abbr.lower())
+        if not sign:
+            return None
+        
+        # Convert to decimal degrees (0-30 within sign)
+        decimal_degree = int(degrees) + int(minutes) / 60 + float(seconds) / 3600
+        
+        return {
+            "degree": decimal_degree,
+            "sign": sign,
+            "formatted": f"{degrees}°{minutes}'{seconds}\""
+        }
+    
+    # Try quoted format: "14 aq 39'38""
     match = re.match(r"(\d+)\s+([a-z]{2})\s+(\d+)'\s*(\d+)\"", degree_str.strip())
-    if not match:
-        return None
+    if match:
+        degrees, sign_abbr, minutes, seconds = match.groups()
+        
+        # Validate sign abbreviation
+        sign = SIGNS.get(sign_abbr.lower())
+        if not sign:
+            return None
+        
+        # Convert to decimal degrees (0-30 within sign)
+        decimal_degree = int(degrees) + int(minutes) / 60 + int(seconds) / 3600
+        
+        return {
+            "degree": decimal_degree,
+            "sign": sign,
+            "formatted": f"{degrees}°{minutes}'{seconds}\""
+        }
     
-    degrees, sign_abbr, minutes, seconds = match.groups()
-    
-    # Validate sign abbreviation
-    sign = SIGNS.get(sign_abbr.lower())
-    if not sign:
-        return None
-    
-    # Convert to decimal degrees (0-30 within sign)
-    decimal_degree = int(degrees) + int(minutes) / 60 + int(seconds) / 3600
-    
-    return {
-        "degree": decimal_degree,
-        "sign": sign,
-        "formatted": f"{degrees}°{minutes}'{seconds}\""
-    }
+    return None
 
 
 def parse_swetest_output(output: str) -> Dict[str, Any]:
@@ -120,24 +143,24 @@ def parse_swetest_output(output: str) -> Dict[str, Any]:
         elif any(planet in line for planet in PLANETS.keys()):
             for planet_name in PLANETS.keys():
                 if line.startswith(planet_name):
-                    # Example: Sun             14 aq 39'38"    1° 0'50"
+                    # Example: Sun             18 aq 42'50.9419    1° 0'46.3529
+                    # Example: Sun             18 aq 42'50.9419    1° 0'46.3529
                     # Example: Mercury         23 aq 54' 3"    1°46'23"
+                    # Example: Saturn          29 pi 18' 3.6612    0° 6'16.5684 (note space: 18' and 3.6612 are split)
                     parts = line.split()
                     if len(parts) >= 4:
-                        # Take up to 5 parts to handle space before seconds
-                        position_parts = parts[1:6] if len(parts) >= 6 else parts[1:]
-                        position_str = " ".join(position_parts)
-                        
-                        # Find where declination starts (after the closing quote)
-                        quote_idx = position_str.rfind('"')
-                        if quote_idx != -1:
-                            actual_position = position_str[:quote_idx+1]
-                            declination_str = position_str[quote_idx+1:].strip()
+                        # Check if parts[3] ends with ' and parts[4] starts with digit (split seconds)
+                        # e.g., parts[3]="18'" and parts[4]='3.6612' or parts[4]='0"'
+                        if len(parts) >= 5 and parts[3].endswith("'") and parts[4][0].isdigit():
+                            # Minutes and seconds are split - join them with space
+                            position_str = f"{parts[1]} {parts[2]} {parts[3]} {parts[4]}"
+                            declination_str = " ".join(parts[5:]) if len(parts) > 5 else ""
                         else:
-                            actual_position = position_str
-                            declination_str = ""
+                            # Normal format - minutes'seconds together
+                            position_str = f"{parts[1]} {parts[2]} {parts[3]}"
+                            declination_str = " ".join(parts[4:]) if len(parts) > 4 else ""
                         
-                        pos_data = parse_degree(actual_position)
+                        pos_data = parse_degree(position_str)
                         if pos_data:
                             result["planets"][planet_name] = {
                                 "sign": pos_data["sign"],
@@ -149,51 +172,61 @@ def parse_swetest_output(output: str) -> Dict[str, Any]:
         
         # Parse houses
         elif line.startswith("house "):
+            # Example: house  1        24 cp 23'49.2728  392°17'49.4100
             # Example: house  1        23 cp 22' 8"  403°44'50"
+            # Example: house  4        17 aq  7' 1.8505  364°37'26.1159  (note extra space before 7)
+            #
+            # DESIGN DECISION (2026-02-09):
+            # House numbers are stored as STRING keys ("1", "2", ..., "12").
+            # This is intentional for JSON compatibility and consistency.
+            # DO NOT convert to integers.
             match = re.match(r"house\s+(\d+)\s+(.*)", line)
             if match:
-                house_num = int(match.group(1))
+                house_num = match.group(1)  # Keep as string - DO NOT convert to int
                 rest = match.group(2).strip()
                 
-                # Handle variable spacing like planets - take enough parts and find quote
+                # Position is first 3 space-separated parts: degrees sign minutes'seconds
+                # Use split() which handles multiple consecutive spaces
                 parts = rest.split()
                 if len(parts) >= 3:
-                    position_parts = parts[0:5] if len(parts) >= 5 else parts
-                    position_str = " ".join(position_parts)
+                    # Handle potential split seconds like Saturn/Pluto
+                    if len(parts) >= 4 and parts[2].endswith("'") and parts[3][0].isdigit():
+                        # Minutes and seconds split: "7'" and "1.8505"
+                        position_str = f"{parts[0]} {parts[1]} {parts[2]} {parts[3]}"
+                    else:
+                        # Normal format
+                        position_str = f"{parts[0]} {parts[1]} {parts[2]}"
                     
-                    # Find where position ends (after closing quote)
-                    quote_idx = position_str.find('"')
-                    if quote_idx != -1:
-                        actual_position = position_str[:quote_idx+1]
-                        pos_data = parse_degree(actual_position)
-                        if pos_data:
-                            result["houses"][house_num] = {
-                                "sign": pos_data["sign"],
-                                "degree": pos_data["degree"],
-                                "formatted": pos_data["formatted"]
-                            }
-        
-        # Parse special points (Ascendant, MC, etc.)
-        elif line.startswith("Ascendant") or line.startswith("MC"):
-            # Example: Ascendant       23 cp 22' 8"  403°44'50"
-            parts = line.split()
-            point_name = parts[0]
-            if len(parts) >= 4:
-                # Handle variable spacing
-                position_parts = parts[1:6] if len(parts) >= 6 else parts[1:]
-                position_str = " ".join(position_parts)
-                
-                # Find where position ends
-                quote_idx = position_str.find('"')
-                if quote_idx != -1:
-                    actual_position = position_str[:quote_idx+1]
-                    pos_data = parse_degree(actual_position)
+                    pos_data = parse_degree(position_str)
                     if pos_data:
-                        result["points"][point_name] = {
+                        result["houses"][house_num] = {
                             "sign": pos_data["sign"],
                             "degree": pos_data["degree"],
                             "formatted": pos_data["formatted"]
                         }
+        
+        # Parse special points (Ascendant, MC, etc.)
+        elif line.startswith("Ascendant") or line.startswith("MC"):
+            # Example: Ascendant       24 cp 23'49.2728  392°17'49.4100
+            # Example: Ascendant       23 cp 22' 8"  403°44'50"  (note: split seconds)
+            parts = line.split()
+            point_name = parts[0]
+            if len(parts) >= 4:
+                # Check for split seconds like "22'" and "8""
+                if len(parts) >= 5 and parts[3].endswith("'") and parts[4][0].isdigit():
+                    # Minutes and seconds split: "22'" and "8""
+                    position_str = f"{parts[1]} {parts[2]} {parts[3]} {parts[4]}"
+                else:
+                    # Normal format: minutes'seconds together
+                    position_str = f"{parts[1]} {parts[2]} {parts[3]}"
+                
+                pos_data = parse_degree(position_str)
+                if pos_data:
+                    result["points"][point_name] = {
+                        "sign": pos_data["sign"],
+                        "degree": pos_data["degree"],
+                        "formatted": pos_data["formatted"]
+                    }
     
     # Validate that we got meaningful data
     # Real swetest output ALWAYS contains both planets and houses

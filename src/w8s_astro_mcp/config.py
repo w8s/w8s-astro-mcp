@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class ConfigError(Exception):
@@ -78,6 +78,7 @@ class Config:
             "birth_data": None,
             "locations": {},
             "house_system": "P",  # Placidus
+            "logging_level": "INFO",  # DEBUG, INFO, WARNING, ERROR
             "enabled_tools": [
                 "setup_astro_config",
                 "get_daily_transits",
@@ -99,6 +100,27 @@ class Config:
     def get_birth_data(self) -> Optional[Dict[str, Any]]:
         """Get birth data configuration."""
         return self.data.get("birth_data")
+    
+    def get_natal_chart(self) -> Optional[Dict[str, Any]]:
+        """Get cached natal chart data."""
+        return self.data.get("natal_chart")
+    
+    def set_natal_chart(self, chart_data: Dict[str, Any]):
+        """
+        Cache natal chart data.
+        
+        Args:
+            chart_data: Dict with 'planets', 'houses', 'points', 'metadata'
+        """
+        self.data["natal_chart"] = {
+            **chart_data,
+            "cached_at": datetime.now(timezone.utc).isoformat()
+        }
+    
+    def clear_natal_chart_cache(self):
+        """Clear cached natal chart (forces recalculation)."""
+        if "natal_chart" in self.data:
+            del self.data["natal_chart"]
     
     def set_birth_data(self, date: str, time: str, location: Dict[str, Any]):
         """
@@ -135,6 +157,9 @@ class Config:
             "time": time,
             "location": location
         }
+        
+        # Clear natal chart cache since birth data changed
+        self.clear_natal_chart_cache()
     
     def get_location(self, name: str = "current") -> Optional[Dict[str, Any]]:
         """
@@ -215,3 +240,7 @@ class Config:
         """Check if a tool is enabled."""
         enabled = self.data.get("enabled_tools", [])
         return tool_name in enabled
+    
+    def get_logging_level(self) -> str:
+        """Get configured logging level (DEBUG, INFO, WARNING, ERROR)."""
+        return self.data.get("logging_level", "INFO")

@@ -95,7 +95,18 @@ house  1        23 cp 22' 8"  403°44'50"
         assert "Mars" in result["planets"]
     
     def test_parse_houses(self):
-        """Test parsing house cusps."""
+        """Test parsing house cusps.
+        
+        DESIGN DECISION (2026-02-09):
+        House numbers are stored as STRING keys ("1", "2", ..., "12") not integers.
+        This was chosen because:
+        1. JSON natively supports string keys better than integer keys
+        2. Consistent with how the parser extracts them from swetest output
+        3. Avoids type conversion issues between Python and JSON
+        
+        If this test fails in the future because houses have integer keys,
+        THE CODE IS BROKEN, NOT THE TEST. Revert the code change.
+        """
         output = """
 Sun             14 aq 39'38"    1° 0'50"
 house  1        23 cp 22' 8"  403°44'50"
@@ -104,15 +115,15 @@ house 10        15 sc 56'55"  361°17'40"
 """
         result = parse_swetest_output(output)
         
-        assert 1 in result["houses"]
-        assert result["houses"][1]["sign"] == "Capricorn"
-        assert result["houses"][1]["degree"] == pytest.approx(23.36888888888889)
+        assert "1" in result["houses"]  # House keys are strings
+        assert result["houses"]["1"]["sign"] == "Capricorn"
+        assert result["houses"]["1"]["degree"] == pytest.approx(23.36888888888889)
         
-        assert 2 in result["houses"]
-        assert result["houses"][2]["sign"] == "Pisces"
+        assert "2" in result["houses"]
+        assert result["houses"]["2"]["sign"] == "Pisces"
         
-        assert 10 in result["houses"]
-        assert result["houses"][10]["sign"] == "Scorpio"
+        assert "10" in result["houses"]
+        assert result["houses"]["10"]["sign"] == "Scorpio"
     
     def test_parse_special_points(self):
         """Test parsing Ascendant and MC."""
@@ -131,7 +142,12 @@ MC              15 sc 56'55"  361°17'40"
         assert result["points"]["MC"]["sign"] == "Scorpio"
     
     def test_parse_complete_output(self):
-        """Test parsing complete swetest output with all elements."""
+        """Test parsing complete swetest output with all elements.
+        
+        DESIGN DECISION (2026-02-09):
+        House numbers are stored as STRING keys ("1", "2", ..., "12") not integers.
+        See test_parse_houses() for full rationale.
+        """
         # Use the actual test data from test_parser.py
         with open("tests/test_parser.py", "r") as f:
             content = f.read()
@@ -148,9 +164,9 @@ MC              15 sc 56'55"  361°17'40"
         for planet in expected_planets:
             assert planet in result["planets"], f"{planet} not found in parsed output"
         
-        # Verify we got all 12 houses
+        # Verify we got all 12 houses (house keys are strings)
         for house_num in range(1, 13):
-            assert house_num in result["houses"], f"House {house_num} not found"
+            assert str(house_num) in result["houses"], f"House {house_num} not found"
         
         # Verify special points
         assert "Ascendant" in result["points"]

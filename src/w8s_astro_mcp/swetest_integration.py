@@ -98,15 +98,14 @@ class SweetestIntegration:
         # -p: planets (0-9 = Sun through Pluto)
         # -house: house cusps with long,lat,house_system
         # -fPZS: format - Position, Zodiac, Speed
-        # -roundsec: round to seconds
+        # Note: Removed -roundsec to avoid split seconds parsing issues
         cmd = [
             self.swetest_path,
             f"-b{swetest_date}",
             f"-ut{time_str}",
             "-p0123456789",  # All major planets
             f"-house{location['longitude']},{location['latitude']},{house_system}",
-            "-fPZS",
-            "-roundsec"
+            "-fPZS"
         ]
         
         try:

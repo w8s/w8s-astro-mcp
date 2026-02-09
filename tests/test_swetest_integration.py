@@ -81,7 +81,14 @@ class TestSweetestIntegration:
     
     @patch('subprocess.run')
     def test_get_current_transits_success(self, mock_run, mock_config):
-        """Test getting transits successfully."""
+        """Test getting transits successfully.
+        
+        DESIGN DECISION (2026-02-09):
+        House numbers are stored as STRING keys ("1", "2", ..., "12") not integers.
+        This is consistent with the parser design. See tests/test_swetest_parser.py
+        for full rationale. If this test fails because houses have integer keys,
+        THE CODE IS BROKEN, NOT THE TEST.
+        """
         # Mock verification
         mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
         integration = SweetestIntegration(mock_config)
@@ -103,7 +110,7 @@ class TestSweetestIntegration:
         assert "houses" in result
         assert "Sun" in result["planets"]
         assert result["planets"]["Sun"]["sign"] == "Aquarius"
-        assert 1 in result["houses"]
+        assert "1" in result["houses"]  # House keys are strings
     
     @patch('subprocess.run')
     def test_get_current_transits_default_date(self, mock_run, mock_config):

@@ -22,10 +22,13 @@ Example usage:
         session.add(profile)
 """
 
+from w8s_astro_mcp.models.house_system import HouseSystem, HOUSE_SYSTEM_SEED_DATA
 from w8s_astro_mcp.models.profile import Profile
 from w8s_astro_mcp.models.transit_lookup import TransitLookup
 
 __all__ = [
+    "HouseSystem",
+    "HOUSE_SYSTEM_SEED_DATA",
     "Profile",
     "TransitLookup",
 ]

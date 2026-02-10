@@ -9,10 +9,8 @@ src/w8s_astro_mcp/
 │   ├── __main__.py              # Entry point
 │   └── server.py                # MCP server implementation
 │
-├── Database Layer (NEW! ✅)
+├── Database Layer
 │   ├── database.py              # SQLAlchemy engine, session management
-│   ├── db_helpers.py            # High-level query interface for server.py
-│   ├── transit_logger.py        # Save transit data to database
 │   └── models/                  # SQLAlchemy ORM models (10 models)
 │       ├── __init__.py
 │       ├── house_system.py      # 7 house systems (Placidus, Koch, etc.)
@@ -26,8 +24,7 @@ src/w8s_astro_mcp/
 │       ├── transit_house.py     # House cusps for a transit
 │       └── transit_point.py     # Angles for a transit
 │
-├── Business Logic
-│   ├── swetest_integration.py  # Swiss Ephemeris (swetest) integration
+├── Analysis & Visualization
 │   └── tools/                   # Analysis & visualization
 │       ├── __init__.py
 │       ├── analysis_tools.py    # Aspects, house placements
@@ -37,8 +34,11 @@ src/w8s_astro_mcp/
 │   ├── parsers/                 # Parse external tool output
 │   │   ├── __init__.py
 │   │   └── swetest.py           # Parse swetest output
-│   └── utils/                   # Utilities
+│   └── utils/                   # Utilities & Helpers
 │       ├── __init__.py
+│       ├── db_helpers.py        # High-level database queries
+│       ├── swetest_integration.py  # Swiss Ephemeris integration
+│       ├── transit_logger.py    # Save transit data to database
 │       ├── geocoding.py         # Location lookup (lat/long)
 │       └── install_helper.py    # swetest installation help
 │

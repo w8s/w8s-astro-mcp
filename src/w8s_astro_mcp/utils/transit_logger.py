@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Dict, Any
 
-from .models import (
+from ..models import (
     TransitLookup, TransitPlanet, TransitHouse, TransitPoint,
     Location, Profile
 )

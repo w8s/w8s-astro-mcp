@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-from .parsers.swetest import parse_swetest_output, SweetestParseError
+from ..parsers.swetest import parse_swetest_output, SweetestParseError
 
 
 class SweetestError(Exception):

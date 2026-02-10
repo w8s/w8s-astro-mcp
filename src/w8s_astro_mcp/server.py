@@ -11,8 +11,9 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from .config import Config, ConfigError
-from .swetest_integration import SweetestIntegration, SweetestError
+from .utils.swetest_integration import SweetestIntegration, SweetestError
 from .utils.install_helper import InstallationHelper
+from .utils.db_helpers import DatabaseHelper
 from .tools.analysis_tools import (
     compare_charts,
     find_planets_in_houses,

@@ -6,8 +6,8 @@ Provides high-level database operations for the MCP server.
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from w8s_astro_mcp.database import get_database_path, create_db_engine, get_session
-from w8s_astro_mcp.models import (
+from .database import get_database_path, create_db_engine, get_session
+from .models import (
     Profile, Location, HouseSystem,
     NatalPlanet, NatalHouse, NatalPoint,
     TransitLookup, TransitPlanet, TransitHouse, TransitPoint

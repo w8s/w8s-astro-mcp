@@ -27,34 +27,31 @@ from .tools.visualization import create_natal_chart
 app = Server("w8s-astro-mcp")
 
 # Global state
-config: Optional[Config] = None
+db_helper: Optional[DatabaseHelper] = None
 swetest: Optional[SweetestIntegration] = None
 install_helper = InstallationHelper()
 
 
-def init_config():
-    """Initialize configuration."""
-    global config
-    if config is None:
-        config = Config()
-        config.load()
-    return config
+def init_db():
+    """Initialize database helper."""
+    global db_helper
+    if db_helper is None:
+        db_helper = DatabaseHelper()
+    return db_helper
 
 
 def init_swetest():
     """Initialize swetest integration."""
     global swetest
     if swetest is None:
-        cfg = init_config()
-        
         # Check if swetest is available
         diagnosis = install_helper.diagnose()
         
         if diagnosis['status'] == 'ready':
-            swetest = SweetestIntegration(cfg)
+            swetest = SweetestIntegration()
         elif diagnosis['status'] == 'needs_path':
             # Found but not in PATH - use full path
-            swetest = SweetestIntegration(cfg, swetest_path=diagnosis['found_at'])
+            swetest = SweetestIntegration(swetest_path=diagnosis['found_at'])
         else:
             # Not installed
             raise SweetestError(
@@ -63,43 +60,35 @@ def init_swetest():
     return swetest
 
 
-def get_natal_chart_data(swetest_integration):
-    """
-    Get natal chart from configured birth data.
-    Uses cached data if available, otherwise calculates and caches.
-    """
-    cfg = init_config()
-    birth_data = cfg.get_birth_data()
-    if not birth_data:
-        raise SweetestError("No birth data configured. Use setup_astro_config first.")
+def get_natal_chart_data():
+    """Get natal chart from primary profile."""
+    db = init_db()
     
-    # Check cache first
-    cached_chart = cfg.get_natal_chart()
-    if cached_chart:
-        # Remove the 'cached_at' field before returning
-        chart_data = {k: v for k, v in cached_chart.items() if k != 'cached_at'}
-        return chart_data
+    profile = db.get_primary_profile()
+    if not profile:
+        raise SweetestError("No primary profile found. Run migration script first.")
     
-    # Not cached - calculate it
-    chart_data = swetest_integration.get_current_transits(
-        date_str=birth_data['date'],
-        time_str=birth_data['time'],
-        location_name='birth'  # Use birth location, not home
-    )
-    
-    # Cache it for future use
-    cfg.set_natal_chart(chart_data)
-    cfg.save()
-    
-    return chart_data
+    return db.get_natal_chart_data(profile)
 
 
-def get_chart_for_date(swetest_integration, date_str, time_str="12:00"):
-    """Get chart for specific date."""
-    return swetest_integration.get_current_transits(
+def get_chart_for_date(date_str, time_str="12:00", location=None):
+    """Get chart for specific date at a location."""
+    st = init_swetest()
+    db = init_db()
+    
+    # Get location
+    if location is None:
+        profile = db.get_primary_profile()
+        location = db.get_current_home_location(profile)
+        if not location:
+            raise SweetestError("No current home location found")
+    
+    return st.get_transits(
+        latitude=location.latitude,
+        longitude=location.longitude,
         date_str=date_str,
         time_str=time_str,
-        location_name='current'
+        house_system_code='P'  # TODO: Get from profile
     )
 
 
@@ -298,96 +287,48 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         return [TextContent(type="text", text=message)]
     
     elif name == "setup_astro_config":
-        try:
-            cfg = init_config()
-            st = init_swetest()  # Need swetest to calculate natal chart
-            
-            location = {
-                "name": arguments["birth_location_name"],
-                "latitude": arguments["birth_latitude"],
-                "longitude": arguments["birth_longitude"],
-                "timezone": arguments["birth_timezone"]
-            }
-            
-            cfg.set_birth_data(
-                arguments["birth_date"],
-                arguments["birth_time"],
-                location
-            )
-            
-            # Save birth location separately
-            cfg.set_location(
-                "birth",
-                location["latitude"],
-                location["longitude"],
-                location["timezone"],
-                location["name"]
-            )
-            
-            # Also save as "home" location
-            cfg.set_location(
-                "home",
-                location["latitude"],
-                location["longitude"],
-                location["timezone"],
-                location["name"]
-            )
-            cfg.set_current_location("home")
-            
-            # Calculate and cache natal chart immediately
-            natal_chart = get_natal_chart_data(st)
-            
-            cfg.save()
-            
-            return [TextContent(
-                type="text",
-                text=f"Configuration saved!\n\nBirth Data:\n"
-                     f"  Date: {arguments['birth_date']}\n"
-                     f"  Time: {arguments['birth_time']}\n"
-                     f"  Location: {location['name']}\n"
-                     f"  Coordinates: {location['latitude']}, {location['longitude']}\n"
-                     f"  Timezone: {location['timezone']}\n\n"
-                     f"Natal chart calculated and cached with {len(natal_chart['planets'])} planets and {len(natal_chart['houses'])} houses.\n\n"
-                     f"Home location set to: {location['name']}"
-            )]
-        except ConfigError as e:
-            return [TextContent(type="text", text=f"Configuration error: {e}")]
-        except Exception as e:
-            return [TextContent(type="text", text=f"Error: {e}")]
+        return [TextContent(
+            type="text",
+            text="⚠️ This tool is deprecated.\n\n"
+                 "The w8s-astro-mcp now uses SQLite database instead of config.json.\n\n"
+                 "Your data has been migrated to: ~/.w8s-astro-mcp/astro.db\n\n"
+                 "To add new profiles or locations, use the database migration script or "
+                 "contact the developer for profile management tools."
+        )]
     
     elif name == "view_config":
         try:
-            cfg = init_config()
+            db = init_db()
             
             response = "# Current Configuration\n\n"
             
-            # Birth data
-            birth_data = cfg.get_birth_data()
-            if birth_data:
-                response += "## Birth Data\n"
-                response += f"Date: {birth_data['date']}\n"
-                response += f"Time: {birth_data['time']}\n"
-                response += f"Location: {birth_data['location']['name']}\n"
-                response += f"Coordinates: {birth_data['location']['latitude']}, {birth_data['location']['longitude']}\n"
-                response += f"Timezone: {birth_data['location']['timezone']}\n\n"
+            # Primary profile
+            profile = db.get_primary_profile()
+            if profile:
+                birth_loc = db.get_birth_location(profile)
+                response += "## Primary Profile\n"
+                response += f"Name: {profile.name}\n"
+                response += f"Birth Date: {profile.birth_date}\n"
+                response += f"Birth Time: {profile.birth_time}\n"
+                if birth_loc:
+                    response += f"Birth Location: {birth_loc.label}\n"
+                    response += f"Coordinates: {birth_loc.latitude}, {birth_loc.longitude}\n"
+                    response += f"Timezone: {birth_loc.timezone}\n"
+                response += "\n"
             else:
-                response += "## Birth Data\nNot configured. Use setup_astro_config to set up.\n\n"
+                response += "## Primary Profile\nNot configured.\n\n"
             
             # Locations
-            if cfg.data.get('locations'):
-                response += "## Saved Locations\n"
-                current = cfg.data['locations'].get('current')
-                for name, loc in cfg.data['locations'].items():
-                    if name == 'current':
-                        continue
-                    marker = " (current)" if name == current else ""
-                    response += f"- {name}{marker}: {loc.get('name', name)} ({loc['latitude']}, {loc['longitude']})\n"
-                response += "\n"
+            if profile:
+                locations = db.list_all_locations(profile)
+                if locations:
+                    response += "## Saved Locations\n"
+                    for loc in locations:
+                        marker = " (current home)" if loc.is_current_home else ""
+                        response += f"- {loc.label}{marker}: {loc.latitude}, {loc.longitude}\n"
+                    response += "\n"
             
-            # House system
-            response += f"## House System\n{cfg.get_house_system()} (Placidus)\n\n"
-            
-            response += f"Config file: {cfg.config_path}\n"
+            response += f"Database: {db.engine.url.database}\n"
             
             return [TextContent(type="text", text=response)]
         except Exception as e:
@@ -395,10 +336,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     
     elif name == "get_natal_chart":
         try:
-            st = init_swetest()
-            
-            # Get natal chart data
-            result = get_natal_chart_data(st)
+            # Get natal chart data from database
+            result = get_natal_chart_data()
             
             # Format response
             response = f"# Natal Chart for {result['metadata']['date']} at {result['metadata']['time']}\n"
@@ -407,41 +346,61 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             
             response += "## Planetary Positions\n"
             for planet_name, data in result['planets'].items():
-                response += f"- **{planet_name}**: {data['degree']:.2f}° {data['sign']}\n"
+                response += f"- **{planet_name}**: {data['formatted']}\n"
             
             response += "\n## House Cusps\n"
-            for house_num in sorted(result['houses'].keys()):
+            for house_num in sorted(result['houses'].keys(), key=lambda x: int(x)):
                 data = result['houses'][house_num]
-                response += f"- House {house_num}: {data['degree']:.2f}° {data['sign']}\n"
+                response += f"- House {house_num}: {data['formatted']}\n"
             
             if result['points']:
                 response += "\n## Angles\n"
                 for point, data in result['points'].items():
-                    response += f"- **{point}**: {data['degree']:.2f}° {data['sign']}\n"
+                    response += f"- **{point}**: {data['formatted']}\n"
             
             return [TextContent(type="text", text=response)]
-        except SweetestError as e:
-            return [TextContent(type="text", text=f"swetest error: {e}")]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
     
     elif name == "get_transits":
         try:
             st = init_swetest()
+            db = init_db()
             
             date_str = arguments.get("date")
             time_str = arguments.get("time", "12:00")
-            location = arguments.get("location", "current")
+            location_arg = arguments.get("location", "current")
             
-            result = st.get_current_transits(
+            # Get profile
+            profile = db.get_primary_profile()
+            if not profile:
+                return [TextContent(type="text", text="No primary profile found")]
+            
+            # Get location
+            if location_arg == "current" or location_arg == "home":
+                location = db.get_current_home_location(profile)
+                if not location:
+                    return [TextContent(type="text", text="No current home location set")]
+            elif location_arg == "birth":
+                location = db.get_birth_location(profile)
+            else:
+                # Try to find by label
+                location = db.get_location_by_label(location_arg, profile)
+                if not location:
+                    return [TextContent(type="text", text=f"Location '{location_arg}' not found")]
+            
+            # Get transits
+            result = st.get_transits(
+                latitude=location.latitude,
+                longitude=location.longitude,
                 date_str=date_str,
                 time_str=time_str,
-                location_name=location
+                house_system_code='P'  # TODO: Get from profile
             )
             
             # Format response
             response = f"Transits for {result['metadata']['date']} at {result['metadata']['time']}\n"
-            response += f"Location: {result['metadata']['latitude']}, {result['metadata']['longitude']}\n"
+            response += f"Location: {location.label} ({result['metadata']['latitude']}, {result['metadata']['longitude']})\n"
             response += f"House System: {result['metadata']['house_system']}\n\n"
             
             response += "Planets:\n"
@@ -449,7 +408,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 response += f"  {planet}: {data['degree']:.2f}° {data['sign']}\n"
             
             response += "\nHouses:\n"
-            for house_num in sorted(result['houses'].keys()):
+            for house_num in sorted(result['houses'].keys(), key=lambda x: int(x)):
                 data = result['houses'][house_num]
                 response += f"  House {house_num}: {data['degree']:.2f}° {data['sign']}\n"
             
@@ -474,30 +433,22 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             chart1_time = arguments.get("chart1_time", "12:00")
             
             if chart1_date == "natal":
-                chart1 = get_natal_chart_data(st)
+                chart1 = get_natal_chart_data()
             elif chart1_date == "today":
-                chart1 = st.get_current_transits(
-                    date_str=None,
-                    time_str=chart1_time,
-                    location_name='current'
-                )
+                chart1 = get_chart_for_date(None, chart1_time)
             else:
-                chart1 = get_chart_for_date(st, chart1_date, chart1_time)
+                chart1 = get_chart_for_date(chart1_date, chart1_time)
             
             # Get chart2
             chart2_date = arguments["chart2_date"]
             chart2_time = arguments.get("chart2_time", "12:00")
             
             if chart2_date == "natal":
-                chart2 = get_natal_chart_data(st)
+                chart2 = get_natal_chart_data()
             elif chart2_date == "today":
-                chart2 = st.get_current_transits(
-                    date_str=None,
-                    time_str=chart2_time,
-                    location_name='current'
-                )
+                chart2 = get_chart_for_date(None, chart2_time)
             else:
-                chart2 = get_chart_for_date(st, chart2_date, chart2_time)
+                chart2 = get_chart_for_date(chart2_date, chart2_time)
             
             # Compare charts
             result = compare_charts(
@@ -520,22 +471,16 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     
     elif name == "find_house_placements":
         try:
-            st = init_swetest()
-            
             # Get chart
             date = arguments["date"]
             time = arguments.get("time", "12:00")
             
             if date == "natal":
-                chart = get_natal_chart_data(st)
+                chart = get_natal_chart_data()
             elif date == "today":
-                chart = st.get_current_transits(
-                    date_str=None,
-                    time_str=time,
-                    location_name='current'
-                )
+                chart = get_chart_for_date(None, time)
             else:
-                chart = get_chart_for_date(st, date, time)
+                chart = get_chart_for_date(date, time)
             
             # Analyze house placements
             result = find_planets_in_houses(
@@ -556,10 +501,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     
     elif name == "visualize_natal_chart":
         try:
-            st = init_swetest()
-            
-            # Get natal chart data
-            natal_chart = get_natal_chart_data(st)
+            # Get natal chart data from database
+            natal_chart = get_natal_chart_data()
             
             # Get output path
             output_path = arguments.get("output_path", "natal_chart.png")
@@ -579,8 +522,6 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 text=f"Natal chart visualization created successfully!\n\nSaved to: {saved_path}\n\nThe chart shows:\n- Zodiac wheel with all 12 signs\n- Your 12 houses (Placidus system)\n- All 10 planets positioned by degree\n- Ascendant (red line) and MC (blue line)\n\nYou can now view or share this image."
             )]
             
-        except SweetestError as e:
-            return [TextContent(type="text", text=f"swetest error: {e}")]
         except Exception as e:
             return [TextContent(type="text", text=f"Error creating visualization: {e}")]
     

@@ -6,7 +6,6 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 from .parsers.swetest import parse_swetest_output, SweetestParseError
-from .config import Config
 
 
 class SweetestError(Exception):
@@ -17,15 +16,13 @@ class SweetestError(Exception):
 class SweetestIntegration:
     """Handles calling swetest binary and parsing results."""
     
-    def __init__(self, config: Config, swetest_path: str = "swetest"):
+    def __init__(self, swetest_path: str = "swetest"):
         """
         Initialize swetest integration.
         
         Args:
-            config: Configuration instance
             swetest_path: Path to swetest binary (default: "swetest" in PATH)
         """
-        self.config = config
         self.swetest_path = swetest_path
         self._verify_swetest()
     
@@ -51,31 +48,30 @@ class SweetestIntegration:
         except subprocess.TimeoutExpired:
             raise SweetestError("swetest binary timed out during verification")
     
-    def get_current_transits(
+    def get_transits(
         self,
+        latitude: float,
+        longitude: float,
         date_str: Optional[str] = None,
         time_str: str = "12:00",
-        location_name: str = "current"
+        house_system_code: str = "P"
     ) -> Dict[str, Any]:
         """
-        Get transits for current location at specified date/time.
+        Get transits for a specific location at specified date/time.
         
         Args:
+            latitude: Latitude in decimal degrees
+            longitude: Longitude in decimal degrees
             date_str: Date in YYYY-MM-DD format (default: today)
             time_str: Time in HH:MM format (default: "12:00")
-            location_name: Location name from config (default: "current")
+            house_system_code: House system code (default: "P" for Placidus)
         
         Returns:
-            Parsed transit data
+            Parsed transit data with 'planets', 'houses', 'points', 'metadata' keys
             
         Raises:
-            SweetestError: If location not found or swetest fails
+            SweetestError: If swetest fails or output cannot be parsed
         """
-        # Get location
-        location = self.config.get_location(location_name)
-        if not location:
-            raise SweetestError(f"Location '{location_name}' not found in config")
-        
         # Use today if no date specified
         if not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
@@ -89,9 +85,6 @@ class SweetestIntegration:
         # Convert to swetest format (day.month.year)
         swetest_date = f"{dt.day}.{dt.month}.{dt.year}"
         
-        # Get house system
-        house_system = self.config.get_house_system()
-        
         # Build swetest command
         # -b: begin date
         # -ut: universal time
@@ -104,7 +97,7 @@ class SweetestIntegration:
             f"-b{swetest_date}",
             f"-ut{time_str}",
             "-p0123456789",  # All major planets
-            f"-house{location['longitude']},{location['latitude']},{house_system}",
+            f"-house{longitude},{latitude},{house_system_code}",
             "-fPZS"
         ]
         
@@ -128,3 +121,25 @@ class SweetestIntegration:
             raise SweetestError(f"Failed to parse swetest output: {e}")
         except Exception as e:
             raise SweetestError(f"Unexpected error running swetest: {e}")
+    
+    # Backwards compatibility wrapper
+    def get_current_transits(
+        self,
+        date_str: Optional[str] = None,
+        time_str: str = "12:00",
+        location_name: str = "current"
+    ) -> Dict[str, Any]:
+        """
+        DEPRECATED: Backwards compatibility wrapper for old Config-based code.
+        
+        This method exists to support legacy code that uses Config.
+        New code should use get_transits() directly.
+        
+        Raises:
+            NotImplementedError: This method requires refactoring to use new approach
+        """
+        raise NotImplementedError(
+            "get_current_transits() is deprecated. "
+            "Use get_transits(latitude, longitude, ...) instead. "
+            "See docs/SERVER_REFACTOR_TODO.md for migration guide."
+        )

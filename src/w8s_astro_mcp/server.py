@@ -389,7 +389,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 if not location:
                     return [TextContent(type="text", text=f"Location '{location_arg}' not found")]
             
-            # Get transits
+            # Get transits from swetest
             result = st.get_transits(
                 latitude=location.latitude,
                 longitude=location.longitude,
@@ -397,6 +397,23 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 time_str=time_str,
                 house_system_code='P'  # TODO: Get from profile
             )
+            
+            # 🆕 AUTO-LOG: Save this transit lookup to database
+            try:
+                lookup_datetime = datetime.strptime(
+                    f"{result['metadata']['date']} {result['metadata']['time']}",
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                db.save_transit_lookup(
+                    profile=profile,
+                    location=location,
+                    lookup_datetime=lookup_datetime,
+                    transit_data=result,
+                    house_system_id=profile.preferred_house_system_id
+                )
+            except Exception as log_error:
+                # Don't fail the entire request if logging fails
+                print(f"Warning: Failed to log transit lookup: {log_error}")
             
             # Format response
             response = f"Transits for {result['metadata']['date']} at {result['metadata']['time']}\n"

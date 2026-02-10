@@ -12,6 +12,7 @@ from .models import (
     NatalPlanet, NatalHouse, NatalPoint,
     TransitLookup, TransitPlanet, TransitHouse, TransitPoint
 )
+from .transit_logger import save_transit_data_to_db
 
 
 class DatabaseHelper:
@@ -144,28 +145,26 @@ class DatabaseHelper:
         - transit_planets (for each planet)
         - transit_houses (for each house)
         - transit_points (for each point)
+        
+        Args:
+            profile: Profile this lookup is for
+            location: Location where transits were calculated
+            lookup_datetime: When the transits are being analyzed
+            transit_data: Parsed swetest output
+            house_system_id: House system used
+            
+        Returns:
+            Created TransitLookup object
         """
         with get_session(self.engine) as session:
-            # Create transit lookup with location snapshot
-            lookup = TransitLookup(
-                profile_id=profile.id,
-                location_id=location.id,
-                location_snapshot_label=location.label,
-                location_snapshot_latitude=location.latitude,
-                location_snapshot_longitude=location.longitude,
-                location_snapshot_timezone=location.timezone,
-                lookup_datetime=lookup_datetime,
-                house_system_id=house_system_id,
-                calculation_method='swetest',
-                ephemeris_version='2.10.03'  # TODO: Get this from swetest
+            lookup = save_transit_data_to_db(
+                session,
+                profile,
+                location,
+                lookup_datetime,
+                transit_data,
+                house_system_id
             )
-            session.add(lookup)
-            session.flush()
-            
-            # TODO: Add transit planets, houses, points
-            # This requires parsing the transit_data dict and creating rows
-            # Similar to migration script logic
-            
             session.commit()
             return lookup
     

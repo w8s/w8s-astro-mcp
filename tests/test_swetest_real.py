@@ -9,7 +9,7 @@ import subprocess
 import os
 from datetime import datetime
 
-from w8s_astro_mcp.swetest_integration import SweetestIntegration, SweetestError
+from w8s_astro_mcp.utils.swetest_integration import SweetestIntegration, SweetestError
 from w8s_astro_mcp.config import Config
 
 

@@ -23,12 +23,26 @@ Example usage:
 """
 
 from w8s_astro_mcp.models.house_system import HouseSystem, HOUSE_SYSTEM_SEED_DATA
+from w8s_astro_mcp.models.location import Location
 from w8s_astro_mcp.models.profile import Profile
+from w8s_astro_mcp.models.natal_planet import NatalPlanet
+from w8s_astro_mcp.models.natal_house import NatalHouse
+from w8s_astro_mcp.models.natal_point import NatalPoint
 from w8s_astro_mcp.models.transit_lookup import TransitLookup
+from w8s_astro_mcp.models.transit_planet import TransitPlanet
+from w8s_astro_mcp.models.transit_house import TransitHouse
+from w8s_astro_mcp.models.transit_point import TransitPoint
 
 __all__ = [
     "HouseSystem",
     "HOUSE_SYSTEM_SEED_DATA",
+    "Location",
     "Profile",
+    "NatalPlanet",
+    "NatalHouse",
+    "NatalPoint",
     "TransitLookup",
+    "TransitPlanet",
+    "TransitHouse",
+    "TransitPoint",
 ]

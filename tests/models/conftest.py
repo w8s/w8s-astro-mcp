@@ -29,8 +29,19 @@ def test_engine():
     # Create engine and tables
     engine = create_db_engine(Path(db_path), echo=False)
     
-    # Import all models to register them with Base.metadata
-    from w8s_astro_mcp.models import HouseSystem  # noqa: F401
+    # Import ALL models to register them with Base.metadata
+    from w8s_astro_mcp.models import (  # noqa: F401
+        HouseSystem,
+        Location,
+        Profile,
+        NatalPlanet,
+        NatalHouse,
+        NatalPoint,
+        TransitLookup,
+        TransitPlanet,
+        TransitHouse,
+        TransitPoint,
+    )
     
     create_tables(engine)
     

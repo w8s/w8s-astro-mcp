@@ -8,6 +8,7 @@ from w8s_astro_mcp.tools.profile_management import (
     handle_list_profiles,
     handle_set_current_profile,
     handle_create_profile,
+    handle_add_location,
 )
 from w8s_astro_mcp.models.profile import Profile
 from w8s_astro_mcp.models.location import Location
@@ -597,3 +598,346 @@ async def test_workflow_create_then_list(mock_db_helper, sample_profile_1, sampl
     assert "Sarah Johnson" in text
     assert "ID: 1" in text
     assert "ID: 2" in text
+
+
+# ============================================================================
+# Tests for add_location
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_add_location_success(mock_db_helper, sample_profile_1):
+    """Test add_location with valid data."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_1
+    
+    new_location = Location(
+        id=10,
+        profile_id=1,
+        label="Office",
+        latitude=32.7800,
+        longitude=-96.8000,
+        timezone="America/Chicago",
+        is_current_home=False,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.create_location.return_value = new_location
+    
+    arguments = {
+        "profile_id": 1,
+        "label": "Office",
+        "latitude": 32.7800,
+        "longitude": -96.8000,
+        "timezone": "America/Chicago",
+        "set_as_home": False
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    # Check success indicator and location info
+    assert "✓" in text or "success" in text.lower()
+    assert "Office" in text
+    assert "ID: 10" in text
+    assert "Todd Waits" in text
+    assert "32.78" in text or "32.8" in text
+    assert "-96.8" in text
+    assert "America/Chicago" in text
+    assert "Not set as home" in text or "set_as_home=true" in text
+    
+    # Verify database methods called correctly
+    mock_db_helper.get_profile_by_id.assert_called_once_with(1)
+    mock_db_helper.create_location.assert_called_once_with(
+        profile_id=1,
+        label="Office",
+        latitude=32.7800,
+        longitude=-96.8000,
+        timezone="America/Chicago",
+        set_as_home=False
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_location_set_as_home(mock_db_helper, sample_profile_1):
+    """Test add_location with set_as_home=True."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_1
+    
+    new_location = Location(
+        id=11,
+        profile_id=1,
+        label="Paris Vacation",
+        latitude=48.8566,
+        longitude=2.3522,
+        timezone="Europe/Paris",
+        is_current_home=True,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.create_location.return_value = new_location
+    
+    arguments = {
+        "profile_id": 1,
+        "label": "Paris Vacation",
+        "latitude": 48.8566,
+        "longitude": 2.3522,
+        "timezone": "Europe/Paris",
+        "set_as_home": True
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Paris Vacation" in text
+    assert "Set as current home" in text or "home location" in text.lower()
+    assert "Todd Waits" in text
+    
+    # Verify set_as_home was passed correctly
+    mock_db_helper.create_location.assert_called_once_with(
+        profile_id=1,
+        label="Paris Vacation",
+        latitude=48.8566,
+        longitude=2.3522,
+        timezone="Europe/Paris",
+        set_as_home=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_location_missing_profile_id(mock_db_helper):
+    """Test add_location with missing profile_id."""
+    arguments = {
+        "label": "Office",
+        "latitude": 32.7800,
+        "longitude": -96.8000,
+        "timezone": "America/Chicago"
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "required" in text.lower()
+    
+    # Should NOT call database
+    mock_db_helper.get_profile_by_id.assert_not_called()
+    mock_db_helper.create_location.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_add_location_missing_label(mock_db_helper):
+    """Test add_location with missing label."""
+    arguments = {
+        "profile_id": 1,
+        "latitude": 32.7800,
+        "longitude": -96.8000,
+        "timezone": "America/Chicago"
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "required" in text.lower()
+    
+    # Should NOT call database
+    mock_db_helper.create_location.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_add_location_missing_coordinates(mock_db_helper):
+    """Test add_location with missing latitude."""
+    arguments = {
+        "profile_id": 1,
+        "label": "Office",
+        "longitude": -96.8000,
+        "timezone": "America/Chicago"
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "required" in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_add_location_profile_not_found(mock_db_helper):
+    """Test add_location when profile doesn't exist."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = None
+    
+    arguments = {
+        "profile_id": 999,
+        "label": "Office",
+        "latitude": 32.7800,
+        "longitude": -96.8000,
+        "timezone": "America/Chicago"
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "999" in text
+    assert "not found" in text.lower()
+    assert "list_profiles" in text
+    
+    # Should check profile but NOT create location
+    mock_db_helper.get_profile_by_id.assert_called_once_with(999)
+    mock_db_helper.create_location.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_add_location_database_error(mock_db_helper, sample_profile_1):
+    """Test add_location handles database errors gracefully."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_1
+    mock_db_helper.create_location.side_effect = ValueError("Profile 1 not found")
+    
+    arguments = {
+        "profile_id": 1,
+        "label": "Office",
+        "latitude": 32.7800,
+        "longitude": -96.8000,
+        "timezone": "America/Chicago"
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "Profile 1 not found" in text
+    assert "list_profiles" in text
+
+
+@pytest.mark.asyncio
+async def test_add_location_default_set_as_home_false(mock_db_helper, sample_profile_1):
+    """Test that set_as_home defaults to False when not provided."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_1
+    
+    new_location = Location(
+        id=12,
+        profile_id=1,
+        label="Temporary",
+        latitude=30.0,
+        longitude=-90.0,
+        timezone="America/Chicago",
+        is_current_home=False,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.create_location.return_value = new_location
+    
+    # Note: set_as_home not in arguments
+    arguments = {
+        "profile_id": 1,
+        "label": "Temporary",
+        "latitude": 30.0,
+        "longitude": -90.0,
+        "timezone": "America/Chicago"
+    }
+    
+    # Execute
+    result = await handle_add_location(mock_db_helper, arguments)
+    
+    # Assert
+    text = result[0].text
+    assert "✓" in text or "success" in text.lower()
+    
+    # Verify set_as_home defaulted to False
+    mock_db_helper.create_location.assert_called_once_with(
+        profile_id=1,
+        label="Temporary",
+        latitude=30.0,
+        longitude=-90.0,
+        timezone="America/Chicago",
+        set_as_home=False  # Should default to False
+    )
+
+
+@pytest.mark.asyncio
+async def test_workflow_create_profile_then_add_location(mock_db_helper, sample_profile_2):
+    """Test workflow: create profile, then add location."""
+    # Step 1: Create profile
+    mock_db_helper.create_profile_with_location.return_value = sample_profile_2
+    
+    create_args = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    create_result = await handle_create_profile(mock_db_helper, create_args)
+    assert "Sarah Johnson" in create_result[0].text
+    assert "ID: 2" in create_result[0].text
+    
+    # Step 2: Add location to the new profile
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_2
+    
+    new_location = Location(
+        id=20,
+        profile_id=2,
+        label="Work",
+        latitude=40.7580,
+        longitude=-73.9855,
+        timezone="America/New_York",
+        is_current_home=False,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.create_location.return_value = new_location
+    
+    location_args = {
+        "profile_id": 2,
+        "label": "Work",
+        "latitude": 40.7580,
+        "longitude": -73.9855,
+        "timezone": "America/New_York",
+        "set_as_home": False
+    }
+    
+    location_result = await handle_add_location(mock_db_helper, location_args)
+    text = location_result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Work" in text
+    assert "Sarah Johnson" in text  # Shows profile name
+    
+    # Verify both operations completed
+    mock_db_helper.create_profile_with_location.assert_called_once()
+    mock_db_helper.create_location.assert_called_once()

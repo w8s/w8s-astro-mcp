@@ -258,17 +258,53 @@ async def handle_list_profiles(db_helper) -> list[TextContent]:
 
 async def handle_create_profile(db_helper, arguments: dict) -> list[TextContent]:
     """Create a new profile."""
-    # TODO: Implement
-    # 1. Create Location for birth place
-    # 2. Create Profile with birth data
-    # 3. Ask if this should be current profile
-    return [TextContent(
-        type="text",
-        text="🚧 create_profile - Not yet implemented\n\n"
-             f"Would create profile: {arguments.get('name')}\n"
-             f"Birth: {arguments.get('birth_date')} at {arguments.get('birth_time')}\n"
-             f"Location: {arguments.get('birth_location_name')}"
-    )]
+    try:
+        # Extract arguments
+        name = arguments.get("name")
+        birth_date = arguments.get("birth_date")
+        birth_time = arguments.get("birth_time")
+        birth_location_name = arguments.get("birth_location_name")
+        birth_latitude = arguments.get("birth_latitude")
+        birth_longitude = arguments.get("birth_longitude")
+        birth_timezone = arguments.get("birth_timezone")
+        
+        # Validate required fields
+        if not all([name, birth_date, birth_time, birth_location_name, 
+                   birth_latitude, birth_longitude, birth_timezone]):
+            return [TextContent(
+                type="text",
+                text="Error: All fields are required (name, birth_date, birth_time, "
+                     "birth_location_name, birth_latitude, birth_longitude, birth_timezone)"
+            )]
+        
+        # Create profile with birth location
+        profile = db_helper.create_profile_with_location(
+            name=name,
+            birth_date=birth_date,
+            birth_time=birth_time,
+            birth_location_name=birth_location_name,
+            birth_latitude=birth_latitude,
+            birth_longitude=birth_longitude,
+            birth_timezone=birth_timezone
+        )
+        
+        # Format success message
+        response = f"✓ Profile created successfully!\n\n"
+        response += f"**{profile.name}** (ID: {profile.id})\n"
+        response += f"Born: {profile.birth_date} at {profile.birth_time}\n"
+        response += f"Location: {birth_location_name}\n"
+        response += f"Coordinates: {birth_latitude}, {birth_longitude}\n"
+        response += f"Timezone: {birth_timezone}\n\n"
+        response += "Would you like to set this as your current profile?\n"
+        response += f"Use: set_current_profile with profile_id={profile.id}"
+        
+        return [TextContent(type="text", text=response)]
+        
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error creating profile: {e}"
+        )]
 
 
 async def handle_update_profile(db_helper, arguments: dict) -> list[TextContent]:

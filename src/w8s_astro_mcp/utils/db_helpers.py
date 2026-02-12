@@ -224,3 +224,66 @@ class DatabaseHelper:
                     (Location.profile_id == profile.id) | (Location.profile_id == None)
                 ).all()
             return session.query(Location).all()
+    
+    def create_profile_with_location(
+        self,
+        name: str,
+        birth_date: str,
+        birth_time: str,
+        birth_location_name: str,
+        birth_latitude: float,
+        birth_longitude: float,
+        birth_timezone: str,
+        preferred_house_system_id: int = 1  # Default to Placidus
+    ) -> Profile:
+        """
+        Create a new profile with its birth location.
+        
+        This is atomic - either both profile and location are created, or neither.
+        
+        Args:
+            name: Person's name
+            birth_date: YYYY-MM-DD format
+            birth_time: HH:MM format (24-hour)
+            birth_location_name: Display name for location
+            birth_latitude: Latitude in decimal degrees
+            birth_longitude: Longitude in decimal degrees
+            birth_timezone: Timezone (e.g., 'America/Chicago')
+            preferred_house_system_id: House system ID (default: 1 = Placidus)
+            
+        Returns:
+            Created Profile object with birth_location_id set
+        """
+        with get_session(self.engine) as session:
+            # Create birth location first (will get profile_id after profile creation)
+            birth_location = Location(
+                profile_id=None,  # Temporary - will update after profile creation
+                label="Birth",
+                latitude=birth_latitude,
+                longitude=birth_longitude,
+                timezone=birth_timezone,
+                is_current_home=True,  # Birth location starts as home
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(birth_location)
+            session.flush()  # Get the location ID
+            
+            # Create profile
+            profile = Profile(
+                name=name,
+                birth_date=birth_date,
+                birth_time=birth_time,
+                birth_location_id=birth_location.id,
+                preferred_house_system_id=preferred_house_system_id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(profile)
+            session.flush()  # Get the profile ID
+            
+            # Update location with profile_id
+            birth_location.profile_id = profile.id
+            
+            session.commit()
+            return profile

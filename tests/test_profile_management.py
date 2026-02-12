@@ -9,6 +9,7 @@ from w8s_astro_mcp.tools.profile_management import (
     handle_set_current_profile,
     handle_create_profile,
     handle_add_location,
+    handle_update_profile,
 )
 from w8s_astro_mcp.models.profile import Profile
 from w8s_astro_mcp.models.location import Location
@@ -941,3 +942,311 @@ async def test_workflow_create_profile_then_add_location(mock_db_helper, sample_
     # Verify both operations completed
     mock_db_helper.create_profile_with_location.assert_called_once()
     mock_db_helper.create_location.assert_called_once()
+
+
+# ============================================================================
+# Tests for update_profile
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_update_profile_name_success(mock_db_helper, sample_profile_1):
+    """Test update_profile with name field."""
+    # Setup - create updated profile
+    updated_profile = Profile(
+        id=1,
+        name="Todd M. Waits",  # Updated name
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_id=1,
+        preferred_house_system_id=1,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.update_profile_field.return_value = updated_profile
+    
+    arguments = {
+        "profile_id": 1,
+        "field": "name",
+        "value": "Todd M. Waits"
+    }
+    
+    # Execute
+    result = await handle_update_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Todd M. Waits" in text
+    assert "ID: 1" in text
+    assert "Updated field: name" in text
+    assert "New value: Todd M. Waits" in text
+    
+    # Should NOT mention natal cache for name changes
+    assert "natal" not in text.lower() or "cache" not in text.lower()
+    
+    # Verify database method called correctly
+    mock_db_helper.update_profile_field.assert_called_once_with(1, "name", "Todd M. Waits")
+
+
+@pytest.mark.asyncio
+async def test_update_profile_birth_date_invalidates_cache(mock_db_helper, sample_profile_1):
+    """Test update_profile with birth_date field invalidates natal cache."""
+    # Setup
+    updated_profile = Profile(
+        id=1,
+        name="Todd Waits",
+        birth_date="1981-05-07",  # Updated birth date
+        birth_time="00:50",
+        birth_location_id=1,
+        preferred_house_system_id=1,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.update_profile_field.return_value = updated_profile
+    
+    arguments = {
+        "profile_id": 1,
+        "field": "birth_date",
+        "value": "1981-05-07"
+    }
+    
+    # Execute
+    result = await handle_update_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "1981-05-07" in text
+    assert "Updated field: birth_date" in text
+    
+    # MUST mention natal cache invalidation
+    assert "natal" in text.lower()
+    assert "cache" in text.lower()
+    assert "invalidate" in text.lower() or "recalculate" in text.lower()
+    
+    mock_db_helper.update_profile_field.assert_called_once_with(1, "birth_date", "1981-05-07")
+
+
+@pytest.mark.asyncio
+async def test_update_profile_birth_time_invalidates_cache(mock_db_helper, sample_profile_1):
+    """Test update_profile with birth_time field invalidates natal cache."""
+    # Setup
+    updated_profile = Profile(
+        id=1,
+        name="Todd Waits",
+        birth_date="1981-05-06",
+        birth_time="01:00",  # Updated birth time
+        birth_location_id=1,
+        preferred_house_system_id=1,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.update_profile_field.return_value = updated_profile
+    
+    arguments = {
+        "profile_id": 1,
+        "field": "birth_time",
+        "value": "01:00"
+    }
+    
+    # Execute
+    result = await handle_update_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "01:00" in text
+    assert "Updated field: birth_time" in text
+    
+    # MUST mention natal cache invalidation
+    assert "natal" in text.lower()
+    assert "cache" in text.lower()
+    
+    mock_db_helper.update_profile_field.assert_called_once_with(1, "birth_time", "01:00")
+
+
+@pytest.mark.asyncio
+async def test_update_profile_missing_parameters(mock_db_helper):
+    """Test update_profile with missing parameters."""
+    # Missing field
+    result1 = await handle_update_profile(mock_db_helper, {
+        "profile_id": 1,
+        "value": "test"
+    })
+    assert "Error" in result1[0].text
+    assert "required" in result1[0].text.lower()
+    
+    # Missing value
+    result2 = await handle_update_profile(mock_db_helper, {
+        "profile_id": 1,
+        "field": "name"
+    })
+    assert "Error" in result2[0].text
+    assert "required" in result2[0].text.lower()
+    
+    # Missing profile_id
+    result3 = await handle_update_profile(mock_db_helper, {
+        "field": "name",
+        "value": "test"
+    })
+    assert "Error" in result3[0].text
+    assert "required" in result3[0].text.lower()
+    
+    # Should NOT call database
+    mock_db_helper.update_profile_field.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_profile_invalid_field(mock_db_helper):
+    """Test update_profile with invalid field name."""
+    # Setup - database helper raises ValueError
+    mock_db_helper.update_profile_field.side_effect = ValueError(
+        "Invalid field 'invalid_field'. Must be one of: name, birth_date, birth_time"
+    )
+    
+    arguments = {
+        "profile_id": 1,
+        "field": "invalid_field",
+        "value": "test"
+    }
+    
+    # Execute
+    result = await handle_update_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "Invalid field" in text
+    assert "invalid_field" in text
+    
+    mock_db_helper.update_profile_field.assert_called_once_with(1, "invalid_field", "test")
+
+
+@pytest.mark.asyncio
+async def test_update_profile_profile_not_found(mock_db_helper):
+    """Test update_profile when profile doesn't exist."""
+    # Setup - database helper raises ValueError
+    mock_db_helper.update_profile_field.side_effect = ValueError("Profile 999 not found")
+    
+    arguments = {
+        "profile_id": 999,
+        "field": "name",
+        "value": "test"
+    }
+    
+    # Execute
+    result = await handle_update_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "999" in text
+    assert "not found" in text.lower()
+    
+    mock_db_helper.update_profile_field.assert_called_once_with(999, "name", "test")
+
+
+@pytest.mark.asyncio
+async def test_update_profile_error_handling(mock_db_helper):
+    """Test update_profile handles unexpected errors gracefully."""
+    # Setup - simulate unexpected database error
+    mock_db_helper.update_profile_field.side_effect = Exception("Database connection lost")
+    
+    arguments = {
+        "profile_id": 1,
+        "field": "name",
+        "value": "test"
+    }
+    
+    # Execute
+    result = await handle_update_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error updating profile" in text
+    assert "Database connection lost" in text
+
+
+@pytest.mark.asyncio
+async def test_workflow_create_update_list(mock_db_helper, sample_profile_2, sample_location_1, sample_location_2):
+    """Test workflow: create profile, update it, then list to see changes."""
+    # Step 1: Create profile
+    mock_db_helper.create_profile_with_location.return_value = sample_profile_2
+    
+    create_args = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    create_result = await handle_create_profile(mock_db_helper, create_args)
+    assert "Sarah Johnson" in create_result[0].text
+    
+    # Step 2: Update profile name
+    updated_profile = Profile(
+        id=2,
+        name="Sarah Marie Johnson",  # Updated
+        birth_date="1985-03-15",
+        birth_time="14:30",
+        birth_location_id=2,
+        preferred_house_system_id=1,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.update_profile_field.return_value = updated_profile
+    
+    update_args = {
+        "profile_id": 2,
+        "field": "name",
+        "value": "Sarah Marie Johnson"
+    }
+    
+    update_result = await handle_update_profile(mock_db_helper, update_args)
+    assert "Sarah Marie Johnson" in update_result[0].text
+    
+    # Step 3: List profiles - should show updated name
+    sample_profile_1_for_list = Profile(
+        id=1,
+        name="Todd Waits",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_id=1,
+        preferred_house_system_id=1,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    mock_db_helper.list_all_profiles.return_value = [sample_profile_1_for_list, updated_profile]
+    mock_db_helper.get_current_profile.return_value = sample_profile_1_for_list
+    
+    def get_birth_location_side_effect(profile):
+        if profile.id == 1:
+            return sample_location_1
+        elif profile.id == 2:
+            return sample_location_2
+        return None
+    
+    mock_db_helper.get_birth_location.side_effect = get_birth_location_side_effect
+    
+    list_result = await handle_list_profiles(mock_db_helper)
+    text = list_result[0].text
+    
+    # Should show updated name
+    assert "Sarah Marie Johnson" in text
+    assert "Sarah Johnson" not in text or "Sarah Marie Johnson" in text  # Updated name, not old one

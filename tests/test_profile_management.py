@@ -7,6 +7,7 @@ from unittest.mock import Mock, MagicMock, patch
 from w8s_astro_mcp.tools.profile_management import (
     handle_list_profiles,
     handle_set_current_profile,
+    handle_create_profile,
 )
 from w8s_astro_mcp.models.profile import Profile
 from w8s_astro_mcp.models.location import Location
@@ -360,3 +361,239 @@ async def test_workflow_list_then_set(
     
     # Verify the switch happened
     mock_db_helper.set_current_profile.assert_called_with(2)
+
+
+# ============================================================================
+# Tests for create_profile
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_create_profile_success(mock_db_helper, sample_profile_2):
+    """Test create_profile with valid data."""
+    # Setup
+    mock_db_helper.create_profile_with_location.return_value = sample_profile_2
+    
+    arguments = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    # Execute
+    result = await handle_create_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    # Check success indicator and profile info
+    assert "✓" in text or "success" in text.lower()
+    assert "Sarah Johnson" in text
+    assert "ID: 2" in text
+    assert "1985-03-15" in text
+    assert "14:30" in text
+    assert "New York, NY" in text
+    assert "40.7128" in text
+    assert "-74.006" in text
+    assert "America/New_York" in text
+    
+    # Should prompt about setting as current
+    assert "set_current_profile" in text.lower() or "current profile" in text.lower()
+    
+    # Verify database method called correctly
+    mock_db_helper.create_profile_with_location.assert_called_once_with(
+        name="Sarah Johnson",
+        birth_date="1985-03-15",
+        birth_time="14:30",
+        birth_location_name="New York, NY",
+        birth_latitude=40.7128,
+        birth_longitude=-74.0060,
+        birth_timezone="America/New_York"
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_profile_missing_name(mock_db_helper):
+    """Test create_profile with missing name field."""
+    arguments = {
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    # Execute
+    result = await handle_create_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "required" in text.lower()
+    
+    # Should NOT call database
+    mock_db_helper.create_profile_with_location.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_profile_missing_coordinates(mock_db_helper):
+    """Test create_profile with missing latitude."""
+    arguments = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    # Execute
+    result = await handle_create_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "required" in text.lower()
+    
+    # Should NOT call database
+    mock_db_helper.create_profile_with_location.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_profile_missing_timezone(mock_db_helper):
+    """Test create_profile with missing timezone."""
+    arguments = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060
+    }
+    
+    # Execute
+    result = await handle_create_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "required" in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_create_profile_error_handling(mock_db_helper):
+    """Test create_profile handles database errors gracefully."""
+    # Setup - simulate database error
+    mock_db_helper.create_profile_with_location.side_effect = Exception("Database constraint violation")
+    
+    arguments = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    # Execute
+    result = await handle_create_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error creating profile" in text
+    assert "Database constraint violation" in text
+
+
+@pytest.mark.asyncio
+async def test_create_profile_duplicate_name_allowed(mock_db_helper, sample_profile_1):
+    """Test that duplicate names are allowed (profiles distinguished by ID)."""
+    # Setup - create a profile with same name as existing one
+    new_profile = Profile(
+        id=3,
+        name="Todd Waits",  # Same name as sample_profile_1
+        birth_date="1990-01-01",
+        birth_time="12:00",
+        birth_location_id=5,
+        preferred_house_system_id=1,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.create_profile_with_location.return_value = new_profile
+    
+    arguments = {
+        "name": "Todd Waits",
+        "birth_date": "1990-01-01",
+        "birth_time": "12:00",
+        "birth_location_name": "Chicago, IL",
+        "birth_latitude": 41.8781,
+        "birth_longitude": -87.6298,
+        "birth_timezone": "America/Chicago"
+    }
+    
+    # Execute
+    result = await handle_create_profile(mock_db_helper, arguments)
+    
+    # Assert - should succeed
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Todd Waits" in text
+    assert "ID: 3" in text  # Different ID even though same name
+
+
+@pytest.mark.asyncio
+async def test_workflow_create_then_list(mock_db_helper, sample_profile_1, sample_profile_2, sample_location_1, sample_location_2):
+    """Test realistic workflow: create profile, then list to see it."""
+    # Step 1: Create profile
+    mock_db_helper.create_profile_with_location.return_value = sample_profile_2
+    
+    arguments = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    create_result = await handle_create_profile(mock_db_helper, arguments)
+    assert "Sarah Johnson" in create_result[0].text
+    assert "ID: 2" in create_result[0].text
+    
+    # Step 2: List profiles - should show both profiles now
+    mock_db_helper.list_all_profiles.return_value = [sample_profile_1, sample_profile_2]
+    mock_db_helper.get_current_profile.return_value = sample_profile_1
+    
+    def get_birth_location_side_effect(profile):
+        if profile.id == 1:
+            return sample_location_1
+        elif profile.id == 2:
+            return sample_location_2
+        return None
+    
+    mock_db_helper.get_birth_location.side_effect = get_birth_location_side_effect
+    
+    list_result = await handle_list_profiles(mock_db_helper)
+    text = list_result[0].text
+    
+    # Both profiles should appear
+    assert "Todd Waits" in text
+    assert "Sarah Johnson" in text
+    assert "ID: 1" in text
+    assert "ID: 2" in text

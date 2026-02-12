@@ -121,26 +121,28 @@ if field in ["birth_date", "birth_time"]:
 - [ ] Return confirmation with profile name
 
 ### 6. `add_location`
-**Purpose:** Add saved location (home, office, travel, etc.)  
+**Purpose:** Add saved location (home, office, travel, etc.) for a profile  
 **Schema:**
 ```json
 {
+  "profile_id": "integer" (required),
   "label": "string",
   "latitude": "number",
   "longitude": "number",
   "timezone": "string",
-  "profile_id": "integer" (optional),
   "set_as_home": "boolean" (optional)
 }
 ```
 
 **Implementation checklist:**
-- [ ] Create Location
-- [ ] If profile_id provided, link to profile
+- [ ] Validate profile exists
+- [ ] Create Location with profile_id
 - [ ] If set_as_home=true:
   - [ ] Unset is_current_home on other locations for this profile
   - [ ] Set is_current_home=true on new location
 - [ ] Return location ID and confirmation
+
+**Note:** All locations must belong to a profile (profile_id required)
 
 ### 7. `remove_location`
 **Purpose:** Delete saved location  

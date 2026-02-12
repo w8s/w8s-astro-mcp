@@ -147,12 +147,16 @@ def get_profile_management_tools() -> list[Tool]:
         Tool(
             name="add_location",
             description=(
-                "Add a saved location (home, office, travel destination, etc.). "
-                "Locations can be shared across profiles or tied to a specific profile."
+                "Add a saved location (home, office, travel destination, etc.) for a profile. "
+                "Every location must belong to a specific profile."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID this location belongs to (required)"
+                    },
                     "label": {
                         "type": "string",
                         "description": "Location label (e.g., 'Office', 'Vacation Home')"
@@ -169,15 +173,12 @@ def get_profile_management_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Timezone (e.g., 'America/Los_Angeles')"
                     },
-                    "profile_id": {
-                        "type": "integer",
-                        "description": "Optional: Profile ID to tie this location to (null = shared)"
-                    },
                     "set_as_home": {
                         "type": "boolean",
                         "description": "Optional: Set as current home location for this profile"
                     }
-                }
+                },
+                "required": ["profile_id", "label", "latitude", "longitude", "timezone"]
             }
         ),
         Tool(

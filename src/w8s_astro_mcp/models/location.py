@@ -1,20 +1,18 @@
 """Location model - reusable location data for birth places and transit lookups.
 
-Locations can be:
-- Birth locations (tied to profiles)
+Every location belongs to a profile. Common use cases:
+- Birth location (linked via Profile.birth_location_id)
 - Current home (is_current_home=True)
 - Saved places (office, travel destinations, etc.)
-- Shared locations (profile_id=NULL)
 
 Examples:
+- "Birth" (used as birth_location_id)
 - "Home" (is_current_home=True)
 - "Office" 
 - "Paris Trip 2025"
-- "Mom's House"
 """
 
 from datetime import datetime, timezone
-from typing import Optional
 
 from sqlalchemy import String, Float, Boolean, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -27,10 +25,11 @@ class Location(Base):
     Reusable location data for astrological calculations.
     
     Design decisions:
-    - profile_id=NULL means location is shared/global
+    - Every location belongs to a profile (profile_id required)
     - Only one location per profile can have is_current_home=True
-    - Unique constraint on (profile_id, label) prevents duplicate names
+    - Unique constraint on (profile_id, label) prevents duplicate names per profile
     - Reserved labels: "current" (uses is_current_home), "birth" (uses profile.birth_location_id)
+    - Deleting profile CASCADE deletes all its locations
     """
     
     __tablename__ = "locations"
@@ -38,10 +37,10 @@ class Location(Base):
     # Primary key
     id: Mapped[int] = mapped_column(primary_key=True)
     
-    # Optional profile ownership (NULL = shared location)
-    profile_id: Mapped[Optional[int]] = mapped_column(
+    # Profile ownership (required)
+    profile_id: Mapped[int] = mapped_column(
         ForeignKey("profiles.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True
     )
     
@@ -73,7 +72,7 @@ class Location(Base):
     
     # Constraints
     __table_args__ = (
-        # Unique label per profile (or global if profile_id=NULL)
+        # Unique label per profile
         UniqueConstraint('profile_id', 'label', name='uq_location_profile_label'),
         # Index for finding current home
         Index('ix_location_profile_current', 'profile_id', 'is_current_home'),

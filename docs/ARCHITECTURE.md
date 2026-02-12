@@ -11,10 +11,11 @@ src/w8s_astro_mcp/
 │
 ├── Database Layer
 │   ├── database.py              # SQLAlchemy engine, session management
-│   └── models/                  # SQLAlchemy ORM models (10 models)
+│   └── models/                  # SQLAlchemy ORM models (11 models)
 │       ├── __init__.py
+│       ├── app_settings.py      # Global settings (current profile ID)
 │       ├── house_system.py      # 7 house systems (Placidus, Koch, etc.)
-│       ├── location.py          # Birth/home/saved locations
+│       ├── location.py          # Birth/home/saved locations (profile-owned)
 │       ├── profile.py           # People's natal charts
 │       ├── natal_planet.py      # Planet positions at birth
 │       ├── natal_house.py       # House cusps at birth
@@ -25,10 +26,11 @@ src/w8s_astro_mcp/
 │       └── transit_point.py     # Angles for a transit
 │
 ├── Analysis & Visualization
-│   └── tools/                   # Analysis & visualization
+│   └── tools/                   # MCP tools & analysis
 │       ├── __init__.py
 │       ├── analysis_tools.py    # Aspects, house placements
-│       └── visualization.py     # Chart drawing (matplotlib)
+│       ├── visualization.py     # Chart drawing (matplotlib)
+│       └── profile_management.py # Profile/location CRUD (feature branch)
 │
 ├── External Integration
 │   ├── parsers/                 # Parse external tool output
@@ -42,9 +44,10 @@ src/w8s_astro_mcp/
 │       ├── geocoding.py         # Location lookup (lat/long)
 │       └── install_helper.py    # swetest installation help
 │
-└── Deprecated
+└── Legacy (Unused)
     └── config.py                # ⚠️  OLD config.json handling
-                                 # Kept for backwards compatibility
+                                 # NO LONGER USED - kept for reference only
+                                 # Server uses SQLite exclusively
 ```
 
 ## Data Flow
@@ -100,24 +103,33 @@ User runs: python scripts/migrate_config_to_sqlite.py
 - **New:** SQLite with normalized schema
 - **Why:** Enables multi-profile, transit history, proper queries
 
-### 2. Separation of Concerns ✅
+### 2. AppSettings Table for Global State ✅
+- **Old:** Profile.is_primary boolean flag
+- **New:** AppSettings.current_profile_id foreign key
+- **Why:** Cleaner architecture, ON DELETE SET NULL cascade, more extensible
+
+### 3. Profile-Owned Locations ✅
+- **Decision:** All locations require profile_id (no shared/global locations)
+- **Why:** Simpler mental model, easier CASCADE deletion, clearer ownership
+
+### 4. Separation of Concerns ✅
 - **Models:** Define data structure (SQLAlchemy ORM)
 - **Database:** Handle connections, sessions
 - **db_helpers:** Provide high-level queries
 - **transit_logger:** Handle complex inserts
 - **server.py:** Orchestrate everything
 
-### 3. Auto-Logging Transit Requests ✅
+### 5. Auto-Logging Transit Requests ✅
 - Every `get_transits` call logs to database
 - Preserves location snapshot (even if location changes)
 - Builds queryable history over time
 - Graceful degradation (logging failures don't break requests)
 
-### 4. Backwards Compatibility ⚠️
-- `config.py` kept but deprecated
-- Migration script provided
-- MCP tool API unchanged
-- Response format unchanged
+### 6. Config.py Completely Unused ✅
+- **Status:** Legacy code kept for reference only
+- **Reality:** Server uses SQLite exclusively via DatabaseHelper
+- **Migration:** One-time script converts config.json → SQLite
+- **Future:** May be deleted entirely
 
 ## Technology Stack
 
@@ -139,28 +151,35 @@ User runs: python scripts/migrate_config_to_sqlite.py
 
 See `docs/DATABASE_SCHEMA.md` for full schema documentation.
 
-**10 Models:**
-1. HouseSystem (reference data)
-2. Location (shared across profiles)
-3. Profile (people's charts)
-4. NatalPlanet, NatalHouse, NatalPoint (birth chart data)
-5. TransitLookup (history of queries)
-6. TransitPlanet, TransitHouse, TransitPoint (transit snapshots)
+**11 Models:**
+1. AppSettings (global state - current profile ID)
+2. HouseSystem (reference data - 7 house systems)
+3. Location (profile-owned locations)
+4. Profile (people's charts)
+5. NatalPlanet, NatalHouse, NatalPoint (birth chart data)
+6. TransitLookup (history of queries)
+7. TransitPlanet, TransitHouse, TransitPoint (transit snapshots)
 
 **Key Features:**
 - Normalized schema (no data duplication)
-- Foreign keys with proper CASCADE/RESTRICT
+- Foreign keys with proper CASCADE/RESTRICT/SET NULL
 - Location snapshots for historical accuracy
-- Ready for multi-profile support
+- AppSettings for extensible global configuration
+- Profile-owned locations (no shared/global concept)
 
 ## Future Enhancements
 
+### In Progress (Feature Branch):
+- [x] Profile management tools (create/list/switch/update/delete) - **Stubbed**
+- [x] Location management tools (add/remove) - **Stubbed**
+- [ ] Implement stubbed profile management tools
+- [ ] Tests for profile management
+
 ### Planned:
-- [ ] Profile management tools (create/list/switch)
-- [ ] Location management tools (add/update/remove)
 - [ ] Transit history queries ("last month's transits")
 - [ ] Statistics ("how often do I check Mercury?")
-- [ ] Remove config.py entirely
+- [ ] Database self-healing tools (repair inconsistencies)
+- [ ] Remove config.py entirely (no longer needed)
 
 ### Possible:
 - [ ] Web interface for database queries

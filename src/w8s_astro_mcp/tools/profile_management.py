@@ -207,16 +207,53 @@ def get_profile_management_tools() -> list[Tool]:
 
 async def handle_list_profiles(db_helper) -> list[TextContent]:
     """List all profiles in database."""
-    # TODO: Implement
-    return [TextContent(
-        type="text",
-        text="🚧 list_profiles - Not yet implemented\n\n"
-             "This tool will show all profiles with:\n"
-             "- Profile ID\n"
-             "- Name\n"
-             "- Birth date\n"
-             "- Current profile indicator (*)"
-    )]
+    try:
+        # Get all profiles
+        profiles = db_helper.list_all_profiles()
+        
+        # Get current profile ID
+        current_profile = db_helper.get_current_profile()
+        current_id = current_profile.id if current_profile else None
+        
+        # Handle empty case
+        if not profiles:
+            return [TextContent(
+                type="text",
+                text="No profiles found in database.\n\n"
+                     "Use create_profile to add your first profile."
+            )]
+        
+        # Format profile list
+        response = "# Astrological Profiles\n\n"
+        
+        for profile in profiles:
+            # Current profile indicator
+            indicator = "* " if profile.id == current_id else "  "
+            
+            # Format line
+            response += f"{indicator}**{profile.name}** (ID: {profile.id})\n"
+            response += f"  Born: {profile.birth_date} at {profile.birth_time}\n"
+            
+            # Birth location if available
+            birth_loc = db_helper.get_birth_location(profile)
+            if birth_loc:
+                response += f"  Location: {birth_loc.label}\n"
+            
+            response += "\n"
+        
+        # Add legend
+        if current_id:
+            response += "*Current active profile\n"
+        else:
+            response += "No current profile set. Use set_current_profile to activate one.\n"
+        
+        return [TextContent(type="text", text=response)]
+        
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error listing profiles: {e}"
+        )]
 
 
 async def handle_create_profile(db_helper, arguments: dict) -> list[TextContent]:

@@ -341,3 +341,66 @@ class DatabaseHelper:
             session.add(location)
             session.commit()
             return location
+    
+    def update_profile_field(
+        self,
+        profile_id: int,
+        field: str,
+        value: str
+    ) -> Profile:
+        """
+        Update a single field on a profile.
+        
+        Args:
+            profile_id: Profile to update
+            field: Field name (must be one of: "name", "birth_date", "birth_time")
+            value: New value for the field
+            
+        Returns:
+            Updated Profile object
+            
+        Raises:
+            ValueError: If profile doesn't exist or field is invalid
+        """
+        ALLOWED_FIELDS = ["name", "birth_date", "birth_time"]
+        
+        if field not in ALLOWED_FIELDS:
+            raise ValueError(f"Invalid field '{field}'. Must be one of: {', '.join(ALLOWED_FIELDS)}")
+        
+        with get_session(self.engine) as session:
+            # Get profile
+            profile = session.query(Profile).filter_by(id=profile_id).first()
+            if not profile:
+                raise ValueError(f"Profile {profile_id} not found")
+            
+            # Update field
+            setattr(profile, field, value)
+            profile.updated_at = datetime.now()
+            
+            # If birth data changed, invalidate natal cache
+            if field in ["birth_date", "birth_time"]:
+                self._invalidate_natal_cache(session, profile_id)
+            
+            session.commit()
+            return profile
+    
+    def _invalidate_natal_cache(self, session, profile_id: int):
+        """
+        Delete cached natal chart data for a profile.
+        
+        Called when birth_date or birth_time changes.
+        
+        Args:
+            session: Active database session
+            profile_id: Profile whose natal data should be cleared
+        """
+        # Delete natal planets
+        session.query(NatalPlanet).filter_by(profile_id=profile_id).delete()
+        
+        # Delete natal houses
+        session.query(NatalHouse).filter_by(profile_id=profile_id).delete()
+        
+        # Delete natal points
+        session.query(NatalPoint).filter_by(profile_id=profile_id).delete()
+        
+        # Note: We don't need to commit here - caller will commit

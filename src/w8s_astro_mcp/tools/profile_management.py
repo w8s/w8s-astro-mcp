@@ -309,18 +309,46 @@ async def handle_create_profile(db_helper, arguments: dict) -> list[TextContent]
 
 async def handle_update_profile(db_helper, arguments: dict) -> list[TextContent]:
     """Update a profile field."""
-    # TODO: Implement
-    # 1. Validate profile exists
-    # 2. Validate field name
-    # 3. Update field
-    # 4. If birth_date or birth_time changed, invalidate natal chart cache
-    return [TextContent(
-        type="text",
-        text="🚧 update_profile - Not yet implemented\n\n"
-             f"Would update profile {arguments.get('profile_id')}\n"
-             f"Field: {arguments.get('field')}\n"
-             f"New value: {arguments.get('value')}"
-    )]
+    try:
+        # Extract arguments
+        profile_id = arguments.get("profile_id")
+        field = arguments.get("field")
+        value = arguments.get("value")
+        
+        # Validate required fields
+        if not all([profile_id, field, value]):
+            return [TextContent(
+                type="text",
+                text="Error: Missing required fields (profile_id, field, value)"
+            )]
+        
+        # Update profile (this validates profile exists and field is allowed)
+        profile = db_helper.update_profile_field(profile_id, field, value)
+        
+        # Format success message
+        response = f"✓ Profile updated successfully!\n\n"
+        response += f"**{profile.name}** (ID: {profile.id})\n"
+        response += f"Updated field: {field}\n"
+        response += f"New value: {value}\n"
+        
+        # If birth data changed, note that natal cache was cleared
+        if field in ["birth_date", "birth_time"]:
+            response += f"\n⚠️  Birth data changed - natal chart cache invalidated.\n"
+            response += f"Next time you call get_natal_chart, it will recalculate with the new birth data."
+        
+        return [TextContent(type="text", text=response)]
+        
+    except ValueError as e:
+        # Profile not found or invalid field
+        return [TextContent(
+            type="text",
+            text=f"Error: {e}"
+        )]
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error updating profile: {e}"
+        )]
 
 
 async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]:

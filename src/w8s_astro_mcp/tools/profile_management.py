@@ -304,13 +304,44 @@ async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]
 
 async def handle_set_current_profile(db_helper, arguments: dict) -> list[TextContent]:
     """Set the current active profile."""
-    # TODO: Implement
-    # Use db_helper.set_current_profile(profile_id)
-    return [TextContent(
-        type="text",
-        text="🚧 set_current_profile - Not yet implemented\n\n"
-             f"Would set current profile to: {arguments.get('profile_id')}"
-    )]
+    try:
+        profile_id = arguments.get("profile_id")
+        
+        # Validate profile_id provided
+        if profile_id is None:
+            return [TextContent(
+                type="text",
+                text="Error: profile_id is required"
+            )]
+        
+        # Use existing db_helper method (validates profile exists)
+        success = db_helper.set_current_profile(profile_id)
+        
+        if not success:
+            return [TextContent(
+                type="text",
+                text=f"Error: Profile with ID {profile_id} not found.\n\n"
+                     "Use list_profiles to see available profiles."
+            )]
+        
+        # Get the profile to show confirmation
+        profile = db_helper.get_profile_by_id(profile_id)
+        
+        return [TextContent(
+            type="text",
+            text=f"✓ Current profile set to: **{profile.name}** (ID: {profile_id})\n\n"
+                 f"Born: {profile.birth_date} at {profile.birth_time}\n\n"
+                 "This profile will now be used for:\n"
+                 "- get_natal_chart\n"
+                 "- get_transits (default location)\n"
+                 "- compare_charts (when using 'natal')"
+        )]
+        
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error setting current profile: {e}"
+        )]
 
 
 async def handle_add_location(db_helper, arguments: dict) -> list[TextContent]:

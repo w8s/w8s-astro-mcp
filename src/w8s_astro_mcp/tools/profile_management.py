@@ -1,0 +1,329 @@
+"""Profile management MCP tools.
+
+Tools for creating, updating, and managing astrological profiles.
+Enables multi-profile support for friends, family, synastry, etc.
+"""
+
+from typing import Any, Optional
+from mcp.types import Tool, TextContent
+
+
+# ============================================================================
+# Tool Definitions
+# ============================================================================
+
+def get_profile_management_tools() -> list[Tool]:
+    """Return list of profile management tool definitions."""
+    return [
+        Tool(
+            name="list_profiles",
+            description=(
+                "List all astrological profiles in the database. "
+                "Shows profile names, birth dates, and which is currently active. "
+                "Use this to see all available profiles before creating, updating, or switching."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            }
+        ),
+        Tool(
+            name="create_profile",
+            description=(
+                "Create a new astrological profile (for friends, family, synastry analysis, etc.). "
+                "After creating, ask user if this should be their current profile. "
+                "IMPORTANT: Ask for information conversationally:\n"
+                "1. Ask: 'What's their name?'\n"
+                "2. Ask: 'What's their birthday?' (get YYYY-MM-DD)\n"
+                "3. Ask: 'Do you know what time they were born? (If not, we can use 12:00)'\n"
+                "4. Ask: 'Where were they born?' (get city, state/country)\n"
+                "Then look up coordinates and confirm before saving."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Person's name (e.g., 'Sarah Johnson')"
+                    },
+                    "birth_date": {
+                        "type": "string",
+                        "description": "Birth date in YYYY-MM-DD format"
+                    },
+                    "birth_time": {
+                        "type": "string",
+                        "description": "Birth time in HH:MM format (24-hour)"
+                    },
+                    "birth_location_name": {
+                        "type": "string",
+                        "description": "Location name (e.g., 'New York, NY')"
+                    },
+                    "birth_latitude": {
+                        "type": "number",
+                        "description": "Latitude in decimal degrees"
+                    },
+                    "birth_longitude": {
+                        "type": "number",
+                        "description": "Longitude in decimal degrees"
+                    },
+                    "birth_timezone": {
+                        "type": "string",
+                        "description": "Timezone (e.g., 'America/New_York')"
+                    }
+                },
+                "required": ["name", "birth_date", "birth_time", "birth_location_name",
+                           "birth_latitude", "birth_longitude", "birth_timezone"]
+            }
+        ),
+        Tool(
+            name="update_profile",
+            description=(
+                "Update a profile field (name, birth date, birth time, etc.). "
+                "Use with caution - changing birth data invalidates cached natal chart. "
+                "Valid fields: name, birth_date, birth_time"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to update (get from list_profiles)"
+                    },
+                    "field": {
+                        "type": "string",
+                        "description": "Field to update (name, birth_date, birth_time)",
+                        "enum": ["name", "birth_date", "birth_time"]
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "New value for the field"
+                    }
+                },
+                "required": ["profile_id", "field", "value"]
+            }
+        ),
+        Tool(
+            name="delete_profile",
+            description=(
+                "Delete a profile from the database. "
+                "WARNING: This is permanent and cannot be undone. "
+                "Deletes the profile and all associated natal chart data. "
+                "If this is the current profile, current_profile_id will be set to NULL."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to delete (get from list_profiles)"
+                    },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": "Must be true to confirm deletion"
+                    }
+                },
+                "required": ["profile_id", "confirm"]
+            }
+        ),
+        Tool(
+            name="set_current_profile",
+            description=(
+                "Switch the active profile (whose chart is 'yours'). "
+                "This determines which profile is used for get_natal_chart, "
+                "get_transits, and other operations. "
+                "Use after creating a new profile or to switch between profiles."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to set as current (get from list_profiles)"
+                    }
+                },
+                "required": ["profile_id"]
+            }
+        ),
+        Tool(
+            name="add_location",
+            description=(
+                "Add a saved location (home, office, travel destination, etc.). "
+                "Locations can be shared across profiles or tied to a specific profile."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "description": "Location label (e.g., 'Office', 'Vacation Home')"
+                    },
+                    "latitude": {
+                        "type": "number",
+                        "description": "Latitude in decimal degrees"
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "description": "Longitude in decimal degrees"
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Timezone (e.g., 'America/Los_Angeles')"
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Optional: Profile ID to tie this location to (null = shared)"
+                    },
+                    "set_as_home": {
+                        "type": "boolean",
+                        "description": "Optional: Set as current home location for this profile"
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="remove_location",
+            description=(
+                "Remove a saved location. "
+                "WARNING: Cannot remove locations that are set as birth locations for profiles."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "location_id": {
+                        "type": "integer",
+                        "description": "Location ID to remove (get from view_config)"
+                    }
+                },
+                "required": ["location_id"]
+            }
+        ),
+    ]
+
+
+# ============================================================================
+# Tool Handlers
+# ============================================================================
+
+async def handle_list_profiles(db_helper) -> list[TextContent]:
+    """List all profiles in database."""
+    # TODO: Implement
+    return [TextContent(
+        type="text",
+        text="🚧 list_profiles - Not yet implemented\n\n"
+             "This tool will show all profiles with:\n"
+             "- Profile ID\n"
+             "- Name\n"
+             "- Birth date\n"
+             "- Current profile indicator (*)"
+    )]
+
+
+async def handle_create_profile(db_helper, arguments: dict) -> list[TextContent]:
+    """Create a new profile."""
+    # TODO: Implement
+    # 1. Create Location for birth place
+    # 2. Create Profile with birth data
+    # 3. Ask if this should be current profile
+    return [TextContent(
+        type="text",
+        text="🚧 create_profile - Not yet implemented\n\n"
+             f"Would create profile: {arguments.get('name')}\n"
+             f"Birth: {arguments.get('birth_date')} at {arguments.get('birth_time')}\n"
+             f"Location: {arguments.get('birth_location_name')}"
+    )]
+
+
+async def handle_update_profile(db_helper, arguments: dict) -> list[TextContent]:
+    """Update a profile field."""
+    # TODO: Implement
+    # 1. Validate profile exists
+    # 2. Validate field name
+    # 3. Update field
+    # 4. If birth_date or birth_time changed, invalidate natal chart cache
+    return [TextContent(
+        type="text",
+        text="🚧 update_profile - Not yet implemented\n\n"
+             f"Would update profile {arguments.get('profile_id')}\n"
+             f"Field: {arguments.get('field')}\n"
+             f"New value: {arguments.get('value')}"
+    )]
+
+
+async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]:
+    """Delete a profile."""
+    # TODO: Implement
+    # 1. Check confirm=true
+    # 2. Check profile exists
+    # 3. Delete profile (CASCADE will delete natal chart data)
+    # 4. If was current_profile, set to NULL
+    return [TextContent(
+        type="text",
+        text="🚧 delete_profile - Not yet implemented\n\n"
+             f"Would delete profile {arguments.get('profile_id')}\n"
+             f"Confirmed: {arguments.get('confirm')}"
+    )]
+
+
+async def handle_set_current_profile(db_helper, arguments: dict) -> list[TextContent]:
+    """Set the current active profile."""
+    # TODO: Implement
+    # Use db_helper.set_current_profile(profile_id)
+    return [TextContent(
+        type="text",
+        text="🚧 set_current_profile - Not yet implemented\n\n"
+             f"Would set current profile to: {arguments.get('profile_id')}"
+    )]
+
+
+async def handle_add_location(db_helper, arguments: dict) -> list[TextContent]:
+    """Add a saved location."""
+    # TODO: Implement
+    # 1. Create Location
+    # 2. If set_as_home, update is_current_home
+    return [TextContent(
+        type="text",
+        text="🚧 add_location - Not yet implemented\n\n"
+             f"Would add location: {arguments.get('label')}\n"
+             f"Coordinates: {arguments.get('latitude')}, {arguments.get('longitude')}"
+    )]
+
+
+async def handle_remove_location(db_helper, arguments: dict) -> list[TextContent]:
+    """Remove a saved location."""
+    # TODO: Implement
+    # 1. Check location exists
+    # 2. Check not used as birth_location
+    # 3. Delete location
+    return [TextContent(
+        type="text",
+        text="🚧 remove_location - Not yet implemented\n\n"
+             f"Would remove location ID: {arguments.get('location_id')}"
+    )]
+
+
+# ============================================================================
+# Router
+# ============================================================================
+
+async def handle_profile_tool(name: str, arguments: Any, db_helper) -> list[TextContent]:
+    """Route profile management tool calls to appropriate handlers."""
+    
+    handlers = {
+        "list_profiles": handle_list_profiles,
+        "create_profile": handle_create_profile,
+        "update_profile": handle_update_profile,
+        "delete_profile": handle_delete_profile,
+        "set_current_profile": handle_set_current_profile,
+        "add_location": handle_add_location,
+        "remove_location": handle_remove_location,
+    }
+    
+    handler = handlers.get(name)
+    if not handler:
+        return [TextContent(type="text", text=f"Unknown profile tool: {name}")]
+    
+    # Call handler (some take arguments, some don't)
+    if name == "list_profiles":
+        return await handler(db_helper)
+    else:
+        return await handler(db_helper, arguments)

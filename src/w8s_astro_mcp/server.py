@@ -65,7 +65,7 @@ def get_natal_chart_data():
     """Get natal chart from primary profile."""
     db = init_db()
     
-    profile = db.get_primary_profile()
+    profile = db.get_current_profile()
     if not profile:
         raise SweetestError("No primary profile found. Run migration script first.")
     
@@ -79,7 +79,7 @@ def get_chart_for_date(date_str, time_str="12:00", location=None):
     
     # Get location
     if location is None:
-        profile = db.get_primary_profile()
+        profile = db.get_current_profile()
         location = db.get_current_home_location(profile)
         if not location:
             raise SweetestError("No current home location found")
@@ -304,7 +304,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             response = "# Current Configuration\n\n"
             
             # Primary profile
-            profile = db.get_primary_profile()
+            profile = db.get_current_profile()
             if profile:
                 birth_loc = db.get_birth_location(profile)
                 response += "## Primary Profile\n"
@@ -373,7 +373,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             location_arg = arguments.get("location", "current")
             
             # Get profile
-            profile = db.get_primary_profile()
+            profile = db.get_current_profile()
             if not profile:
                 return [TextContent(type="text", text="No primary profile found")]
             

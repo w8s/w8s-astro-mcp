@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from w8s_astro_mcp.database import initialize_database, get_session, get_database_path
 from w8s_astro_mcp.models import (
-    HouseSystem, Location, Profile,
+    AppSettings, HouseSystem, Location, Profile,
     NatalPlanet, NatalHouse, NatalPoint,
     HOUSE_SYSTEM_SEED_DATA
 )
@@ -165,12 +165,21 @@ def migrate_config(dry_run: bool = False):
             birth_date=birth["date"],
             birth_time=birth["time"],
             birth_location_id=birth_location.id,
-            is_primary=True,
             preferred_house_system_id=placidus.id
         )
         session.add(profile)
         session.flush()
         print(f"   ✅ Profile: {profile.name}")
+        
+        # 5b. Set as current profile in AppSettings
+        print("\n5️⃣b Setting as current profile...")
+        settings = session.query(AppSettings).filter_by(id=1).first()
+        if settings:
+            settings.current_profile_id = profile.id
+        else:
+            settings = AppSettings(id=1, current_profile_id=profile.id)
+            session.add(settings)
+        print(f"   ✅ Current profile: {profile.name}")
         
         # 6. Create natal planets
         print("\n6️⃣  Creating natal planets...")

@@ -1,25 +1,43 @@
 """SQLAlchemy models for w8s-astro-mcp.
 
 This package contains all database models:
+- AppSettings: Application-level configuration (current profile, etc.)
 - Profile: Birth data and cached natal charts
-- TransitLookup: History of transit calculations
+- Location: Saved locations (birth, home, custom)
+- HouseSystem: Reference data for house systems
+- Natal* models: Cached natal chart data
+- Transit* models: History of transit calculations
 
 Example usage:
-    from w8s_astro_mcp.models import Profile, TransitLookup
+    from w8s_astro_mcp.models import Profile, Location, AppSettings
     from w8s_astro_mcp.database import get_session
     
     with get_session() as session:
+        # Create a location
+        location = Location(
+            label="St. Louis, MO",
+            latitude=38.627,
+            longitude=-90.198,
+            timezone="America/Chicago"
+        )
+        session.add(location)
+        session.flush()
+        
+        # Create a profile
         profile = Profile(
             name="Todd",
             birth_date="1981-05-06",
             birth_time="00:50",
-            birth_location_name="St. Louis, MO",
-            birth_latitude=38.627003,
-            birth_longitude=-90.199402,
-            birth_timezone="America/Chicago",
-            is_primary=True
+            birth_location_id=location.id,
+            preferred_house_system_id=1  # Placidus
         )
         session.add(profile)
+        session.flush()
+        
+        # Set as current user
+        settings = session.query(AppSettings).first()
+        settings.current_profile_id = profile.id
+        session.commit()
 """
 
 from w8s_astro_mcp.models.app_settings import AppSettings

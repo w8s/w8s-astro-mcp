@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 
-from .config import Config, ConfigError
 from .utils.swetest_integration import SweetestIntegration, SweetestError
 from .utils.install_helper import InstallationHelper
 from .utils.db_helpers import DatabaseHelper

@@ -381,16 +381,66 @@ async def handle_set_current_profile(db_helper, arguments: dict) -> list[TextCon
 
 
 async def handle_add_location(db_helper, arguments: dict) -> list[TextContent]:
-    """Add a saved location."""
-    # TODO: Implement
-    # 1. Create Location
-    # 2. If set_as_home, update is_current_home
-    return [TextContent(
-        type="text",
-        text="🚧 add_location - Not yet implemented\n\n"
-             f"Would add location: {arguments.get('label')}\n"
-             f"Coordinates: {arguments.get('latitude')}, {arguments.get('longitude')}"
-    )]
+    """Add a saved location to a profile."""
+    try:
+        # Extract arguments
+        profile_id = arguments.get("profile_id")
+        label = arguments.get("label")
+        latitude = arguments.get("latitude")
+        longitude = arguments.get("longitude")
+        timezone = arguments.get("timezone")
+        set_as_home = arguments.get("set_as_home", False)
+        
+        # Validate required fields
+        if not all([profile_id, label, latitude, longitude, timezone]):
+            return [TextContent(
+                type="text",
+                text="Error: Missing required fields (profile_id, label, latitude, longitude, timezone)"
+            )]
+        
+        # Verify profile exists
+        profile = db_helper.get_profile_by_id(profile_id)
+        if not profile:
+            return [TextContent(
+                type="text",
+                text=f"Error: Profile {profile_id} not found. Use list_profiles to see available profiles."
+            )]
+        
+        # Create location
+        location = db_helper.create_location(
+            profile_id=profile_id,
+            label=label,
+            latitude=latitude,
+            longitude=longitude,
+            timezone=timezone,
+            set_as_home=set_as_home
+        )
+        
+        # Format success message
+        response = f"✓ Location added successfully!\n\n"
+        response += f"**{label}** (ID: {location.id})\n"
+        response += f"Profile: {profile.name} (ID: {profile.id})\n"
+        response += f"Coordinates: {latitude}, {longitude}\n"
+        response += f"Timezone: {timezone}\n"
+        
+        if set_as_home:
+            response += f"\n✓ Set as current home location for {profile.name}"
+        else:
+            response += f"\nNot set as home. To make this the home location, use add_location with set_as_home=true"
+        
+        return [TextContent(type="text", text=response)]
+        
+    except ValueError as e:
+        # Profile not found error from create_location
+        return [TextContent(
+            type="text",
+            text=f"Error: {e}. Use list_profiles to see available profiles."
+        )]
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error adding location: {e}"
+        )]
 
 
 async def handle_remove_location(db_helper, arguments: dict) -> list[TextContent]:

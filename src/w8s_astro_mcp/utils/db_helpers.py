@@ -287,3 +287,57 @@ class DatabaseHelper:
             
             session.commit()
             return profile
+    
+    def create_location(
+        self,
+        profile_id: int,
+        label: str,
+        latitude: float,
+        longitude: float,
+        timezone: str,
+        set_as_home: bool = False
+    ) -> Location:
+        """
+        Create a new location for a profile.
+        
+        Args:
+            profile_id: Profile this location belongs to
+            label: Display name (e.g., "Home", "Office", "Paris Trip")
+            latitude: Latitude in decimal degrees
+            longitude: Longitude in decimal degrees
+            timezone: Timezone (e.g., 'America/Chicago')
+            set_as_home: If True, unsets is_current_home on other locations
+            
+        Returns:
+            Created Location object
+            
+        Raises:
+            ValueError: If profile doesn't exist
+        """
+        with get_session(self.engine) as session:
+            # Verify profile exists
+            profile = session.query(Profile).filter_by(id=profile_id).first()
+            if not profile:
+                raise ValueError(f"Profile {profile_id} not found")
+            
+            # If set_as_home, unset all other current_home flags for this profile
+            if set_as_home:
+                session.query(Location).filter_by(
+                    profile_id=profile_id,
+                    is_current_home=True
+                ).update({"is_current_home": False})
+            
+            # Create location
+            location = Location(
+                profile_id=profile_id,
+                label=label,
+                latitude=latitude,
+                longitude=longitude,
+                timezone=timezone,
+                is_current_home=set_as_home,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(location)
+            session.commit()
+            return location

@@ -1,10 +1,33 @@
-"""Configuration management for w8s-astro-mcp."""
+"""Configuration management for w8s-astro-mcp.
 
+⚠️  DEPRECATED: This module is deprecated in favor of SQLite database.
+    
+    The w8s-astro-mcp system now uses SQLite for data storage instead of
+    config.json. This module is kept for backwards compatibility but will
+    be removed in a future version.
+    
+    Migration guide:
+    1. Run: python scripts/migrate_config_to_sqlite.py
+    2. Your data will be migrated to ~/.w8s-astro-mcp/astro.db
+    3. The new database-based system is automatically used
+    
+    New users should not use this module.
+"""
+
+import warnings
 import json
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
+
+# Issue deprecation warning
+warnings.warn(
+    "config.py is deprecated. Use SQLite database instead. "
+    "See docs/SQLITE_MIGRATION_COMPLETE.md for details.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 class ConfigError(Exception):

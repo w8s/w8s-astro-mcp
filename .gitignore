@@ -36,6 +36,11 @@ env/
 data/config.json
 data/transits_cache.json
 data/*.db
+# SQLite databases (user data)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
 
 # macOS
 .DS_Store

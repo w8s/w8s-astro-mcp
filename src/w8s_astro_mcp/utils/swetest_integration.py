@@ -1,13 +1,15 @@
-"""Integration with Swiss Ephemeris (swetest) binary."""
+"""Swiss Ephemeris (swetest) integration."""
 
 import subprocess
-from datetime import datetime, date
-from typing import Dict, Any, Optional, Tuple
-from .parsers.swetest import parse_swetest_output, SweetestParseError
+from datetime import datetime
+from typing import Dict, Any, Optional
+from pathlib import Path
+
+from ..parsers.swetest import parse_swetest_output, SweetestParseError
 
 
 class SweetestError(Exception):
-    """Raised when swetest execution fails."""
+    """Raised when swetest command fails."""
     pass
 
 
@@ -19,13 +21,18 @@ class SweetestIntegration:
         Initialize swetest integration.
         
         Args:
-            swetest_path: Path to swetest binary (default: "swetest" from PATH)
+            swetest_path: Path to swetest binary (default: "swetest" in PATH)
         """
         self.swetest_path = swetest_path
         self._verify_swetest()
     
     def _verify_swetest(self):
-        """Verify that swetest binary is available."""
+        """
+        Verify swetest is available.
+        
+        Raises:
+            SweetestError: If swetest is not found or not executable
+        """
         try:
             result = subprocess.run(
                 [self.swetest_path, "-h"],
@@ -33,62 +40,65 @@ class SweetestIntegration:
                 text=True,
                 timeout=5
             )
-            if result.returncode != 0:
-                raise SweetestError(f"swetest not working: {result.stderr}")
         except FileNotFoundError:
             raise SweetestError(
                 f"swetest binary not found at '{self.swetest_path}'. "
                 "Install Swiss Ephemeris or specify correct path."
             )
         except subprocess.TimeoutExpired:
-            raise SweetestError("swetest binary timeout")
+            raise SweetestError("swetest binary timed out during verification")
     
     def get_transits(
         self,
-        transit_date: Optional[date] = None,
-        transit_time: str = "12:00",
-        latitude: float = 0.0,
-        longitude: float = 0.0,
-        house_system: str = "P"
+        latitude: float,
+        longitude: float,
+        date_str: Optional[str] = None,
+        time_str: str = "12:00",
+        house_system_code: str = "P"
     ) -> Dict[str, Any]:
         """
-        Get transit data for a specific date/time/location.
+        Get transits for a specific location at specified date/time.
         
         Args:
-            transit_date: Date for transits (default: today)
-            transit_time: Time in HH:MM format (default: "12:00")
             latitude: Latitude in decimal degrees
             longitude: Longitude in decimal degrees
-            house_system: House system code (P=Placidus, K=Koch, etc.)
+            date_str: Date in YYYY-MM-DD format (default: today)
+            time_str: Time in HH:MM format (default: "12:00")
+            house_system_code: House system code (default: "P" for Placidus)
         
         Returns:
-            Parsed transit data dictionary
+            Parsed transit data with 'planets', 'houses', 'points', 'metadata' keys
             
         Raises:
-            SweetestError: If swetest execution fails
-            SweetestParseError: If output cannot be parsed
+            SweetestError: If swetest fails or output cannot be parsed
         """
-        if transit_date is None:
-            transit_date = date.today()
+        # Use today if no date specified
+        if not date_str:
+            date_str = datetime.now().strftime("%Y-%m-%d")
         
-        # Format date for swetest (day.month.year)
-        date_str = f"{transit_date.day}.{transit_date.month}.{transit_date.year}"
+        # Parse date
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            raise SweetestError(f"Invalid date format: {date_str}. Use YYYY-MM-DD")
+        
+        # Convert to swetest format (day.month.year)
+        swetest_date = f"{dt.day}.{dt.month}.{dt.year}"
         
         # Build swetest command
         # -b: begin date
         # -ut: universal time
         # -p: planets (0-9 = Sun through Pluto)
-        # -house: house cusps with lat,long,house_system
-        # -fPZS: format with Position, Zodiac position, Speed
-        # -roundsec: round to seconds
+        # -house: house cusps with long,lat,house_system
+        # -fPZS: format - Position, Zodiac, Speed
+        # Note: Removed -roundsec to avoid split seconds parsing issues
         cmd = [
             self.swetest_path,
-            f"-b{date_str}",
-            f"-ut{transit_time}",
-            "-p0123456789",  # All planets
-            f"-house{longitude},{latitude},{house_system}",
-            "-fPZS",
-            "-roundsec"
+            f"-b{swetest_date}",
+            f"-ut{time_str}",
+            "-p0123456789",  # All major planets
+            f"-house{longitude},{latitude},{house_system_code}",
+            "-fPZS"
         ]
         
         try:
@@ -102,54 +112,34 @@ class SweetestIntegration:
             if result.returncode != 0:
                 raise SweetestError(f"swetest failed: {result.stderr}")
             
-            # Parse the output
+            # Parse output
             return parse_swetest_output(result.stdout)
             
         except subprocess.TimeoutExpired:
-            raise SweetestError("swetest execution timeout")
+            raise SweetestError("swetest command timed out")
+        except SweetestParseError as e:
+            raise SweetestError(f"Failed to parse swetest output: {e}")
         except Exception as e:
-            raise SweetestError(f"swetest execution failed: {e}")
+            raise SweetestError(f"Unexpected error running swetest: {e}")
     
-    def get_transits_for_config(
+    # Backwards compatibility wrapper
+    def get_current_transits(
         self,
-        config_data: Dict[str, Any],
-        transit_date: Optional[date] = None,
-        transit_time: str = "12:00",
+        date_str: Optional[str] = None,
+        time_str: str = "12:00",
         location_name: str = "current"
     ) -> Dict[str, Any]:
         """
-        Get transits using configuration data.
+        DEPRECATED: Backwards compatibility wrapper for old Config-based code.
         
-        Args:
-            config_data: Configuration dictionary from Config.data
-            transit_date: Date for transits (default: today)
-            transit_time: Time in HH:MM format
-            location_name: Name of location from config (default: "current")
+        This method exists to support legacy code that uses Config.
+        New code should use get_transits() directly.
         
-        Returns:
-            Parsed transit data dictionary
-            
         Raises:
-            SweetestError: If config is incomplete or swetest fails
+            NotImplementedError: This method requires refactoring to use new approach
         """
-        # Get location
-        if location_name == "current":
-            current_name = config_data.get("locations", {}).get("current")
-            if not current_name:
-                raise SweetestError("No current location set in config")
-            location_name = current_name
-        
-        location = config_data.get("locations", {}).get(location_name)
-        if not location:
-            raise SweetestError(f"Location '{location_name}' not found in config")
-        
-        # Get house system
-        house_system = config_data.get("house_system", "P")
-        
-        return self.get_transits(
-            transit_date=transit_date,
-            transit_time=transit_time,
-            latitude=location["latitude"],
-            longitude=location["longitude"],
-            house_system=house_system
+        raise NotImplementedError(
+            "get_current_transits() is deprecated. "
+            "Use get_transits(latitude, longitude, ...) instead. "
+            "See docs/SERVER_REFACTOR_TODO.md for migration guide."
         )

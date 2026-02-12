@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List
 
 from ..database import get_database_path, create_db_engine, get_session
 from ..models import (
-    Profile, Location, HouseSystem,
+    AppSettings, Profile, Location, HouseSystem,
     NatalPlanet, NatalHouse, NatalPoint,
     TransitLookup, TransitPlanet, TransitHouse, TransitPoint
 )
@@ -28,10 +28,40 @@ class DatabaseHelper:
             )
         self.engine = create_db_engine(db_path)
     
-    def get_primary_profile(self) -> Optional[Profile]:
-        """Get the primary profile (user's own chart)."""
+    def get_current_profile(self) -> Optional[Profile]:
+        """
+        Get the current user's profile (from AppSettings).
+        
+        Returns None if no profile is set as current.
+        """
         with get_session(self.engine) as session:
-            return session.query(Profile).filter_by(is_primary=True).first()
+            settings = session.query(AppSettings).filter_by(id=1).first()
+            if not settings or not settings.current_profile_id:
+                return None
+            return session.query(Profile).filter_by(id=settings.current_profile_id).first()
+    
+    def set_current_profile(self, profile_id: int) -> bool:
+        """
+        Set the current user's profile.
+        
+        Returns True if successful, False if profile doesn't exist.
+        """
+        with get_session(self.engine) as session:
+            # Verify profile exists
+            profile = session.query(Profile).filter_by(id=profile_id).first()
+            if not profile:
+                return False
+            
+            # Update or create settings
+            settings = session.query(AppSettings).filter_by(id=1).first()
+            if not settings:
+                settings = AppSettings(id=1, current_profile_id=profile_id)
+                session.add(settings)
+            else:
+                settings.current_profile_id = profile_id
+            
+            session.commit()
+            return True
     
     def get_profile_by_id(self, profile_id: int) -> Optional[Profile]:
         """Get profile by ID."""

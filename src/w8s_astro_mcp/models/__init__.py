@@ -22,6 +22,7 @@ Example usage:
         session.add(profile)
 """
 
+from w8s_astro_mcp.models.app_settings import AppSettings
 from w8s_astro_mcp.models.house_system import HouseSystem, HOUSE_SYSTEM_SEED_DATA
 from w8s_astro_mcp.models.location import Location
 from w8s_astro_mcp.models.profile import Profile
@@ -34,6 +35,7 @@ from w8s_astro_mcp.models.transit_house import TransitHouse
 from w8s_astro_mcp.models.transit_point import TransitPoint
 
 __all__ = [
+    "AppSettings",
     "HouseSystem",
     "HOUSE_SYSTEM_SEED_DATA",
     "Location",

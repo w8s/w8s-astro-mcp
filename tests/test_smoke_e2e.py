@@ -84,7 +84,6 @@ def test_smoke_create_profile_and_location(temp_db):
             birth_date="1990-01-15",
             birth_time="14:30",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)
@@ -117,7 +116,6 @@ def test_smoke_natal_chart_storage(temp_db):
             birth_date="1990-01-15",
             birth_time="12:00",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)
@@ -182,7 +180,6 @@ def test_smoke_database_helper_queries(temp_db):
             birth_date="1990-01-15",
             birth_time="12:00",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)
@@ -192,8 +189,10 @@ def test_smoke_database_helper_queries(temp_db):
     # Note: This won't work as-is because DatabaseHelper looks for ~/.w8s-astro-mcp/astro.db
     # But we can test its methods with our engine
     with get_session(engine) as session:
-        primary = session.query(Profile).filter_by(is_primary=True).first()
-        assert primary is not None
+        # We just created the profile, so we know what to expect
+        all_profiles = session.query(Profile).all()
+        assert len(all_profiles) == 1
+        primary = all_profiles[0]
         assert primary.name == "Primary User"
         
         birth_location = session.query(Location).filter_by(id=primary.birth_location_id).first()
@@ -242,7 +241,6 @@ def test_smoke_transit_logging_flow(temp_db):
             birth_date="1990-01-15",
             birth_time="12:00",
             birth_location_id=location.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)

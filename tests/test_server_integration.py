@@ -76,7 +76,6 @@ def test_setup_astro_config_workflow(temp_db):
             birth_date="1981-05-06",
             birth_time="00:50",
             birth_location_id=birth_location.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)
@@ -87,7 +86,7 @@ def test_setup_astro_config_workflow(temp_db):
         assert birth_location.id is not None
         
         # Verify we can retrieve it (like get_natal_chart would)
-        retrieved = session.query(Profile).filter_by(is_primary=True).first()
+        retrieved = session.query(Profile).filter_by(id=profile.id).first()
         assert retrieved is not None
         assert retrieved.birth_date == "1981-05-06"
         assert retrieved.birth_time == "00:50"
@@ -120,18 +119,19 @@ def test_database_helper_get_primary_profile(temp_db):
             birth_date="1990-01-15",
             birth_time="12:00",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)
         session.commit()
     
     # Now use DatabaseHelper (simulating server.py usage)
-    # Note: DatabaseHelper uses default db path, so this won't work perfectly
-    # But we can test the query pattern
+    # Note: We just created the profile, so we can use its data directly
     with get_session(engine) as session:
-        primary = session.query(Profile).filter_by(is_primary=True).first()
-        assert primary is not None
+        # In real usage, server would use AppSettings to get current profile
+        # For this test, we know the profile we just created
+        all_profiles = session.query(Profile).all()
+        assert len(all_profiles) == 1
+        primary = all_profiles[0]
         assert primary.name == "Primary User"
 
 
@@ -165,7 +165,6 @@ def test_get_natal_chart_with_cached_data(temp_db):
             birth_date="1981-05-06",
             birth_time="00:50",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)
@@ -211,22 +210,22 @@ def test_get_natal_chart_with_cached_data(temp_db):
         session.commit()
         
         # Now simulate get_natal_chart retrieval
-        primary = session.query(Profile).filter_by(is_primary=True).first()
-        assert primary is not None
+        # We know the profile we just created
+        assert profile.id is not None
         
         # Get natal planets
-        planets = session.query(NatalPlanet).filter_by(profile_id=primary.id).all()
+        planets = session.query(NatalPlanet).filter_by(profile_id=profile.id).all()
         assert len(planets) == 1
         assert planets[0].planet == "Sun"
         assert planets[0].sign == "Taurus"
         
         # Get natal points
-        points = session.query(NatalPoint).filter_by(profile_id=primary.id).all()
+        points = session.query(NatalPoint).filter_by(profile_id=profile.id).all()
         assert len(points) == 1
         assert points[0].point_type == "ASC"
         
         # Get natal houses
-        houses = session.query(NatalHouse).filter_by(profile_id=primary.id).all()
+        houses = session.query(NatalHouse).filter_by(profile_id=profile.id).all()
         assert len(houses) == 1
         assert houses[0].house_number == 1
 
@@ -261,7 +260,6 @@ def test_location_management(temp_db):
             birth_date="1981-05-06",
             birth_time="00:50",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)

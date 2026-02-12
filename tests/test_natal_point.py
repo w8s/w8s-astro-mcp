@@ -64,7 +64,6 @@ def test_natal_point_creation(temp_db):
             birth_date="1990-01-15",
             birth_time="12:00",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)
@@ -145,7 +144,6 @@ def test_natal_point_to_dict(temp_db):
             birth_date="1990-01-15",
             birth_time="12:00",
             birth_location_id=birth_loc.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)

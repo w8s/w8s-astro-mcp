@@ -134,12 +134,13 @@ def get_session(engine: Engine | None = None) -> Generator[Session, None, None]:
 
 def initialize_database(db_path: Path | None = None, echo: bool = False) -> Engine:
     """
-    Initialize the database with all tables.
+    Initialize the database with all tables and seed data.
     
     This is a convenience function that:
     1. Creates the database engine
     2. Creates all tables if they don't exist
-    3. Returns the engine for further use
+    3. Seeds AppSettings table (single row)
+    4. Returns the engine for further use
     
     Args:
         db_path: Optional custom database path
@@ -153,8 +154,19 @@ def initialize_database(db_path: Path | None = None, echo: bool = False) -> Engi
         with get_session(engine) as session:
             profiles = session.query(Profile).all()
     """
+    from w8s_astro_mcp.models import AppSettings
+    
     engine = create_db_engine(db_path, echo)
     create_tables(engine)
+    
+    # Seed AppSettings table (single row, id=1)
+    with get_session(engine) as session:
+        settings = session.query(AppSettings).filter_by(id=1).first()
+        if not settings:
+            settings = AppSettings(id=1, current_profile_id=None)
+            session.add(settings)
+            session.commit()
+    
     return engine
 
 

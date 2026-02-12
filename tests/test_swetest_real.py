@@ -76,7 +76,6 @@ def test_db():
             birth_date="1981-05-06",
             birth_time="00:50",
             birth_location_id=location.id,
-            is_primary=True,
             preferred_house_system_id=house_system.id
         )
         session.add(profile)

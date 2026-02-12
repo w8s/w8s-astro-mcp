@@ -74,10 +74,15 @@ class DatabaseHelper:
             return session.query(Location).filter_by(id=profile.birth_location_id).first()
     
     def get_current_home_location(self, profile: Profile) -> Optional[Location]:
-        """Get current home location for a profile."""
+        """Get current home location for a profile.
+        
+        Searches for locations with is_current_home=True that are either:
+        - Owned by this profile (profile_id = profile.id)
+        - Shared locations (profile_id = NULL)
+        """
         with get_session(self.engine) as session:
             return session.query(Location).filter(
-                Location.profile_id == profile.id,
+                ((Location.profile_id == profile.id) | (Location.profile_id == None)),
                 Location.is_current_home == True
             ).first()
     

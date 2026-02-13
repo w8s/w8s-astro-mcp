@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 
-from .config import Config, ConfigError
 from .utils.swetest_integration import SweetestIntegration, SweetestError
 from .utils.install_helper import InstallationHelper
 from .utils.db_helpers import DatabaseHelper
@@ -22,6 +21,10 @@ from .tools.analysis_tools import (
     AnalysisError
 )
 from .tools.visualization import create_natal_chart
+from .tools.profile_management import (
+    get_profile_management_tools,
+    handle_profile_tool
+)
 
 
 # Initialize MCP server
@@ -96,7 +99,8 @@ def get_chart_for_date(date_str, time_str="12:00", location=None):
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     """List available MCP tools."""
-    return [
+    # Core tools
+    core_tools = [
         Tool(
             name="check_swetest_installation",
             description="Check if swetest (Swiss Ephemeris) is installed and get setup instructions",
@@ -259,6 +263,11 @@ async def list_tools() -> list[Tool]:
             }
         )
     ]
+    
+    # Add profile management tools
+    profile_tools = get_profile_management_tools()
+    
+    return core_tools + profile_tools
 
 
 
@@ -542,6 +551,12 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             
         except Exception as e:
             return [TextContent(type="text", text=f"Error creating visualization: {e}")]
+    
+    # Profile management tools
+    elif name in ["list_profiles", "create_profile", "update_profile", "delete_profile",
+                  "set_current_profile", "add_location", "remove_location"]:
+        db = init_db()
+        return await handle_profile_tool(name, arguments, db)
     
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]

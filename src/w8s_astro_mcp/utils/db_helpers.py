@@ -229,3 +229,263 @@ class DatabaseHelper:
                     (Location.profile_id == profile.id) | (Location.profile_id == None)
                 ).all()
             return session.query(Location).all()
+    
+    def create_profile_with_location(
+        self,
+        name: str,
+        birth_date: str,
+        birth_time: str,
+        birth_location_name: str,
+        birth_latitude: float,
+        birth_longitude: float,
+        birth_timezone: str,
+        preferred_house_system_id: int = 1  # Default to Placidus
+    ) -> Profile:
+        """
+        Create a new profile with its birth location.
+        
+        This is atomic - either both profile and location are created, or neither.
+        
+        Args:
+            name: Person's name
+            birth_date: YYYY-MM-DD format
+            birth_time: HH:MM format (24-hour)
+            birth_location_name: Display name for location
+            birth_latitude: Latitude in decimal degrees
+            birth_longitude: Longitude in decimal degrees
+            birth_timezone: Timezone (e.g., 'America/Chicago')
+            preferred_house_system_id: House system ID (default: 1 = Placidus)
+            
+        Returns:
+            Created Profile object with birth_location_id set
+        """
+        with get_session(self.engine) as session:
+            # Create birth location first (will get profile_id after profile creation)
+            birth_location = Location(
+                profile_id=None,  # Temporary - will update after profile creation
+                label="Birth",
+                latitude=birth_latitude,
+                longitude=birth_longitude,
+                timezone=birth_timezone,
+                is_current_home=True,  # Birth location starts as home
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(birth_location)
+            session.flush()  # Get the location ID
+            
+            # Create profile
+            profile = Profile(
+                name=name,
+                birth_date=birth_date,
+                birth_time=birth_time,
+                birth_location_id=birth_location.id,
+                preferred_house_system_id=preferred_house_system_id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(profile)
+            session.flush()  # Get the profile ID
+            
+            # Update location with profile_id
+            birth_location.profile_id = profile.id
+            
+            session.commit()
+            return profile
+    
+    def create_location(
+        self,
+        profile_id: int,
+        label: str,
+        latitude: float,
+        longitude: float,
+        timezone: str,
+        set_as_home: bool = False
+    ) -> Location:
+        """
+        Create a new location for a profile.
+        
+        Args:
+            profile_id: Profile this location belongs to
+            label: Display name (e.g., "Home", "Office", "Paris Trip")
+            latitude: Latitude in decimal degrees
+            longitude: Longitude in decimal degrees
+            timezone: Timezone (e.g., 'America/Chicago')
+            set_as_home: If True, unsets is_current_home on other locations
+            
+        Returns:
+            Created Location object
+            
+        Raises:
+            ValueError: If profile doesn't exist
+        """
+        with get_session(self.engine) as session:
+            # Verify profile exists
+            profile = session.query(Profile).filter_by(id=profile_id).first()
+            if not profile:
+                raise ValueError(f"Profile {profile_id} not found")
+            
+            # If set_as_home, unset all other current_home flags for this profile
+            if set_as_home:
+                session.query(Location).filter_by(
+                    profile_id=profile_id,
+                    is_current_home=True
+                ).update({"is_current_home": False})
+            
+            # Create location
+            location = Location(
+                profile_id=profile_id,
+                label=label,
+                latitude=latitude,
+                longitude=longitude,
+                timezone=timezone,
+                is_current_home=set_as_home,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(location)
+            session.commit()
+            return location
+    
+    def update_profile_field(
+        self,
+        profile_id: int,
+        field: str,
+        value: str
+    ) -> Profile:
+        """
+        Update a single field on a profile.
+        
+        Args:
+            profile_id: Profile to update
+            field: Field name (must be one of: "name", "birth_date", "birth_time")
+            value: New value for the field
+            
+        Returns:
+            Updated Profile object
+            
+        Raises:
+            ValueError: If profile doesn't exist or field is invalid
+        """
+        ALLOWED_FIELDS = ["name", "birth_date", "birth_time"]
+        
+        if field not in ALLOWED_FIELDS:
+            raise ValueError(f"Invalid field '{field}'. Must be one of: {', '.join(ALLOWED_FIELDS)}")
+        
+        with get_session(self.engine) as session:
+            # Get profile
+            profile = session.query(Profile).filter_by(id=profile_id).first()
+            if not profile:
+                raise ValueError(f"Profile {profile_id} not found")
+            
+            # Update field
+            setattr(profile, field, value)
+            profile.updated_at = datetime.now()
+            
+            # If birth data changed, invalidate natal cache
+            if field in ["birth_date", "birth_time"]:
+                self._invalidate_natal_cache(session, profile_id)
+            
+            session.commit()
+            return profile
+    
+    def _invalidate_natal_cache(self, session, profile_id: int):
+        """
+        Delete cached natal chart data for a profile.
+        
+        Called when birth_date or birth_time changes.
+        
+        Args:
+            session: Active database session
+            profile_id: Profile whose natal data should be cleared
+        """
+        # Delete natal planets
+        session.query(NatalPlanet).filter_by(profile_id=profile_id).delete()
+        
+        # Delete natal houses
+        session.query(NatalHouse).filter_by(profile_id=profile_id).delete()
+        
+        # Delete natal points
+        session.query(NatalPoint).filter_by(profile_id=profile_id).delete()
+        
+        # Note: We don't need to commit here - caller will commit
+    
+    def get_location_by_id(self, location_id: int) -> Optional[Location]:
+        """Get location by ID."""
+        with get_session(self.engine) as session:
+            return session.query(Location).filter_by(id=location_id).first()
+    
+    def is_location_used_as_birth_location(self, location_id: int) -> Optional[Profile]:
+        """
+        Check if a location is being used as a birth location.
+        
+        Args:
+            location_id: Location to check
+            
+        Returns:
+            Profile using this location as birth location, or None if not used
+        """
+        with get_session(self.engine) as session:
+            return session.query(Profile).filter_by(birth_location_id=location_id).first()
+    
+    def delete_location(self, location_id: int) -> bool:
+        """
+        Delete a location.
+        
+        Args:
+            location_id: Location to delete
+            
+        Returns:
+            True if deleted, False if location doesn't exist
+            
+        Raises:
+            ValueError: If location is being used as a birth location
+        """
+        with get_session(self.engine) as session:
+            # Check if location exists
+            location = session.query(Location).filter_by(id=location_id).first()
+            if not location:
+                return False
+            
+            # Check if used as birth location
+            profile_using = session.query(Profile).filter_by(birth_location_id=location_id).first()
+            if profile_using:
+                raise ValueError(
+                    f"Cannot delete location - it is the birth location for profile '{profile_using.name}' (ID: {profile_using.id})"
+                )
+            
+            # Delete location
+            session.delete(location)
+            session.commit()
+            return True
+    
+    def delete_profile(self, profile_id: int) -> bool:
+        """
+        Delete a profile and all associated data.
+        
+        Database CASCADE will automatically delete:
+        - natal_planets (FK: profile_id ON DELETE CASCADE)
+        - natal_houses (FK: profile_id ON DELETE CASCADE)
+        - natal_points (FK: profile_id ON DELETE CASCADE)
+        - locations (FK: profile_id ON DELETE CASCADE)
+        - transit_lookups (FK: profile_id ON DELETE CASCADE)
+        
+        If this profile is the current_profile, AppSettings.current_profile_id
+        will be set to NULL automatically (ON DELETE SET NULL).
+        
+        Args:
+            profile_id: Profile to delete
+            
+        Returns:
+            True if deleted, False if profile doesn't exist
+        """
+        with get_session(self.engine) as session:
+            # Check if profile exists
+            profile = session.query(Profile).filter_by(id=profile_id).first()
+            if not profile:
+                return False
+            
+            # Delete profile - CASCADE handles all related data
+            session.delete(profile)
+            session.commit()
+            return True

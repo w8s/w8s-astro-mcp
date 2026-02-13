@@ -11,6 +11,7 @@ from w8s_astro_mcp.tools.profile_management import (
     handle_add_location,
     handle_update_profile,
     handle_remove_location,
+    handle_delete_profile,
 )
 from w8s_astro_mcp.models.profile import Profile
 from w8s_astro_mcp.models.location import Location
@@ -1457,3 +1458,176 @@ async def test_workflow_add_then_remove_location(mock_db_helper, sample_profile_
     # Verify both operations completed
     mock_db_helper.create_location.assert_called_once()
     mock_db_helper.delete_location.assert_called_once_with(15)
+
+
+# ============================================================================
+# Tests for delete_profile
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_delete_profile_success(mock_db_helper, sample_profile_2):
+    """Test delete_profile with valid data and confirmation."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_2
+    mock_db_helper.delete_profile.return_value = True
+    
+    arguments = {
+        "profile_id": 2,
+        "confirm": True
+    }
+    
+    # Execute
+    result = await handle_delete_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Sarah Johnson" in text
+    assert "ID: 2" in text
+    assert "1985-03-15" in text
+    assert "deleted permanently" in text.lower()
+    assert "natal chart" in text.lower()
+    assert "locations" in text.lower()
+    assert "set_current_profile" in text
+    
+    # Verify database methods called correctly
+    mock_db_helper.get_profile_by_id.assert_called_once_with(2)
+    mock_db_helper.delete_profile.assert_called_once_with(2)
+
+
+@pytest.mark.asyncio
+async def test_delete_profile_missing_confirmation(mock_db_helper):
+    """Test delete_profile without confirm=true."""
+    arguments = {
+        "profile_id": 2,
+        "confirm": False  # Not true
+    }
+    
+    # Execute
+    result = await handle_delete_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "confirm=true" in text
+    assert "permanent" in text.lower()
+    assert "cannot be undone" in text.lower()
+    
+    # Should NOT call database
+    mock_db_helper.get_profile_by_id.assert_not_called()
+    mock_db_helper.delete_profile.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_profile_missing_profile_id(mock_db_helper):
+    """Test delete_profile without profile_id."""
+    arguments = {"confirm": True}
+    
+    # Execute
+    result = await handle_delete_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "profile_id is required" in text
+    
+    # Should NOT call database
+    mock_db_helper.delete_profile.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_profile_not_found(mock_db_helper):
+    """Test delete_profile when profile doesn't exist."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = None
+    
+    arguments = {
+        "profile_id": 999,
+        "confirm": True
+    }
+    
+    # Execute
+    result = await handle_delete_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "999" in text
+    assert "not found" in text.lower()
+    assert "list_profiles" in text
+    
+    # Should check but NOT delete
+    mock_db_helper.get_profile_by_id.assert_called_once_with(999)
+    mock_db_helper.delete_profile.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_profile_error_handling(mock_db_helper, sample_profile_2):
+    """Test delete_profile handles unexpected errors gracefully."""
+    # Setup
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_2
+    mock_db_helper.delete_profile.side_effect = Exception("Database constraint violation")
+    
+    arguments = {
+        "profile_id": 2,
+        "confirm": True
+    }
+    
+    # Execute
+    result = await handle_delete_profile(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error deleting profile" in text
+    assert "Database constraint violation" in text
+
+
+@pytest.mark.asyncio
+async def test_workflow_create_then_delete_profile(mock_db_helper, sample_profile_2):
+    """Test workflow: create profile, then delete it."""
+    # Step 1: Create profile
+    mock_db_helper.create_profile_with_location.return_value = sample_profile_2
+    
+    create_args = {
+        "name": "Sarah Johnson",
+        "birth_date": "1985-03-15",
+        "birth_time": "14:30",
+        "birth_location_name": "New York, NY",
+        "birth_latitude": 40.7128,
+        "birth_longitude": -74.0060,
+        "birth_timezone": "America/New_York"
+    }
+    
+    create_result = await handle_create_profile(mock_db_helper, create_args)
+    assert "Sarah Johnson" in create_result[0].text
+    assert "ID: 2" in create_result[0].text
+    
+    # Step 2: Delete the profile
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_2
+    mock_db_helper.delete_profile.return_value = True
+    
+    delete_args = {
+        "profile_id": 2,
+        "confirm": True
+    }
+    
+    delete_result = await handle_delete_profile(mock_db_helper, delete_args)
+    text = delete_result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Sarah Johnson" in text
+    assert "deleted permanently" in text.lower()
+    
+    # Verify both operations completed
+    mock_db_helper.create_profile_with_location.assert_called_once()
+    mock_db_helper.delete_profile.assert_called_once_with(2)

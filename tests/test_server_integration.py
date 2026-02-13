@@ -56,34 +56,32 @@ def test_setup_astro_config_workflow(temp_db):
     """
     db_path, engine = temp_db
     
-    # Simulate MCP tool call: setup_astro_config
+    # Use DatabaseHelper to create profile (atomically creates location too)
+    from w8s_astro_mcp.database import create_db_engine
+    db_helper = DatabaseHelper()
+    db_helper.engine = engine  # Use test engine
+    
+    profile = db_helper.create_profile_with_location(
+        name="Test User",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago"
+    )
+    
+    # Verify setup worked
     with get_session(engine) as session:
-        house_system = session.query(HouseSystem).filter_by(code='P').first()
+        birth_location = session.query(Location).filter_by(id=profile.birth_location_id).first()
         
-        # Create birth location
-        birth_location = Location(
-            label="Richardson, TX",
-            latitude=32.9483,
-            longitude=-96.7299,
-            timezone="America/Chicago"
-        )
-        session.add(birth_location)
-        session.flush()
+    # Verify setup worked
+    with get_session(engine) as session:
+        birth_location = session.query(Location).filter_by(id=profile.birth_location_id).first()
         
-        # Create profile
-        profile = Profile(
-            name="Test User",
-            birth_date="1981-05-06",
-            birth_time="00:50",
-            birth_location_id=birth_location.id,
-            preferred_house_system_id=house_system.id
-        )
-        session.add(profile)
-        session.commit()
-        
-        # Verify setup worked
         assert profile.id is not None
         assert birth_location.id is not None
+        assert birth_location.profile_id == profile.id  # Now linked
         
         # Verify we can retrieve it (like get_natal_chart would)
         retrieved = session.query(Profile).filter_by(id=profile.id).first()
@@ -98,31 +96,22 @@ def test_setup_astro_config_workflow(temp_db):
 
 
 def test_database_helper_get_primary_profile(temp_db):
-    """Test DatabaseHelper.get_primary_profile() method."""
+    """Test DatabaseHelper.get_current_profile() method."""
     db_path, engine = temp_db
     
-    # Create test profile
-    with get_session(engine) as session:
-        house_system = session.query(HouseSystem).filter_by(code='P').first()
-        
-        birth_loc = Location(
-            label="Test City",
-            latitude=40.0,
-            longitude=-95.0,
-            timezone="America/Chicago"
-        )
-        session.add(birth_loc)
-        session.flush()
-        
-        profile = Profile(
-            name="Primary User",
-            birth_date="1990-01-15",
-            birth_time="12:00",
-            birth_location_id=birth_loc.id,
-            preferred_house_system_id=house_system.id
-        )
-        session.add(profile)
-        session.commit()
+    # Use DatabaseHelper to create profile
+    db_helper = DatabaseHelper()
+    db_helper.engine = engine  # Use test engine
+    
+    profile = db_helper.create_profile_with_location(
+        name="Primary User",
+        birth_date="1990-01-15",
+        birth_time="12:00",
+        birth_location_name="Test City",
+        birth_latitude=40.0,
+        birth_longitude=-95.0,
+        birth_timezone="America/Chicago"
+    )
     
     # Now use DatabaseHelper (simulating server.py usage)
     # Note: We just created the profile, so we can use its data directly
@@ -145,30 +134,24 @@ def test_get_natal_chart_with_cached_data(temp_db):
     """
     db_path, engine = temp_db
     
+    # Use DatabaseHelper to create profile
+    db_helper = DatabaseHelper()
+    db_helper.engine = engine  # Use test engine
+    
+    profile = db_helper.create_profile_with_location(
+        name="Test User",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago"
+    )
+    
     with get_session(engine) as session:
         from w8s_astro_mcp.models import NatalPlanet, NatalHouse, NatalPoint
         
         house_system = session.query(HouseSystem).filter_by(code='P').first()
-        
-        # Setup profile
-        birth_loc = Location(
-            label="Richardson, TX",
-            latitude=32.9483,
-            longitude=-96.7299,
-            timezone="America/Chicago"
-        )
-        session.add(birth_loc)
-        session.flush()
-        
-        profile = Profile(
-            name="Test User",
-            birth_date="1981-05-06",
-            birth_time="00:50",
-            birth_location_id=birth_loc.id,
-            preferred_house_system_id=house_system.id
-        )
-        session.add(profile)
-        session.flush()
         
         # Add cached natal data (like swetest would save)
         sun = NatalPlanet(
@@ -234,66 +217,60 @@ def test_location_management(temp_db):
     """Test managing multiple locations (home, current, custom).
     
     Simulates:
-    1. User sets up birth location
-    2. User adds current location
-    3. User adds custom locations
+    1. User creates profile with birth location
+    2. User adds additional locations
+    3. User manages current home location
     """
     db_path, engine = temp_db
     
+    # Use DatabaseHelper to create profile with birth location
+    db_helper = DatabaseHelper()
+    db_helper.engine = engine  # Use test engine
+    
+    profile = db_helper.create_profile_with_location(
+        name="Test User",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="St. Louis, MO",
+        birth_latitude=38.627,
+        birth_longitude=-90.198,
+        birth_timezone="America/Chicago"
+    )
+    
     with get_session(engine) as session:
-        house_system = session.query(HouseSystem).filter_by(code='P').first()
-        
-        # Birth location (global, not tied to profile)
-        birth_loc = Location(
-            label="St. Louis, MO",
-            latitude=38.627,
-            longitude=-90.198,
-            timezone="America/Chicago",
-            profile_id=None  # Global location
-        )
-        session.add(birth_loc)
-        session.flush()
-        
-        # Create profile
-        profile = Profile(
-            name="Test User",
-            birth_date="1981-05-06",
-            birth_time="00:50",
-            birth_location_id=birth_loc.id,
-            preferred_house_system_id=house_system.id
-        )
-        session.add(profile)
-        session.flush()
-        
-        # Add current location (tied to profile)
-        current_loc = Location(
+        # Add additional locations using DatabaseHelper
+        current_loc = db_helper.create_location(
+            profile_id=profile.id,
             label="Richardson, TX",
             latitude=32.9483,
             longitude=-96.7299,
             timezone="America/Chicago",
-            profile_id=profile.id,
-            is_current_home=True
+            set_as_home=True  # This becomes the new home
         )
-        session.add(current_loc)
         
-        # Add custom location
-        custom_loc = Location(
+        custom_loc = db_helper.create_location(
+            profile_id=profile.id,
             label="New York, NY",
             latitude=40.7128,
             longitude=-74.0060,
             timezone="America/New_York",
-            profile_id=profile.id,
-            is_current_home=False
+            set_as_home=False
         )
-        session.add(custom_loc)
         
-        session.commit()
+        custom_loc = db_helper.create_location(
+            profile_id=profile.id,
+            label="New York, NY",
+            latitude=40.7128,
+            longitude=-74.0060,
+            timezone="America/New_York",
+            set_as_home=False
+        )
         
         # Verify we can query locations
-        all_locations = session.query(Location).all()
-        assert len(all_locations) == 3
+        all_locations = session.query(Location).filter_by(profile_id=profile.id).all()
+        assert len(all_locations) == 3  # Birth + Richardson + NYC
         
-        # Get current home
+        # Get current home (should be Richardson since set_as_home=True)
         home = session.query(Location).filter_by(
             profile_id=profile.id,
             is_current_home=True

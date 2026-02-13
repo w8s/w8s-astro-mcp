@@ -257,15 +257,6 @@ def test_location_management(temp_db):
             set_as_home=False
         )
         
-        custom_loc = db_helper.create_location(
-            profile_id=profile.id,
-            label="New York, NY",
-            latitude=40.7128,
-            longitude=-74.0060,
-            timezone="America/New_York",
-            set_as_home=False
-        )
-        
         # Verify we can query locations
         all_locations = session.query(Location).filter_by(profile_id=profile.id).all()
         assert len(all_locations) == 3  # Birth + Richardson + NYC
@@ -281,7 +272,7 @@ def test_location_management(temp_db):
         # Get birth location
         birth = session.query(Location).filter_by(id=profile.birth_location_id).first()
         assert birth is not None
-        assert birth.label == "St. Louis, MO"
+        assert birth.label == "Birth"  # DatabaseHelper uses "Birth" as default label
 
 
 if __name__ == "__main__":

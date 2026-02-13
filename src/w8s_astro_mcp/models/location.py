@@ -37,10 +37,11 @@ class Location(Base):
     # Primary key
     id: Mapped[int] = mapped_column(primary_key=True)
     
-    # Profile ownership (required)
-    profile_id: Mapped[int] = mapped_column(
+    # Profile ownership (nullable during creation for chicken-and-egg scenario)
+    # Note: In practice, every location should have a profile_id after creation
+    profile_id: Mapped[int | None] = mapped_column(
         ForeignKey("profiles.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,  # Temporarily null during atomic profile+location creation
         index=True
     )
     

@@ -453,3 +453,34 @@ class DatabaseHelper:
             session.delete(location)
             session.commit()
             return True
+    
+    def delete_profile(self, profile_id: int) -> bool:
+        """
+        Delete a profile and all associated data.
+        
+        Database CASCADE will automatically delete:
+        - natal_planets (FK: profile_id ON DELETE CASCADE)
+        - natal_houses (FK: profile_id ON DELETE CASCADE)
+        - natal_points (FK: profile_id ON DELETE CASCADE)
+        - locations (FK: profile_id ON DELETE CASCADE)
+        - transit_lookups (FK: profile_id ON DELETE CASCADE)
+        
+        If this profile is the current_profile, AppSettings.current_profile_id
+        will be set to NULL automatically (ON DELETE SET NULL).
+        
+        Args:
+            profile_id: Profile to delete
+            
+        Returns:
+            True if deleted, False if profile doesn't exist
+        """
+        with get_session(self.engine) as session:
+            # Check if profile exists
+            profile = session.query(Profile).filter_by(id=profile_id).first()
+            if not profile:
+                return False
+            
+            # Delete profile - CASCADE handles all related data
+            session.delete(profile)
+            session.commit()
+            return True

@@ -353,17 +353,67 @@ async def handle_update_profile(db_helper, arguments: dict) -> list[TextContent]
 
 async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]:
     """Delete a profile."""
-    # TODO: Implement
-    # 1. Check confirm=true
-    # 2. Check profile exists
-    # 3. Delete profile (CASCADE will delete natal chart data)
-    # 4. If was current_profile, set to NULL
-    return [TextContent(
-        type="text",
-        text="🚧 delete_profile - Not yet implemented\n\n"
-             f"Would delete profile {arguments.get('profile_id')}\n"
-             f"Confirmed: {arguments.get('confirm')}"
-    )]
+    try:
+        # Extract arguments
+        profile_id = arguments.get("profile_id")
+        confirm = arguments.get("confirm")
+        
+        # Validate required fields
+        if not profile_id:
+            return [TextContent(
+                type="text",
+                text="Error: profile_id is required"
+            )]
+        
+        # Require explicit confirmation
+        if confirm != True:
+            return [TextContent(
+                type="text",
+                text="Error: You must set confirm=true to delete a profile.\n\n"
+                     "This action is permanent and cannot be undone.\n"
+                     "All natal chart data and locations for this profile will be deleted."
+            )]
+        
+        # Get profile to show details before deletion
+        profile = db_helper.get_profile_by_id(profile_id)
+        if not profile:
+            return [TextContent(
+                type="text",
+                text=f"Error: Profile {profile_id} not found\n\n"
+                     "Use list_profiles to see available profiles."
+            )]
+        
+        # Save profile details for confirmation message
+        profile_name = profile.name
+        birth_date = profile.birth_date
+        
+        # Delete profile (CASCADE handles all related data)
+        success = db_helper.delete_profile(profile_id)
+        
+        if not success:
+            # Shouldn't happen since we checked above, but just in case
+            return [TextContent(
+                type="text",
+                text=f"Error: Profile {profile_id} not found"
+            )]
+        
+        # Format success message
+        response = f"✓ Profile deleted permanently!\n\n"
+        response += f"Deleted: **{profile_name}** (ID: {profile_id})\n"
+        response += f"Birth date: {birth_date}\n\n"
+        response += f"**All associated data was deleted:**\n"
+        response += f"- Natal chart data (planets, houses, points)\n"
+        response += f"- Locations\n"
+        response += f"- Transit lookups\n\n"
+        response += f"If this was your current profile, you'll need to use `set_current_profile` to select a new one."
+        
+        return [TextContent(type="text", text=response)]
+        
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error deleting profile: {e}"
+        )]
 
 
 async def handle_set_current_profile(db_helper, arguments: dict) -> list[TextContent]:

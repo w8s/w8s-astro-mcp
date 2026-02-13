@@ -473,15 +473,53 @@ async def handle_add_location(db_helper, arguments: dict) -> list[TextContent]:
 
 async def handle_remove_location(db_helper, arguments: dict) -> list[TextContent]:
     """Remove a saved location."""
-    # TODO: Implement
-    # 1. Check location exists
-    # 2. Check not used as birth_location
-    # 3. Delete location
-    return [TextContent(
-        type="text",
-        text="🚧 remove_location - Not yet implemented\n\n"
-             f"Would remove location ID: {arguments.get('location_id')}"
-    )]
+    try:
+        # Extract arguments
+        location_id = arguments.get("location_id")
+        
+        # Validate required field
+        if not location_id:
+            return [TextContent(
+                type="text",
+                text="Error: location_id is required"
+            )]
+        
+        # Get location to show details in confirmation
+        location = db_helper.get_location_by_id(location_id)
+        if not location:
+            return [TextContent(
+                type="text",
+                text=f"Error: Location {location_id} not found"
+            )]
+        
+        # Try to delete (this will check if it's a birth location)
+        success = db_helper.delete_location(location_id)
+        
+        if not success:
+            # Shouldn't happen since we checked above, but just in case
+            return [TextContent(
+                type="text",
+                text=f"Error: Location {location_id} not found"
+            )]
+        
+        # Format success message
+        response = f"✓ Location removed successfully!\n\n"
+        response += f"Deleted: **{location.label}** (ID: {location.id})\n"
+        response += f"Coordinates: {location.latitude}, {location.longitude}"
+        
+        return [TextContent(type="text", text=response)]
+        
+    except ValueError as e:
+        # Location is being used as birth location
+        return [TextContent(
+            type="text",
+            text=f"Error: {e}\n\nBirth locations cannot be removed."
+        )]
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error removing location: {e}"
+        )]
 
 
 # ============================================================================

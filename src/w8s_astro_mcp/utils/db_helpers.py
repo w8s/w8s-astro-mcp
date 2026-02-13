@@ -404,3 +404,52 @@ class DatabaseHelper:
         session.query(NatalPoint).filter_by(profile_id=profile_id).delete()
         
         # Note: We don't need to commit here - caller will commit
+    
+    def get_location_by_id(self, location_id: int) -> Optional[Location]:
+        """Get location by ID."""
+        with get_session(self.engine) as session:
+            return session.query(Location).filter_by(id=location_id).first()
+    
+    def is_location_used_as_birth_location(self, location_id: int) -> Optional[Profile]:
+        """
+        Check if a location is being used as a birth location.
+        
+        Args:
+            location_id: Location to check
+            
+        Returns:
+            Profile using this location as birth location, or None if not used
+        """
+        with get_session(self.engine) as session:
+            return session.query(Profile).filter_by(birth_location_id=location_id).first()
+    
+    def delete_location(self, location_id: int) -> bool:
+        """
+        Delete a location.
+        
+        Args:
+            location_id: Location to delete
+            
+        Returns:
+            True if deleted, False if location doesn't exist
+            
+        Raises:
+            ValueError: If location is being used as a birth location
+        """
+        with get_session(self.engine) as session:
+            # Check if location exists
+            location = session.query(Location).filter_by(id=location_id).first()
+            if not location:
+                return False
+            
+            # Check if used as birth location
+            profile_using = session.query(Profile).filter_by(birth_location_id=location_id).first()
+            if profile_using:
+                raise ValueError(
+                    f"Cannot delete location - it is the birth location for profile '{profile_using.name}' (ID: {profile_using.id})"
+                )
+            
+            # Delete location
+            session.delete(location)
+            session.commit()
+            return True

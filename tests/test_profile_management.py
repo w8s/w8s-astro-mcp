@@ -10,6 +10,7 @@ from w8s_astro_mcp.tools.profile_management import (
     handle_create_profile,
     handle_add_location,
     handle_update_profile,
+    handle_remove_location,
 )
 from w8s_astro_mcp.models.profile import Profile
 from w8s_astro_mcp.models.location import Location
@@ -1250,3 +1251,209 @@ async def test_workflow_create_update_list(mock_db_helper, sample_profile_2, sam
     # Should show updated name
     assert "Sarah Marie Johnson" in text
     assert "Sarah Johnson" not in text or "Sarah Marie Johnson" in text  # Updated name, not old one
+
+
+# ============================================================================
+# Tests for remove_location
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_remove_location_success(mock_db_helper):
+    """Test remove_location with valid non-birth location."""
+    # Setup
+    location_to_delete = Location(
+        id=10,
+        profile_id=1,
+        label="Office",
+        latitude=32.7800,
+        longitude=-96.8000,
+        timezone="America/Chicago",
+        is_current_home=False,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.get_location_by_id.return_value = location_to_delete
+    mock_db_helper.delete_location.return_value = True
+    
+    arguments = {"location_id": 10}
+    
+    # Execute
+    result = await handle_remove_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Office" in text
+    assert "ID: 10" in text
+    assert "32.78" in text or "32.8" in text
+    assert "-96.8" in text
+    
+    # Verify database methods called correctly
+    mock_db_helper.get_location_by_id.assert_called_once_with(10)
+    mock_db_helper.delete_location.assert_called_once_with(10)
+
+
+@pytest.mark.asyncio
+async def test_remove_location_birth_location_error(mock_db_helper, sample_profile_1):
+    """Test remove_location with birth location (should fail)."""
+    # Setup
+    birth_location = Location(
+        id=1,
+        profile_id=1,
+        label="Birth",
+        latitude=32.9483,
+        longitude=-96.7297,
+        timezone="America/Chicago",
+        is_current_home=True,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.get_location_by_id.return_value = birth_location
+    mock_db_helper.delete_location.side_effect = ValueError(
+        f"Cannot delete location - it is the birth location for profile '{sample_profile_1.name}' (ID: {sample_profile_1.id})"
+    )
+    
+    arguments = {"location_id": 1}
+    
+    # Execute
+    result = await handle_remove_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "birth location" in text.lower()
+    assert "Todd Waits" in text
+    assert "cannot be removed" in text.lower()
+    
+    # Verify database methods called
+    mock_db_helper.get_location_by_id.assert_called_once_with(1)
+    mock_db_helper.delete_location.assert_called_once_with(1)
+
+
+@pytest.mark.asyncio
+async def test_remove_location_not_found(mock_db_helper):
+    """Test remove_location when location doesn't exist."""
+    # Setup
+    mock_db_helper.get_location_by_id.return_value = None
+    
+    arguments = {"location_id": 999}
+    
+    # Execute
+    result = await handle_remove_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "999" in text
+    assert "not found" in text.lower()
+    
+    # Should check location but NOT call delete
+    mock_db_helper.get_location_by_id.assert_called_once_with(999)
+    mock_db_helper.delete_location.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_remove_location_missing_parameter(mock_db_helper):
+    """Test remove_location with missing location_id."""
+    arguments = {}
+    
+    # Execute
+    result = await handle_remove_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error" in text
+    assert "location_id is required" in text
+    
+    # Should NOT call database
+    mock_db_helper.get_location_by_id.assert_not_called()
+    mock_db_helper.delete_location.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_remove_location_error_handling(mock_db_helper):
+    """Test remove_location handles unexpected errors gracefully."""
+    # Setup
+    location = Location(
+        id=10,
+        profile_id=1,
+        label="Office",
+        latitude=32.7800,
+        longitude=-96.8000,
+        timezone="America/Chicago",
+        is_current_home=False,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.get_location_by_id.return_value = location
+    mock_db_helper.delete_location.side_effect = Exception("Database connection lost")
+    
+    arguments = {"location_id": 10}
+    
+    # Execute
+    result = await handle_remove_location(mock_db_helper, arguments)
+    
+    # Assert
+    assert len(result) == 1
+    text = result[0].text
+    
+    assert "Error removing location" in text
+    assert "Database connection lost" in text
+
+
+@pytest.mark.asyncio
+async def test_workflow_add_then_remove_location(mock_db_helper, sample_profile_1):
+    """Test workflow: add location, then remove it."""
+    # Step 1: Add location
+    mock_db_helper.get_profile_by_id.return_value = sample_profile_1
+    
+    new_location = Location(
+        id=15,
+        profile_id=1,
+        label="Temporary Office",
+        latitude=32.7800,
+        longitude=-96.8000,
+        timezone="America/Chicago",
+        is_current_home=False,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    mock_db_helper.create_location.return_value = new_location
+    
+    add_args = {
+        "profile_id": 1,
+        "label": "Temporary Office",
+        "latitude": 32.7800,
+        "longitude": -96.8000,
+        "timezone": "America/Chicago",
+        "set_as_home": False
+    }
+    
+    add_result = await handle_add_location(mock_db_helper, add_args)
+    assert "Temporary Office" in add_result[0].text
+    assert "ID: 15" in add_result[0].text
+    
+    # Step 2: Remove the location
+    mock_db_helper.get_location_by_id.return_value = new_location
+    mock_db_helper.delete_location.return_value = True
+    
+    remove_args = {"location_id": 15}
+    
+    remove_result = await handle_remove_location(mock_db_helper, remove_args)
+    text = remove_result[0].text
+    
+    assert "✓" in text or "success" in text.lower()
+    assert "Temporary Office" in text
+    assert "Deleted" in text or "removed" in text.lower()
+    
+    # Verify both operations completed
+    mock_db_helper.create_location.assert_called_once()
+    mock_db_helper.delete_location.assert_called_once_with(15)

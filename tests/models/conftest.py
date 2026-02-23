@@ -41,6 +41,12 @@ def test_engine():
         TransitPlanet,
         TransitHouse,
         TransitPoint,
+        Connection,
+        ConnectionMember,
+        ConnectionChart,
+        ConnectionPlanet,
+        ConnectionHouse,
+        ConnectionPoint,
     )
     
     create_tables(engine)

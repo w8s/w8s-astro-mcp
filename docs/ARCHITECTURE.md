@@ -57,96 +57,77 @@ src/w8s_astro_mcp/
 
 ## Data Flow
 
-### Natal Chart Query (From Database)
-```
-User (Claude) → MCP Tool: get_natal_chart
-                ↓
-         server.py: get_natal_chart handler
-                ↓
-         init_db() → DatabaseHelper
-                ↓
-         db_helpers.get_natal_chart_data(profile)
-                ↓
-         SQLAlchemy queries: NatalPlanet, NatalHouse, NatalPoint
-                ↓
-         Format response → Return to user
+### Natal Chart Query
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_natal_chart| S[server.py]
+    S --> D[DatabaseHelper]
+    D --> Q[db_helpers.get_natal_chart_data]
+    Q --> DB[(SQLite\nNatalPlanet · NatalHouse · NatalPoint)]
+    DB --> R[Format response]
+    R --> U
 ```
 
-### Transit Query (With Auto-Logging)
-```
-User (Claude) → MCP Tool: get_transits(date, time, location)
-                ↓
-         server.py: get_transits handler
-                ↓
-         1. DatabaseHelper: get location by label
-         2. swetest_integration.get_transits(lat, lng, date, time)
-         3. Parse swetest output → position dicts
-         4. transit_logger.save_transit_data_to_db()
-            └─> Creates: TransitLookup, TransitPlanet, TransitHouse, TransitPoint
-         5. Format response → Return to user
+### Transit Query (with Auto-Logging)
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_transits\ndate · time · location| S[server.py]
+    S --> L[DatabaseHelper\nresolve location]
+    L --> SW[swetest_integration\ncalculate positions]
+    SW --> P[swetest.py\nparse output]
+    P --> LOG[transit_logger\nsave_transit_data_to_db]
+    LOG --> DB[(SQLite\nTransitLookup · Planet · House · Point)]
+    P --> R[Format response]
+    R --> U
 ```
 
-### Composite Chart (Pure Math, No swetest)
-```
-User (Claude) → MCP Tool: get_connection_chart(id, "composite")
-                ↓
-         server.py → handle_connection_tool()
-                ↓
-         Check cache: db_helpers.get_connection_chart()
-         (cache hit → format and return)
-                ↓ (cache miss)
-         For each member profile:
-           db_helpers.get_natal_chart_data(profile)
-           connection_calculator.enrich_natal_chart_for_composite()
-                ↓
-         connection_calculator.calculate_composite_positions()
-           └─> circular mean of absolute positions per planet
-               circular_mean_degrees() uses atan2 on unit vectors
-                ↓
-         db_helpers.save_connection_chart()
-           └─> _normalize_position() coerces to standard format
-           └─> Upserts ConnectionChart + planets/houses/points
-                ↓
-         Format response → Return to user
+### Composite Chart (pure math, no swetest)
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_connection_chart\ntype=composite| S[server.py]
+    S --> CACHE{Cache valid?}
+    CACHE -->|hit| R[Format response]
+    CACHE -->|miss| NATAL[db_helpers\nget natal chart per member]
+    NATAL --> ENRICH[connection_calculator\nenrich_natal_chart_for_composite]
+    ENRICH --> CALC[connection_calculator\ncalculate_composite_positions\ncircular mean via atan2]
+    CALC --> NORM[_normalize_position\ncoerce to standard format]
+    NORM --> SAVE[db_helpers\nsave_connection_chart\nupsert]
+    SAVE --> DB[(SQLite\nConnectionChart · Planet · House · Point)]
+    SAVE --> R
+    R --> U
 ```
 
-### Davison Chart (swetest Required)
-```
-User (Claude) → MCP Tool: get_connection_chart(id, "davison")
-                ↓
-         server.py → handle_connection_tool()
-                ↓
-         Check cache: db_helpers.get_connection_chart()
-         (cache hit → format and return)
-                ↓ (cache miss)
-         For each member: db_helpers.get_birth_location(profile)
-                ↓
-         connection_calculator.calculate_davison_midpoint()
-           └─> Convert local birth times → UTC via ZoneInfo
-           └─> Average Unix timestamps → midpoint datetime
-           └─> circular_mean_degrees() for midpoint latitude
-                ↓
-         swetest_integration.get_transits(midpoint lat/lng/date/time)
-                ↓
-         db_helpers.save_connection_chart(davison_midpoint=...)
-           └─> _normalize_position() handles swetest decimal-degree format
-                ↓
-         Format response → Return to user
+### Davison Chart (swetest required)
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_connection_chart\ntype=davison| S[server.py]
+    S --> CACHE{Cache valid?}
+    CACHE -->|hit| R[Format response]
+    CACHE -->|miss| LOC[db_helpers\nget birth location per member]
+    LOC --> MID[connection_calculator\ncalculate_davison_midpoint\nUTC timestamps · circular mean lat]
+    MID --> SW[swetest_integration\ncalculate chart at midpoint]
+    SW --> P[swetest.py\nparse decimal-degree output]
+    P --> NORM[_normalize_position\nderive DMS + absolute_position]
+    NORM --> SAVE[db_helpers\nsave_connection_chart\nwith davison_midpoint]
+    SAVE --> DB[(SQLite\nConnectionChart · Planet · House · Point)]
+    SAVE --> R
+    R --> U
 ```
 
-### Migration (One-Time Setup)
-```
-User runs: python scripts/migrate_config_to_sqlite.py
-                ↓
-         Read: ~/.w8s-astro-mcp/config.json
-                ↓
-         Parse birth data, locations, natal chart
-                ↓
-         SQLAlchemy: Create initial profile + natal chart data
-                ↓
-         Write: ~/.w8s-astro-mcp/astro.db
-                ↓
-         Done! Server now uses database automatically
+### Migration (one-time setup)
+
+```mermaid
+flowchart TD
+    U([User]) -->|python scripts/migrate_config_to_sqlite.py| M[migrate_config_to_sqlite.py]
+    M --> J[Read ~/.w8s-astro-mcp/config.json]
+    J --> PARSE[Parse birth data\nlocations · natal chart]
+    PARSE --> ORM[SQLAlchemy\ncreate Profile + natal chart rows]
+    ORM --> DB[(~/.w8s-astro-mcp/astro.db)]
+    DB --> DONE([Done — server uses\ndatabase automatically])
 ```
 
 ## Key Design Decisions

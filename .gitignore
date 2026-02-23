@@ -52,3 +52,5 @@ data/*.db
 .coverage
 htmlcov/
 !note.md
+.mcpregistry_github_token
+.mcpregistry_registry_token

@@ -8,9 +8,6 @@ These tests verify the critical paths work together:
 - DatabaseHelper queries
 """
 
-import sys
-sys.path.insert(0, '/Users/w8s/Documents/_git/w8s-astro-mcp/src')
-
 import pytest
 from pathlib import Path
 from datetime import datetime, timezone
@@ -249,8 +246,8 @@ def test_smoke_transit_logging_flow(temp_db):
         # Mock transit data (like from swetest)
         transit_data = {
             "planets": {
-                "Sun": {"degree": 20.5, "sign": "Aquarius"},
-                "Moon": {"degree": 15.3, "sign": "Cancer"}
+                "Sun": {"degree": 20.5, "sign": "Aquarius", "is_retrograde": False},
+                "Moon": {"degree": 15.3, "sign": "Cancer", "is_retrograde": False}
             },
             "houses": {
                 "1": {"degree": 10.0, "sign": "Scorpio"},

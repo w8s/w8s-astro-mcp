@@ -1,6 +1,11 @@
 <!-- mcp-name: io.github.w8s/w8s-astro-mcp -->
 # w8s-astro-mcp
 
+[![Tests](https://github.com/w8s/w8s-astro-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/w8s/w8s-astro-mcp/actions/workflows/tests.yml)
+[![PyPI version](https://img.shields.io/pypi/v/w8s-astro-mcp)](https://pypi.org/project/w8s-astro-mcp/)
+[![Python versions](https://img.shields.io/pypi/pyversions/w8s-astro-mcp)](https://pypi.org/project/w8s-astro-mcp/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Personal astrological MCP server powered by Swiss Ephemeris (swetest). Provides natal charts, transit calculations, aspect analysis, chart visualization, and relationship chart support (composite & Davison) — all backed by a queryable SQLite database.
 
 ## Features

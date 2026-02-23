@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-02-23
+
+### Fixed
+- **`get_natal_chart` now auto-calculates on first call** — newly created profiles
+  (and profiles migrated from v0.8) no longer return empty planets/houses. The
+  chart is calculated via EphemerisEngine and cached to the database transparently.
+  ([#1](https://github.com/w8s/w8s-astro-mcp/issues/1))
+- **DB migration script for v0.8 → v0.9 upgrades** — `scripts/migrate_v0.8_to_v0.9.py`
+  safely adds the six connection tables introduced in v0.9.0 to existing databases
+  without touching existing data. ([#2](https://github.com/w8s/w8s-astro-mcp/issues/2))
+- **`create_tables()` now imports all models** before calling `create_all()`, ensuring
+  connection tables are always registered with SQLAlchemy metadata on fresh installs.
+
+### Added
+- `utils/natal_saver.py` — new module for persisting natal chart data, mirroring
+  the `transit_logger.py` pattern (planets, houses, points in one transaction).
+- `DatabaseHelper.save_natal_chart()` — idempotent method that clears stale cached
+  natal rows and writes fresh data; safe for both first population and re-calculation
+  after birth-data corrections.
+- 2 new integration tests: save+retrieve and idempotent re-save (276 tests total).
+
 ## [0.9.0] — 2026-02-23
 
 ### Breaking Changes

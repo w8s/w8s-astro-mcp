@@ -53,10 +53,6 @@ src/w8s_astro_mcp/
 │       ├── geocoding.py         # Location lookup (lat/long)
 │       └── install_helper.py    # swetest installation help
 │
-└── Legacy (Unused)
-    └── config.py                # ⚠️  OLD config.json handling
-                                 # NO LONGER USED — kept for reference only
-                                 # Server uses SQLite exclusively
 ```
 
 ## Data Flow
@@ -211,11 +207,6 @@ User runs: python scripts/migrate_config_to_sqlite.py
 - When omitted: production behaviour — uses `get_database_path()`, raises on missing DB
 - Enables real integration tests against isolated SQLite files without mocking
 
-### 10. Config.py Completely Unused
-- **Status:** Legacy code kept for reference only
-- **Reality:** Server uses SQLite exclusively via DatabaseHelper
-- **Migration:** One-time script converts config.json → SQLite
-
 ## Technology Stack
 
 **Core:**
@@ -277,7 +268,6 @@ remove_connection_member, get_connection_chart, delete_connection
 - [ ] Transit history queries ("last month's transits")
 - [ ] Statistics ("how often do I check Mercury?")
 - [ ] Database self-healing tools (repair inconsistencies)
-- [ ] Remove config.py entirely (no longer needed)
 
 ### Possible:
 - [ ] Web interface for database queries

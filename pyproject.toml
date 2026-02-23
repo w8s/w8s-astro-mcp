@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Todd W. Schragg" }
+    { name = "Todd Waits" }
 ]
 keywords = ["mcp", "astrology", "astro", "tarot", "swiss-ephemeris", "natal-chart", "transits"]
 classifiers = [

@@ -76,7 +76,7 @@ class NatalPoint(Base):
     )
     calculation_method: Mapped[str] = mapped_column(
         String(50),
-        default="swetest",
+        default="pysweph",
         nullable=False
     )
     ephemeris_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

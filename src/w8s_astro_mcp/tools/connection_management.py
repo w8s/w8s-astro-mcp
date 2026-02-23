@@ -408,7 +408,7 @@ async def handle_get_connection_chart(db_helper, swetest, arguments: dict) -> li
                 chart_type="davison",
                 positions=raw,
                 davison_midpoint=midpoint,
-                calculation_method="swetest",
+                calculation_method="pysweph",
             )
             return _format_chart_result(connection, chart, raw, members, "Davison", midpoint)
 

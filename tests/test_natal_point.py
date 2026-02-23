@@ -176,7 +176,7 @@ def test_natal_point_to_dict(temp_db):
         assert asc_dict["sign"] == "Scorpio"
         assert asc_dict["absolute_position"] == 220.425
         assert "calculated_at" in asc_dict
-        assert asc_dict["calculation_method"] == "swetest"
+        assert asc_dict["calculation_method"] == "pysweph"
 
 
 if __name__ == "__main__":

@@ -47,11 +47,12 @@ def make_profile(birth_date: str, birth_time: str):
     return p
 
 
-def make_location(latitude: float, longitude: float):
+def make_location(latitude: float, longitude: float, timezone: str = "UTC"):
     """Build a minimal mock Location."""
     loc = MagicMock()
     loc.latitude = latitude
     loc.longitude = longitude
+    loc.timezone = timezone
     return loc
 
 
@@ -353,32 +354,84 @@ class TestCalculateCompositePositions:
 class TestCalculateDavisonMidpoint:
     """Tests for calculate_davison_midpoint()."""
 
-    def test_same_day_different_times(self):
-        """Two profiles born same day, midnight and noon → midpoint is 6am."""
+    def test_same_day_different_times_utc(self):
+        """Two profiles born same day UTC, midnight and noon → midpoint is 6am UTC."""
         profiles = [
             make_profile("2000-01-01", "00:00"),
             make_profile("2000-01-01", "12:00"),
         ]
-        locations = [make_location(0.0, 0.0), make_location(0.0, 0.0)]
+        locations = [make_location(0.0, 0.0, "UTC"), make_location(0.0, 0.0, "UTC")]
         result = calculate_davison_midpoint(profiles, locations)
         assert result["date"] == "2000-01-01"
         assert result["time"] == "06:00"
 
-    def test_different_years(self):
-        """Born 10 years apart — midpoint should be 5 years in."""
+    def test_timezone_conversion_affects_midpoint(self):
+        """Birth times are local clock — timezone conversion must happen before averaging.
+
+        Person A: born 2000-01-01 00:00 UTC    → 2000-01-01 00:00 UTC
+        Person B: born 2000-01-01 00:00 CST    → 2000-01-01 06:00 UTC (CST = UTC-6)
+        Midpoint: 2000-01-01 03:00 UTC
+
+        Without timezone conversion (the old bug), both would be treated as UTC,
+        giving a midpoint of 2000-01-01 00:00 — 3 hours wrong.
+        """
+        profiles = [
+            make_profile("2000-01-01", "00:00"),
+            make_profile("2000-01-01", "00:00"),
+        ]
+        locations = [
+            make_location(0.0, 0.0, "UTC"),
+            make_location(29.95, -90.07, "America/Chicago"),  # CST = UTC-6
+        ]
+        result = calculate_davison_midpoint(profiles, locations)
+        # CST midnight = UTC 06:00, so midpoint of UTC 00:00 and UTC 06:00 = UTC 03:00
+        assert result["date"] == "2000-01-01"
+        assert result["time"] == "03:00"
+
+    def test_same_local_time_different_zones_not_same_midpoint(self):
+        """Two people born at the same local time in different timezones
+        are NOT born at the same moment — midpoint should reflect the UTC difference."""
+        profiles = [
+            make_profile("2000-06-15", "12:00"),
+            make_profile("2000-06-15", "12:00"),
+        ]
+        locations = [
+            make_location(51.5, 0.0, "Europe/London"),    # BST = UTC+1 in June
+            make_location(40.7, -74.0, "America/New_York"),  # EDT = UTC-4 in June
+        ]
+        result = calculate_davison_midpoint(profiles, locations)
+        # London noon = UTC 11:00; New York noon = UTC 16:00; midpoint = UTC 13:30
+        assert result["date"] == "2000-06-15"
+        assert result["time"] == "13:30"
+
+    def test_different_years_exact(self):
+        """Born exactly 10 years apart (same time, same tz) → midpoint is exactly 5 years in.
+
+        1990-01-01 12:00 UTC and 2000-01-01 12:00 UTC.
+        The midpoint timestamp falls on 1994-12-31 or 1995-01-01 depending on leap years.
+        We verify the exact date rather than just the year prefix.
+        """
         profiles = [
             make_profile("1990-01-01", "12:00"),
             make_profile("2000-01-01", "12:00"),
         ]
-        locations = [make_location(0.0, 0.0), make_location(0.0, 0.0)]
+        locations = [make_location(0.0, 0.0, "UTC")] * 2
         result = calculate_davison_midpoint(profiles, locations)
-        # Midpoint should be around 1995
-        assert result["date"].startswith("1995")
+        # Exact midpoint: average of 1990-01-01 and 2000-01-01 timestamps
+        # Due to leap years in 1992, 1996, the midpoint is 1994-12-31
+        from datetime import datetime, timezone
+        ts_a = datetime(1990, 1, 1, 12, 0, tzinfo=timezone.utc).timestamp()
+        ts_b = datetime(2000, 1, 1, 12, 0, tzinfo=timezone.utc).timestamp()
+        expected_dt = datetime.fromtimestamp((ts_a + ts_b) / 2, tz=timezone.utc)
+        expected_date = expected_dt.strftime("%Y-%m-%d")
+        expected_time = expected_dt.strftime("%H:%M")
+        assert result["date"] == expected_date
+        assert result["time"] == expected_time
 
     def test_location_midpoint(self):
         """Location should be averaged."""
         profiles = [make_profile("2000-01-01", "12:00")] * 2
-        locations = [make_location(0.0, -100.0), make_location(60.0, -80.0)]
+        locations = [make_location(0.0, -100.0, "UTC"), make_location(60.0, -80.0, "UTC")]
         result = calculate_davison_midpoint(profiles, locations)
         assert abs(result["latitude"] - 30.0) < 0.001
         assert abs(result["longitude"] - (-90.0)) < 0.001
@@ -390,53 +443,52 @@ class TestCalculateDavisonMidpoint:
             make_profile("2000-01-01", "12:00"),
             make_profile("2000-01-02", "00:00"),
         ]
-        locations = [make_location(0.0, 0.0)] * 3
+        locations = [make_location(0.0, 0.0, "UTC")] * 3
         result = calculate_davison_midpoint(profiles, locations)
-        # Average is 2000-01-01 12:00
         assert result["date"] == "2000-01-01"
         assert result["time"] == "12:00"
 
     def test_timezone_is_utc(self):
-        """Davison midpoint should always be UTC."""
+        """Davison midpoint is always expressed in UTC."""
         profiles = [make_profile("2000-06-15", "12:00")] * 2
-        locations = [make_location(40.0, -74.0)] * 2
+        locations = [make_location(40.0, -74.0, "America/New_York")] * 2
         result = calculate_davison_midpoint(profiles, locations)
         assert result["timezone"] == "UTC"
 
     def test_result_has_all_keys(self):
         """Result should have date, time, latitude, longitude, timezone."""
         profiles = [make_profile("2000-01-01", "12:00")] * 2
-        locations = [make_location(40.0, -74.0)] * 2
+        locations = [make_location(40.0, -74.0, "America/New_York")] * 2
         result = calculate_davison_midpoint(profiles, locations)
         assert all(k in result for k in ["date", "time", "latitude", "longitude", "timezone"])
 
     def test_date_format(self):
         """Date should be YYYY-MM-DD format."""
         profiles = [make_profile("1985-06-15", "08:30")] * 2
-        locations = [make_location(38.6, -90.2)] * 2
+        locations = [make_location(38.6, -90.2, "America/Chicago")] * 2
         result = calculate_davison_midpoint(profiles, locations)
         parts = result["date"].split("-")
         assert len(parts) == 3
-        assert len(parts[0]) == 4  # Year
-        assert len(parts[1]) == 2  # Month
-        assert len(parts[2]) == 2  # Day
+        assert len(parts[0]) == 4
+        assert len(parts[1]) == 2
+        assert len(parts[2]) == 2
 
     def test_time_format(self):
         """Time should be HH:MM format."""
         profiles = [make_profile("2000-01-01", "08:30")] * 2
-        locations = [make_location(0.0, 0.0)] * 2
+        locations = [make_location(0.0, 0.0, "UTC")] * 2
         result = calculate_davison_midpoint(profiles, locations)
         parts = result["time"].split(":")
         assert len(parts) == 2
-        assert len(parts[0]) == 2  # Hours
-        assert len(parts[1]) == 2  # Minutes
+        assert len(parts[0]) == 2
+        assert len(parts[1]) == 2
 
     def test_single_profile_raises(self):
         """Fewer than 2 profiles should raise ValueError."""
         with pytest.raises(ValueError, match="2"):
             calculate_davison_midpoint(
                 [make_profile("2000-01-01", "12:00")],
-                [make_location(0.0, 0.0)]
+                [make_location(0.0, 0.0, "UTC")]
             )
 
     def test_mismatched_lengths_raises(self):
@@ -444,16 +496,21 @@ class TestCalculateDavisonMidpoint:
         with pytest.raises(ValueError, match="same length"):
             calculate_davison_midpoint(
                 [make_profile("2000-01-01", "12:00")] * 2,
-                [make_location(0.0, 0.0)]  # Only 1 location
+                [make_location(0.0, 0.0, "UTC")]
             )
 
-    def test_identical_profiles(self):
-        """Two identical profiles → midpoint is same as input."""
+    def test_identical_profiles_same_timezone(self):
+        """Two identical profiles in the same timezone → midpoint equals input."""
         profiles = [make_profile("1985-05-06", "00:50")] * 2
-        locations = [make_location(38.627, -90.198)] * 2
+        locations = [make_location(38.627, -90.198, "America/Chicago")] * 2
         result = calculate_davison_midpoint(profiles, locations)
-        assert result["date"] == "1985-05-06"
-        assert result["time"] == "00:50"
+        # Midpoint of identical moments is that same moment — expressed in UTC
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+        dt_local = datetime(1985, 5, 6, 0, 50, tzinfo=ZoneInfo("America/Chicago"))
+        dt_utc = dt_local.astimezone(timezone.utc)
+        assert result["date"] == dt_utc.strftime("%Y-%m-%d")
+        assert result["time"] == dt_utc.strftime("%H:%M")
         assert abs(result["latitude"] - 38.627) < 0.001
         assert abs(result["longitude"] - (-90.198)) < 0.001
 

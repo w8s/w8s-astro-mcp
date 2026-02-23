@@ -27,6 +27,7 @@ References:
 import math
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Tuple, Optional
+from zoneinfo import ZoneInfo
 
 from ..models import (
     Profile, Location, HouseSystem,
@@ -219,24 +220,31 @@ def calculate_davison_midpoint(
           'time': str (HH:MM)
           'latitude': float
           'longitude': float
-          'timezone': str ('UTC' — Davison datetime is always UTC midpoint)
+          'timezone': str ('UTC' — Davison datetime is always expressed in UTC)
 
     Raises:
         ValueError: If fewer than 2 profiles, or profiles/locations mismatch
+
+    Note on timezones:
+        birth_time is a local clock reading (e.g. "14:30" in Chicago).
+        Each birth datetime is converted to UTC using the birth location's
+        timezone before averaging, so the midpoint is a true absolute moment.
     """
     if len(profiles) < 2:
         raise ValueError("Davison chart requires at least 2 profiles")
     if len(profiles) != len(locations):
         raise ValueError("profiles and locations lists must be the same length")
 
-    # --- Average birth datetimes ---
+    # --- Average birth datetimes (convert local → UTC first) ---
     timestamps = []
-    for profile in profiles:
-        dt = datetime.strptime(
+    for profile, location in zip(profiles, locations):
+        tz = ZoneInfo(location.timezone)
+        dt_local = datetime.strptime(
             f"{profile.birth_date} {profile.birth_time}",
             "%Y-%m-%d %H:%M"
-        ).replace(tzinfo=timezone.utc)
-        timestamps.append(dt.timestamp())
+        ).replace(tzinfo=tz)
+        dt_utc = dt_local.astimezone(timezone.utc)
+        timestamps.append(dt_utc.timestamp())
 
     avg_timestamp = sum(timestamps) / len(timestamps)
     avg_dt = datetime.fromtimestamp(avg_timestamp, tz=timezone.utc)

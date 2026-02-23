@@ -47,40 +47,26 @@
 ## Phase 7: Connections (Relationship Charts)
 
 ### Overview
-A `connection` is any grouping of 2+ profiles for astrological comparison. Supports
-romantic, family, professional, and friendship dynamics. Composite and Davison charts
-are calculated from member profiles and stored as normalized rows (not JSON blobs),
-following the same pattern as natal_planets/natal_houses/natal_points.
+A `connection` is any grouping of 2+ profiles for astrological comparison. Supports romantic, family, professional, and friendship dynamics. Composite and Davison charts are calculated from member profiles and stored as normalized rows (not JSON blobs), following the same pattern as natal_planets/natal_houses/natal_points.
 
 ### Key Design Decisions
 
 **Connections support N members (not just pairs)**
-The junction table handles any number of members. Composite chart math scales cleanly
-to N people (average of absolute positions). Davison math also scales to N (arithmetic
-mean of birth datetimes and locations) — historically rare for 3+ people only because
-manual calculation was prohibitive, not because it's invalid. Leave interpretation to
+The junction table handles any number of members. Composite chart math scales cleanly to N people (average of absolute positions). Davison math also scales to N (arithmetic mean of birth datetimes and locations) — historically rare for 3+ people only because manual calculation was prohibitive, not because it's invalid. Leave interpretation to
 the astrologer.
 
 **Locations are 1 entity : N locations, not shared across entities**
-Each profile owns its own locations. No global location deduplication. If two profiles
-share a physical address, it is entered separately for each. If a location changes,
-the querent or astrologer should probe for new info. Simple, clean, no polymorphic FK.
+Each profile owns its own locations. No global location deduplication. If two profiles share a physical address, it is entered separately for each. If a location changes, the querent or astrologer should probe for new info. Simple, clean, no polymorphic FK.
 
 **Stored charts, not recalculated on demand**
-Composite and Davison planet positions are stored after first calculation.
-Invalidation strategy: `is_valid = FALSE` flag on `connection_charts` when any member
-profile's birth data changes. Recalculate on next access. Consistent with existing
-natal chart cache invalidation pattern (application layer, not SQLite triggers).
+Composite and Davison planet positions are stored after first calculation.Invalidation strategy: `is_valid = FALSE` flag on `connection_charts` when any member profile's birth data changes. Recalculate on next access. Consistent with existing natal chart cache invalidation pattern (application layer, not SQLite triggers).
 
 **Normalized rows, not JSON blobs**
-Planet/house/point data follows the exact same structure as natal_planets, natal_houses,
-natal_points — degree, minutes, seconds, sign, absolute_position, calculated_at,
-calculation_method, ephemeris_version. Queryable, consistent, auditable.
+Planet/house/point data follows the exact same structure as natal_planets, natal_houses, natal_points — degree, minutes, seconds, sign, absolute_position, calculated_at, calculation_method, ephemeris_version. Queryable, consistent, auditable.
 
 **Event charts are independent (Phase 8)**
-Event charts (weddings, business launches, electional candidates) belong to no profile
-or connection. They are standalone entities cast for a moment in time and location.
-Comparison to natal/connection charts is done via the existing compare_charts tool.
+Event charts (weddings, business launches, electional candidates) belong to no profile or connection. They are standalone entities cast for a moment in time and location. Comparison to natal/connection charts is done via the existing compare_charts tool.
+
 See Phase 8.
 
 **SQL constraints for structural integrity, application layer for behavioral logic**
@@ -209,8 +195,7 @@ event      vs event       → how do two moments relate? (rare but valid)
 
 ## Phase 8: Event Charts
 
-Event charts are standalone — no profile or connection required. Cast for a moment
-in time and location. Useful for:
+Event charts are standalone — no profile or connection required. Cast for a moment in time and location. Useful for:
 - Wedding / partnership inception charts
 - Business launch charts
 - Electional astrology (finding an optimal future moment)
@@ -222,29 +207,22 @@ Schema TBD — design separately.
 
 ## Phase 9: Database Self-Healing & Migration
 
-As the schema evolves, users' existing databases may become incompatible with new
-code versions. These tools allow self-diagnosis and repair without manual SQL intervention.
+As the schema evolves, users' existing databases may become incompatible with new code versions. These tools allow self-diagnosis and repair without manual SQL intervention.
 
-**Historical context:** 2026-02-12 — `app_settings` table was missing from databases
-created before that migration, requiring a manual fix. This phase prevents recurrence.
+**Historical context:** 2026-02-12 — `app_settings` table was missing from databases created before that migration, requiring a manual fix. This phase prevents recurrence.
 
 ### Schema Versioning
-Add `schema_version` to `AppSettings` model (integer, default 1). Migrations detect
-current version and apply upgrades sequentially.
+Add `schema_version` to `AppSettings` model (integer, default 1). Migrations detect current version and apply upgrades sequentially.
 
 ### MCP Tools
 
 **`diagnose_database`** — Check database health and identify issues.
-Compares actual schema vs expected, detects missing tables/columns, checks orphaned
-foreign keys, validates data consistency. Returns JSON with status and recommended actions.
+Compares actual schema vs expected, detects missing tables/columns, checks orphaned foreign keys, validates data consistency. Returns JSON with status and recommended actions.
 
-**`repair_database`** — Safely add missing tables/columns without modifying existing data.
-Idempotent — safe to run multiple times. Creates missing indexes, updates schema_version.
-Supports dry-run mode for verification.
+**`repair_database`** — Safely add missing tables/columns without modifying existing data. Idempotent — safe to run multiple times. Creates missing indexes, updates schema_version. Supports dry-run mode for verification.
 
 **`migrate_database`** — Upgrade schema to latest version sequentially.
-Detects current version, applies migrations in order, backs up database before changes,
-logs migration history. Rollback capability on failure.
+Detects current version, applies migrations in order, backs up database before changes, logs migration history. Rollback capability on failure.
 
 ### Implementation Priority
 1. Schema versioning + `diagnose_database` (low effort, high value)

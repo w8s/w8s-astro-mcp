@@ -4,6 +4,7 @@ Provides high-level database operations for the MCP server.
 """
 
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 from ..database import get_database_path, create_db_engine, get_session
@@ -18,15 +19,29 @@ from .transit_logger import save_transit_data_to_db
 class DatabaseHelper:
     """Helper class for database operations."""
     
-    def __init__(self):
-        """Initialize database helper."""
-        db_path = get_database_path()
-        if not db_path.exists():
-            raise FileNotFoundError(
-                f"Database not found at {db_path}. "
-                "Run migration script first: python scripts/migrate_config_to_sqlite.py"
-            )
-        self.engine = create_db_engine(db_path)
+    def __init__(self, db_path: str = None):
+        """Initialize database helper.
+
+        Args:
+            db_path: Optional path to a SQLite database file.
+                     When provided (e.g. in tests), the file is created if it
+                     doesn't exist and all tables are initialised automatically.
+                     When omitted, uses the standard production path and raises
+                     FileNotFoundError if the database hasn't been migrated yet.
+        """
+        from ..database import create_tables
+        if db_path is not None:
+            resolved = Path(db_path)
+            self.engine = create_db_engine(resolved)
+            create_tables(self.engine)
+        else:
+            resolved = get_database_path()
+            if not resolved.exists():
+                raise FileNotFoundError(
+                    f"Database not found at {resolved}. "
+                    "Run migration script first: python scripts/migrate_config_to_sqlite.py"
+                )
+            self.engine = create_db_engine(resolved)
     
     def get_current_profile(self) -> Optional[Profile]:
         """

@@ -150,7 +150,7 @@ pytest --cov=src/w8s_astro_mcp
 
 ## Roadmap
 
-See `ROADMAP.md` for planned phases including transit history queries (Phase 4), device location detection (Phase 5), event charts (Phase 8), and database self-healing tools (Phase 9).
+See `docs/ROADMAP.md` for planned phases including transit history queries (Phase 4), device location detection (Phase 5), event charts (Phase 8), and database self-healing tools (Phase 9).
 
 ## License
 

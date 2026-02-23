@@ -64,6 +64,9 @@ def circular_mean_degrees(angles: List[float]) -> float:
     cos_sum = sum(math.cos(math.radians(a)) for a in angles)
     mean_rad = math.atan2(sin_sum, cos_sum)
     mean_deg = math.degrees(mean_rad) % 360.0
+    # Normalize: floating point can produce exactly 360.0 from % 360.0
+    if mean_deg == 360.0:
+        mean_deg = 0.0
     return mean_deg
 
 

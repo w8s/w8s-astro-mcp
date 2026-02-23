@@ -2,7 +2,7 @@
 
 ## Phase 1: MVP ✅
 - [x] Project structure
-- [x] Parse swetest output
+- [x] Parse ephemeris output (originally swetest; migrated to pysweph in 0.9.0)
 - [x] Basic transit data structure
 - [x] Detect mechanical changes (degrees, sign changes, stelliums)
 - [x] Rich JSON return format
@@ -48,14 +48,14 @@
 - [x] Multi-profile support (create, switch, manage)
 - [x] Connection entity — named group of 2+ profiles
 - [x] Composite chart (circular mean of absolute positions via atan2)
-- [x] Davison chart (UTC timestamp mean → swetest at midpoint lat/lng)
+- [x] Davison chart (UTC timestamp mean → EphemerisEngine at midpoint lat/lng)
 - [x] Timezone-aware Davison midpoint calculation
 - [x] Normalized schema — planets/houses/points as queryable rows
 - [x] Chart caching with `is_valid` invalidation flag
 - [x] 6 MCP tools: `create_connection`, `list_connections`,
   `add_connection_member`, `remove_connection_member`,
   `get_connection_chart`, `delete_connection`
-- [x] 236 tests (model, math, integration)
+- [x] 274 tests (model, math, integration)
 
 ## Phase 8: Event Charts — Not Started
 

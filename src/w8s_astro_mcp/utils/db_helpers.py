@@ -179,6 +179,29 @@ class DatabaseHelper:
                 }
             }
     
+    def save_natal_chart(
+        self,
+        profile: Profile,
+        chart_data: Dict[str, Any],
+        house_system_id: int,
+    ) -> None:
+        """
+        Persist a calculated natal chart for a profile.
+
+        Clears any existing cached natal rows then writes fresh planets,
+        houses, and points. Idempotent — safe to call for both first-time
+        population and re-calculation after birth-data corrections.
+
+        Args:
+            profile:        Profile to save data for.
+            chart_data:     Chart dict from EphemerisEngine.get_chart().
+            house_system_id: House system used for the calculation.
+        """
+        from .natal_saver import save_natal_data_to_db
+
+        with get_session(self.engine) as session:
+            save_natal_data_to_db(session, profile, chart_data, house_system_id)
+
     def save_transit_lookup(
         self,
         profile: Profile,

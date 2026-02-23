@@ -187,3 +187,85 @@ def test_location_management(db_helper, temp_db):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_save_natal_chart_and_retrieve(db_helper, temp_db):
+    """save_natal_chart() persists data; get_natal_chart_data() returns it correctly."""
+    _db_path, engine = temp_db
+
+    profile = db_helper.create_profile_with_location(
+        name="Natal Save Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    # Minimal chart_data that mirrors EphemerisEngine output
+    fake_chart = {
+        "planets": {
+            "Sun": {"sign": "Taurus", "degree": 15.41, "is_retrograde": False},
+            "Moon": {"sign": "Gemini", "degree": 11.86, "is_retrograde": False},
+        },
+        "houses": {
+            "1": {"sign": "Scorpio", "degree": 11.75},
+            "7": {"sign": "Taurus", "degree": 11.75},
+        },
+        "points": {
+            "ASC": {"sign": "Scorpio", "degree": 11.75},
+            "MC":  {"sign": "Leo", "degree": 5.0},
+        },
+    }
+
+    db_helper.save_natal_chart(profile, fake_chart, house_system_id=1)
+
+    result = db_helper.get_natal_chart_data(profile)
+
+    assert "Sun" in result["planets"]
+    assert result["planets"]["Sun"]["sign"] == "Taurus"
+    assert "Moon" in result["planets"]
+    assert "1" in result["houses"]
+    assert "ASC" in result["points"]
+    assert result["points"]["ASC"]["sign"] == "Scorpio"
+
+
+def test_save_natal_chart_idempotent(db_helper, temp_db):
+    """Calling save_natal_chart() twice replaces old data rather than duplicating it."""
+    _db_path, engine = temp_db
+    from w8s_astro_mcp.models import NatalPlanet
+
+    profile = db_helper.create_profile_with_location(
+        name="Idempotent Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    chart_v1 = {
+        "planets": {"Sun": {"sign": "Taurus", "degree": 15.0, "is_retrograde": False}},
+        "houses": {"1": {"sign": "Scorpio", "degree": 11.0}},
+        "points": {"ASC": {"sign": "Scorpio", "degree": 11.0}},
+    }
+    chart_v2 = {
+        "planets": {
+            "Sun": {"sign": "Taurus", "degree": 15.41, "is_retrograde": False},
+            "Moon": {"sign": "Gemini", "degree": 11.86, "is_retrograde": False},
+        },
+        "houses": {"1": {"sign": "Scorpio", "degree": 11.75}},
+        "points": {"ASC": {"sign": "Scorpio", "degree": 11.75}},
+    }
+
+    db_helper.save_natal_chart(profile, chart_v1, house_system_id=1)
+    db_helper.save_natal_chart(profile, chart_v2, house_system_id=1)
+
+    with get_session(engine) as session:
+        planets = session.query(NatalPlanet).filter_by(profile_id=profile.id).all()
+        # Should have exactly 2 (Sun + Moon from v2), not 3 (Sun×2 + Moon)
+        assert len(planets) == 2
+        names = {p.planet for p in planets}
+        assert names == {"Sun", "Moon"}

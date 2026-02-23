@@ -62,14 +62,46 @@ def init_ephemeris() -> EphemerisEngine:
 
 
 def get_natal_chart_data():
-    """Get natal chart from primary profile."""
+    """
+    Get natal chart for the current profile, calculating and caching on demand.
+
+    If the profile has no cached natal data (e.g. newly created profiles or
+    existing profiles migrated from v0.8), the chart is calculated via
+    EphemerisEngine and saved to the database before returning.
+    """
     db = init_db()
 
     profile = db.get_current_profile()
     if not profile:
         raise EphemerisError("No primary profile found. Run migration script first.")
 
-    return db.get_natal_chart_data(profile)
+    chart = db.get_natal_chart_data(profile)
+
+    # Auto-calculate if cache is empty (new profile or pre-v0.9 migration)
+    if not chart["planets"]:
+        birth_loc = db.get_location_by_id(profile.birth_location_id)
+        if not birth_loc:
+            raise EphemerisError(
+                f"Birth location not found for profile '{profile.name}'. "
+                "Cannot calculate natal chart."
+            )
+
+        engine = init_ephemeris()
+        calculated = engine.get_chart(
+            birth_loc.latitude,
+            birth_loc.longitude,
+            profile.birth_date,
+            profile.birth_time,
+            "P",  # Placidus; matches preferred_house_system_id=1
+        )
+
+        house_system_id = profile.preferred_house_system_id or 1
+        db.save_natal_chart(profile, calculated, house_system_id)
+
+        # Re-read from DB so format is consistent
+        chart = db.get_natal_chart_data(profile)
+
+    return chart
 
 
 def get_chart_for_date(date_str, time_str="12:00", location=None):

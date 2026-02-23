@@ -9,27 +9,7 @@ from ..models import (
 )
 
 
-def decimal_to_dms(decimal_degrees: float) -> tuple[int, int, float]:
-    """Convert decimal degrees to degrees, minutes, seconds."""
-    degrees = int(decimal_degrees)
-    remaining = (decimal_degrees - degrees) * 60
-    minutes = int(remaining)
-    seconds = (remaining - minutes) * 60
-    return degrees, minutes, seconds
-
-
-def sign_to_absolute_position(sign: str, degree_in_sign: float) -> float:
-    """Convert sign + degree to absolute position (0-360)."""
-    sign_order = [
-        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
-    ]
-    
-    if sign not in sign_order:
-        raise ValueError(f"Unknown sign: {sign}")
-    
-    sign_index = sign_order.index(sign)
-    return sign_index * 30 + degree_in_sign
+from .position_utils import decimal_to_dms, sign_to_absolute_position
 
 
 def save_transit_data_to_db(

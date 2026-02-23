@@ -600,7 +600,7 @@ class DatabaseHelper:
 
         Returns a new dict with all four keys guaranteed.
         """
-        from .transit_logger import decimal_to_dms, sign_to_absolute_position
+        from .position_utils import decimal_to_dms, sign_to_absolute_position
 
         result = dict(data)
 

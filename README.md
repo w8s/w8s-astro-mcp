@@ -4,9 +4,9 @@
 [![Tests](https://github.com/w8s/w8s-astro-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/w8s/w8s-astro-mcp/actions/workflows/tests.yml)
 [![PyPI version](https://img.shields.io/pypi/v/w8s-astro-mcp)](https://pypi.org/project/w8s-astro-mcp/)
 [![Python versions](https://img.shields.io/pypi/pyversions/w8s-astro-mcp)](https://pypi.org/project/w8s-astro-mcp/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-Personal astrological MCP server powered by Swiss Ephemeris (swetest). Provides natal charts, transit calculations, aspect analysis, chart visualization, and relationship chart support (composite & Davison) — all backed by a queryable SQLite database.
+Personal astrological MCP server using the Swiss Ephemeris via pysweph. Provides natal charts, transit calculations, aspect analysis, chart visualization, and relationship chart support (composite & Davison) — all backed by a queryable SQLite database.
 
 ## Features
 
@@ -20,22 +20,6 @@ Personal astrological MCP server powered by Swiss Ephemeris (swetest). Provides 
 - **Transit history** — every calculation stored in SQLite for future querying
 
 ## Installation
-
-### Prerequisites
-
-**Swiss Ephemeris (`swetest`) is required.** The server will detect if it's missing and guide you through setup.
-
-```bash
-# Clone and build Swiss Ephemeris
-git clone https://github.com/aloistr/swisseph.git
-cd swisseph && make
-
-# Add to PATH (no sudo needed)
-echo "export PATH=\"$(pwd):\$PATH\"" >> ~/.zshrc && source ~/.zshrc
-
-# Verify
-swetest -h
-```
 
 ### Add to Claude Desktop
 
@@ -80,7 +64,8 @@ Claude will use `create_profile` to set up your birth data and set you as the ac
 
 | Tool | Description |
 |------|-------------|
-| `check_swetest_installation` | Verify swetest is installed and working |
+| `check_ephemeris` | Report ephemeris mode (Moshier/Swiss Ephemeris), pysweph version, and precision |
+| `download_ephemeris_files` | Download Swiss Ephemeris .se1 files for higher precision (optional) |
 | `setup_astro_config` | *(deprecated)* Legacy config wizard |
 | `view_config` | Show current profile and saved locations |
 | `get_natal_chart` | Planetary positions, houses, and angles at birth |
@@ -137,7 +122,7 @@ See `docs/ARCHITECTURE.md` for data flow diagrams, design decisions, and the ful
 - Natal and transit positions stored as normalized rows (not JSON blobs) — fully queryable
 - Every `get_transits` call auto-logs to history with a denormalized location snapshot
 - Connection charts cached with an `is_valid` flag — invalidated when members change, recalculated on next access
-- Position format normalized at write time via `_normalize_position()` — both composite math output and swetest decimal-degree output coerced to `degree/minutes/seconds/absolute_position`
+- Position format normalized at write time via `_normalize_position()` — both composite math output and pysweph decimal-degree output coerced to `degree/minutes/seconds/absolute_position`
 
 ## Testing
 
@@ -154,7 +139,7 @@ pytest tests/test_connection_db_helpers.py    # Integration tests (real SQLite)
 pytest --cov=src/w8s_astro_mcp
 ```
 
-236 tests, 2 skipped. See `docs/ARCHITECTURE.md` for the full test command reference.
+274 tests. See `docs/ARCHITECTURE.md` for the full test command reference.
 
 ## Roadmap
 
@@ -162,4 +147,4 @@ See `docs/ROADMAP.md` for planned phases including transit history queries (Phas
 
 ## License
 
-MIT
+AGPL-3.0

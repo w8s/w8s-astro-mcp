@@ -66,7 +66,7 @@ class ConnectionPoint(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
-    calculation_method: Mapped[str] = mapped_column(String(50), default="swetest", nullable=False)
+    calculation_method: Mapped[str] = mapped_column(String(50), default="pysweph", nullable=False)
     ephemeris_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     # Constraints

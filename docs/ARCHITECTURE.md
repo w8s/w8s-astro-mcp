@@ -39,19 +39,16 @@ src/w8s_astro_mcp/
 │       ├── profile_management.py # Profile/location CRUD tools
 │       └── connection_management.py # Connection/composite/Davison tools
 │
-├── External Integration
-│   ├── parsers/
-│   │   ├── __init__.py
-│   │   └── swetest.py           # Parse swetest output into position dicts
+├── Ephemeris & Utilities
 │   └── utils/
 │       ├── __init__.py
+│       ├── ephemeris.py         # EphemerisEngine — pysweph wrapper, chart calculation
+│       ├── constants.py         # ZODIAC_SIGNS, PLANET_IDS, HOUSE_SYSTEM_CODES
 │       ├── db_helpers.py        # High-level database queries
 │       ├── connection_calculator.py # Composite & Davison math
 │       ├── position_utils.py    # Shared position conversion functions
-│       ├── swetest_integration.py   # Swiss Ephemeris integration
 │       ├── transit_logger.py    # Save transit data to database
-│       ├── geocoding.py         # Location lookup (lat/long)
-│       └── install_helper.py    # swetest installation help
+│       └── geocoding.py         # Location lookup (lat/long)
 │
 ```
 
@@ -75,15 +72,14 @@ flowchart TD
 flowchart TD
     U([User / Claude]) -->|get_transits\ndate · time · location| S[server.py]
     S --> L[DatabaseHelper\nresolve location]
-    L --> SW[swetest_integration\ncalculate positions]
-    SW --> P[swetest.py\nparse output]
-    P --> LOG[transit_logger\nsave_transit_data_to_db]
+    L --> E[EphemerisEngine\nget_chart]
+    E --> LOG[transit_logger\nsave_transit_data_to_db]
     LOG --> DB[(SQLite\nTransitLookup · Planet · House · Point)]
-    P --> R[Format response]
+    E --> R[Format response]
     R --> U
 ```
 
-### Composite Chart (pure math, no swetest)
+### Composite Chart (pure math, no ephemeris call)
 
 ```mermaid
 flowchart TD
@@ -100,7 +96,7 @@ flowchart TD
     R --> U
 ```
 
-### Davison Chart (swetest required)
+### Davison Chart (EphemerisEngine required)
 
 ```mermaid
 flowchart TD
@@ -109,9 +105,8 @@ flowchart TD
     CACHE -->|hit| R[Format response]
     CACHE -->|miss| LOC[db_helpers\nget birth location per member]
     LOC --> MID[connection_calculator\ncalculate_davison_midpoint\nUTC timestamps · circular mean lat]
-    MID --> SW[swetest_integration\ncalculate chart at midpoint]
-    SW --> P[swetest.py\nparse decimal-degree output]
-    P --> NORM[_normalize_position\nderive DMS + absolute_position]
+    MID --> E[EphemerisEngine\nget_chart at midpoint]
+    E --> NORM[_normalize_position\nderive DMS + absolute_position]
     NORM --> SAVE[db_helpers\nsave_connection_chart\nwith davison_midpoint]
     SAVE --> DB[(SQLite\nConnectionChart · Planet · House · Point)]
     SAVE --> R
@@ -171,7 +166,7 @@ flowchart TD
 ### 7. Position Format Normalization (`_normalize_position`)
 - Two sources produce position dicts with different shapes:
   - **Composite math:** `degree` (int), `minutes`, `seconds`, `absolute_position` all present
-  - **swetest parser:** `degree` (decimal float within sign), no `minutes`/`seconds`/`absolute_position`
+  - **EphemerisEngine output:** `degree` (decimal float within sign), no `minutes`/`seconds`/`absolute_position`
 - `DatabaseHelper._normalize_position()` coerces either format before any DB write
 - Reuses `decimal_to_dms()` and `sign_to_absolute_position()` from `position_utils.py`
 
@@ -197,11 +192,11 @@ flowchart TD
 - SQLite database
 
 **External:**
-- Swiss Ephemeris (swetest binary)
+- pysweph (Python Swiss Ephemeris extension — no binary required)
 - matplotlib (chart visualization)
 
 **Dev:**
-- pytest (236 tests, 2 skipped)
+- pytest (274 tests)
 - git (version control)
 
 ## Database Schema
@@ -228,10 +223,10 @@ Connections — Phase 7 (6):
 14. ConnectionChart — cached chart metadata + Davison midpoint
 15. ConnectionPlanet, 16. ConnectionHouse, 17. ConnectionPoint
 
-## MCP Tools (22 total)
+## MCP Tools (23 total)
 
-**Core (8):**
-check_swetest_installation, setup_astro_config (deprecated), view_config,
+**Core (9):**
+check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config,
 get_natal_chart, get_transits, compare_charts, find_house_placements,
 visualize_natal_chart
 

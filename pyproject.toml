@@ -4,7 +4,7 @@ version = "0.8.0"
 description = "Personal astrological MCP server — natal charts, transits, aspects, composite & Davison relationship charts, backed by SQLite"
 requires-python = ">=3.10"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0-or-later" }
 authors = [
     { name = "Todd Waits" }
 ]
@@ -12,7 +12,7 @@ keywords = ["mcp", "astrology", "astro", "tarot", "swiss-ephemeris", "natal-char
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -26,6 +26,7 @@ dependencies = [
     "matplotlib>=3.5.0",
     "numpy>=1.21.0",
     "sqlalchemy>=2.0.0",
+    "pysweph>=2.10.3.3",
 ]
 
 [project.urls]

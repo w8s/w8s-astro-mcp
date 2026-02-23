@@ -640,7 +640,7 @@ class DatabaseHelper:
         chart_type: str,
         positions: dict,
         davison_midpoint: dict = None,
-        calculation_method: str = "swetest",
+        calculation_method: str = "pysweph",
     ):
         """
         Persist a calculated chart to the DB.

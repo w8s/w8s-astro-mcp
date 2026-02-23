@@ -28,7 +28,7 @@ def save_transit_data_to_db(
         profile: Profile for this transit lookup
         location: Location where transits were calculated
         lookup_datetime: When the transits are being analyzed (not when calculated)
-        transit_data: Parsed swetest output (from parse_swetest_output)
+        transit_data: Chart data dict from EphemerisEngine.get_chart()
         house_system_id: ID of house system used
     
     Returns:
@@ -44,8 +44,8 @@ def save_transit_data_to_db(
         location_snapshot_timezone=location.timezone,
         lookup_datetime=lookup_datetime,
         house_system_id=house_system_id,
-        calculation_method="swetest",
-        ephemeris_version="2.10.03"  # TODO: Get from swetest -h output
+        calculation_method="pysweph",
+        ephemeris_version="2.10.03"  # TODO: pull from swe.__version__ at runtime
     )
     session.add(lookup)
     session.flush()  # Get lookup.id
@@ -64,8 +64,8 @@ def save_transit_data_to_db(
             sign=planet_data["sign"],
             absolute_position=abs_pos,
             house_number=None,  # TODO: Calculate which natal house this is in
-            is_retrograde=False,  # TODO: Parse from swetest output
-            calculation_method="swetest"
+            is_retrograde=planet_data.get("is_retrograde", False),
+            calculation_method="pysweph"
         )
         session.add(planet)
     
@@ -83,7 +83,7 @@ def save_transit_data_to_db(
             seconds=sec,
             sign=house_data["sign"],
             absolute_position=abs_pos,
-            calculation_method="swetest"
+            calculation_method="pysweph"
         )
         session.add(house)
     
@@ -101,7 +101,7 @@ def save_transit_data_to_db(
             seconds=sec,
             sign=point_data["sign"],
             absolute_position=abs_pos,
-            calculation_method="swetest"
+            calculation_method="pysweph"
         )
         session.add(point)
     

@@ -211,7 +211,7 @@ erDiagram
     }
     house_systems {
         int id PK
-        string code "swetest flag: P W K R C E A"
+        string code "house system flag: P W K R C E A"
         string name
         string description
         bool is_default "Placidus = true"
@@ -459,7 +459,7 @@ stateDiagram-v2
 - Cannot delete a location that has transit lookups referencing it
 - Cannot delete a house system that is in use
 
-**Position format:** All positions stored as `degree` (int, 0-29), `minutes` (int, 0-59), `seconds` (float, 0-59.999) within sign, plus `absolute_position` (float, 0-359.999°) for aspect math. The `_normalize_position()` method in `DatabaseHelper` coerces swetest decimal-degree output into this format before any write.
+**Position format:** All positions stored as `degree` (int, 0-29), `minutes` (int, 0-59), `seconds` (float, 0-59.999) within sign, plus `absolute_position` (float, 0-359.999°) for aspect math. The `_normalize_position()` method in `DatabaseHelper` coerces EphemerisEngine decimal-degree output into this format before any write.
 
 ---
 

@@ -1,12 +1,29 @@
 [project]
 name = "w8s-astro-mcp"
-version = "0.1.0"
-description = "Astrological transit MCP server using Swiss Ephemeris"
+version = "0.8.0"
+description = "Personal astrological MCP server — natal charts, transits, aspects, composite & Davison relationship charts, backed by SQLite"
 requires-python = ">=3.10"
 readme = "README.md"
+license = { text = "MIT" }
 authors = [
     { name = "Todd W. Schragg" }
 ]
+keywords = ["mcp", "astrology", "astro", "tarot", "swiss-ephemeris", "natal-chart", "transits"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+[project.urls]
+Homepage = "https://github.com/w8s/w8s-astro-mcp"
+Repository = "https://github.com/w8s/w8s-astro-mcp"
+Issues = "https://github.com/w8s/w8s-astro-mcp/issues"
 
 dependencies = [
     "mcp>=1.0.0",

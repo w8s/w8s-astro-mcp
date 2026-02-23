@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.w8s/astro-mcp",
+  "description": "Personal astrological MCP server — natal charts, transits, aspect analysis, composite & Davison relationship charts, backed by SQLite. Powered by Swiss Ephemeris.",
+  "repository": {
+    "url": "https://github.com/w8s/w8s-astro-mcp",
+    "source": "github"
+  },
+  "version": "0.8.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "w8s-astro-mcp",
+      "version": "0.8.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

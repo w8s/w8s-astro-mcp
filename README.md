@@ -1,3 +1,4 @@
+<!-- mcp-name: io.github.w8s/astro-mcp -->
 # w8s-astro-mcp
 
 Personal astrological MCP server powered by Swiss Ephemeris (swetest). Provides natal charts, transit calculations, aspect analysis, chart visualization, and relationship chart support (composite & Davison) — all backed by a queryable SQLite database.

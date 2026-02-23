@@ -587,6 +587,38 @@ class DatabaseHelper:
                 chart.is_valid = False
             session.commit()
 
+    @staticmethod
+    def _normalize_position(data: dict) -> dict:
+        """
+        Ensure a position dict has degree (int), minutes (int), seconds (float),
+        and absolute_position (float).
+
+        Handles two input formats:
+          - Composite math output: already has all four keys (degree is int, etc.)
+          - Swetest parser output: has 'degree' as decimal-within-sign float,
+            'sign' string, no minutes/seconds/absolute_position
+
+        Returns a new dict with all four keys guaranteed.
+        """
+        from .transit_logger import decimal_to_dms, sign_to_absolute_position
+
+        result = dict(data)
+
+        # If absolute_position is missing, derive it from sign + decimal degree
+        if "absolute_position" not in result:
+            result["absolute_position"] = sign_to_absolute_position(
+                result["sign"], result["degree"]
+            )
+
+        # If minutes/seconds are missing (swetest format), split decimal degree
+        if "minutes" not in result or "seconds" not in result:
+            deg_int, min_int, sec_float = decimal_to_dms(result["degree"])
+            result["degree"] = deg_int
+            result["minutes"] = min_int
+            result["seconds"] = sec_float
+
+        return result
+
     def save_connection_chart(
         self,
         connection_id: int,
@@ -641,15 +673,16 @@ class DatabaseHelper:
                 connection_chart_id=chart.id
             ).delete()
             for planet_name, data in positions.get("planets", {}).items():
+                d = self._normalize_position(data)
                 session.add(ConnectionPlanet(
                     connection_chart_id=chart.id,
                     planet=planet_name,
-                    degree=int(data.get("degree", 0)),
-                    minutes=int(data.get("minutes", 0)),
-                    seconds=float(data.get("seconds", 0.0)),
-                    sign=data.get("sign", ""),
-                    absolute_position=data.get("absolute_position", 0.0),
-                    is_retrograde=data.get("is_retrograde", False),
+                    degree=int(d["degree"]),
+                    minutes=int(d["minutes"]),
+                    seconds=float(d["seconds"]),
+                    sign=d.get("sign", ""),
+                    absolute_position=d["absolute_position"],
+                    is_retrograde=d.get("is_retrograde", False),
                     calculation_method=calculation_method,
                 ))
 
@@ -658,15 +691,16 @@ class DatabaseHelper:
                 connection_chart_id=chart.id
             ).delete()
             for house_key, data in positions.get("houses", {}).items():
+                d = self._normalize_position(data)
                 session.add(ConnectionHouse(
                     connection_chart_id=chart.id,
                     house_system_id=hs_id,
                     house_number=int(house_key),
-                    degree=int(data.get("degree", 0)),
-                    minutes=int(data.get("minutes", 0)),
-                    seconds=float(data.get("seconds", 0.0)),
-                    sign=data.get("sign", ""),
-                    absolute_position=data.get("absolute_position", 0.0),
+                    degree=int(d["degree"]),
+                    minutes=int(d["minutes"]),
+                    seconds=float(d["seconds"]),
+                    sign=d.get("sign", ""),
+                    absolute_position=d["absolute_position"],
                     calculation_method=calculation_method,
                 ))
 
@@ -675,15 +709,16 @@ class DatabaseHelper:
                 connection_chart_id=chart.id
             ).delete()
             for point_type, data in positions.get("points", {}).items():
+                d = self._normalize_position(data)
                 session.add(ConnectionPoint(
                     connection_chart_id=chart.id,
                     house_system_id=hs_id,
                     point_type=point_type,
-                    degree=int(data.get("degree", 0)),
-                    minutes=int(data.get("minutes", 0)),
-                    seconds=float(data.get("seconds", 0.0)),
-                    sign=data.get("sign", ""),
-                    absolute_position=data.get("absolute_position", 0.0),
+                    degree=int(d["degree"]),
+                    minutes=int(d["minutes"]),
+                    seconds=float(d["seconds"]),
+                    sign=d.get("sign", ""),
+                    absolute_position=d["absolute_position"],
                     calculation_method=calculation_method,
                 ))
 

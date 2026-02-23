@@ -14,6 +14,10 @@ import tempfile
 import os
 from datetime import datetime
 
+pytestmark = pytest.mark.skip(
+    reason="DatabaseHelper() checks for ~/.w8s-astro-mcp/astro.db at init — requires local DB setup, not suitable for CI"
+)
+
 from w8s_astro_mcp.database import initialize_database, get_session
 from w8s_astro_mcp.models import Profile, Location, HouseSystem
 from w8s_astro_mcp.utils.db_helpers import DatabaseHelper

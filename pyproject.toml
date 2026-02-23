@@ -20,11 +20,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
 
-[project.urls]
-Homepage = "https://github.com/w8s/w8s-astro-mcp"
-Repository = "https://github.com/w8s/w8s-astro-mcp"
-Issues = "https://github.com/w8s/w8s-astro-mcp/issues"
-
 dependencies = [
     "mcp>=1.0.0",
     "python-dateutil>=2.8.0",
@@ -32,6 +27,11 @@ dependencies = [
     "numpy>=1.21.0",
     "sqlalchemy>=2.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/w8s/w8s-astro-mcp"
+Repository = "https://github.com/w8s/w8s-astro-mcp"
+Issues = "https://github.com/w8s/w8s-astro-mcp/issues"
 
 [project.optional-dependencies]
 dev = [

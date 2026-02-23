@@ -56,7 +56,6 @@
   `add_connection_member`, `remove_connection_member`,
   `get_connection_chart`, `delete_connection`
 - [x] 236 tests (model, math, integration)
-- [ ] Transits to composite/Davison charts
 
 ## Phase 8: Event Charts — Not Started
 

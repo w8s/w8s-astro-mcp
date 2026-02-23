@@ -1,0 +1,10 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false,
+  "terminal.integrated.env.osx": {
+    "SWETEST_PATH": "/Users/w8s/Documents/_git/swisseph/swetest"
+  },
+  "python.envFile": "${workspaceFolder}/.env"
+}

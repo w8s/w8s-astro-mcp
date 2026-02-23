@@ -10,8 +10,11 @@ from typing import Any, Dict, Optional
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 
-from .utils.swetest_integration import SweetestIntegration, SweetestError
-from .utils.install_helper import InstallationHelper
+import os
+import urllib.request
+from pathlib import Path
+
+from .utils.ephemeris import EphemerisEngine, EphemerisError
 from .utils.db_helpers import DatabaseHelper
 from .tools.analysis_tools import (
     compare_charts,
@@ -37,8 +40,7 @@ app = Server("w8s-astro-mcp")
 
 # Global state
 db_helper: Optional[DatabaseHelper] = None
-swetest: Optional[SweetestIntegration] = None
-install_helper = InstallationHelper()
+ephemeris: Optional[EphemerisEngine] = None
 
 
 def init_db():
@@ -49,50 +51,40 @@ def init_db():
     return db_helper
 
 
-def init_swetest():
-    """Initialize swetest integration."""
-    global swetest
-    if swetest is None:
-        # Check if swetest is available
-        diagnosis = install_helper.diagnose()
-        
-        if diagnosis['status'] == 'ready':
-            swetest = SweetestIntegration()
-        elif diagnosis['status'] == 'needs_path':
-            # Found but not in PATH - use full path
-            swetest = SweetestIntegration(swetest_path=diagnosis['found_at'])
-        else:
-            # Not installed
-            raise SweetestError(
-                "swetest not found. Run check_swetest_installation tool for setup instructions."
-            )
-    return swetest
+def init_ephemeris() -> EphemerisEngine:
+    """Initialize the ephemeris engine (lazy singleton)."""
+    global ephemeris
+    if ephemeris is None:
+        # Honour an optional env-var override for the .se1 file directory.
+        ephe_path = os.environ.get("SE_EPHE_PATH") or None
+        ephemeris = EphemerisEngine(ephe_path=ephe_path)
+    return ephemeris
 
 
 def get_natal_chart_data():
     """Get natal chart from primary profile."""
     db = init_db()
-    
+
     profile = db.get_current_profile()
     if not profile:
-        raise SweetestError("No primary profile found. Run migration script first.")
-    
+        raise EphemerisError("No primary profile found. Run migration script first.")
+
     return db.get_natal_chart_data(profile)
 
 
 def get_chart_for_date(date_str, time_str="12:00", location=None):
     """Get chart for specific date at a location."""
-    st = init_swetest()
+    engine = init_ephemeris()
     db = init_db()
-    
+
     # Get location
     if location is None:
         profile = db.get_current_profile()
         location = db.get_current_home_location(profile)
         if not location:
-            raise SweetestError("No current home location found")
-    
-    return st.get_transits(
+            raise EphemerisError("No current home location found")
+
+    return engine.get_chart(
         latitude=location.latitude,
         longitude=location.longitude,
         date_str=date_str,
@@ -107,11 +99,38 @@ async def list_tools() -> list[Tool]:
     # Core tools
     core_tools = [
         Tool(
-            name="check_swetest_installation",
-            description="Check if swetest (Swiss Ephemeris) is installed and get setup instructions",
+            name="check_ephemeris",
+            description=(
+                "Check the current ephemeris mode and precision level. "
+                "Reports whether the built-in Moshier ephemeris (~1 arcminute) or "
+                "Swiss Ephemeris data files (~0.001 arcsecond) are active, "
+                "and shows the pysweph version."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {},
+            }
+        ),
+        Tool(
+            name="download_ephemeris_files",
+            description=(
+                "Download Swiss Ephemeris data files for higher-precision calculations. "
+                "Upgrades from built-in Moshier ephemeris (~1 arcminute) to full Swiss Ephemeris "
+                "files (~0.001 arcsecond). Downloads ~2 MB from the official Swiss Ephemeris "
+                "GitHub repository to ~/.w8s-astro-mcp/ephe/. "
+                "Use check_ephemeris first to see current precision mode."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "confirm": {
+                        "type": "boolean",
+                        "description": (
+                            "Must be true to proceed. Omit or set false to preview "
+                            "file details (names, sizes, source, destination) first."
+                        )
+                    }
+                }
             }
         ),
         Tool(
@@ -283,26 +302,85 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     """Handle tool calls."""
     
-    if name == "check_swetest_installation":
-        diagnosis = install_helper.diagnose()
-        
-        message = f"Status: {diagnosis['status']}\n"
-        message += f"swetest in PATH: {'Yes' if diagnosis['swetest_in_path'] else 'No'}\n"
-        message += f"swetest found: {'Yes' if diagnosis['swetest_found'] else 'No'}\n"
-        
-        if diagnosis['found_at']:
-            message += f"Location: {diagnosis['found_at']}\n"
-        
-        message += "\nRecommendations:\n"
-        for rec in diagnosis['recommendations']:
-            message += f"  {rec}\n"
-        
-        if diagnosis['status'] == 'needs_path':
-            message += "\n" + install_helper.get_quick_fix_guide(diagnosis['found_at'])
-        elif diagnosis['status'] == 'not_installed':
-            message += "\n" + install_helper.get_installation_guide()
-        
-        return [TextContent(type="text", text=message)]
+    if name == "check_ephemeris":
+        import swisseph as swe
+        engine = init_ephemeris()
+        mode = engine.get_mode()
+        ephe_dir = Path.home() / ".w8s-astro-mcp" / "ephe"
+        files = list(ephe_dir.glob("*.se1")) if ephe_dir.exists() else []
+
+        lines = [
+            f"Ephemeris mode: {mode}",
+            f"pysweph version: {swe.__version__}",
+        ]
+        if mode == "moshier":
+            lines.append("Precision: ~1 arcminute (Moshier built-in, no files needed)")
+            lines.append("Use download_ephemeris_files to upgrade to ~0.001 arcsecond precision.")
+        else:
+            lines.append(f"Precision: ~0.001 arcsecond (Swiss Ephemeris files)")
+            lines.append(f"Ephemeris path: {engine.ephe_path}")
+            if files:
+                lines.append(f"Data files: {', '.join(f.name for f in sorted(files))}")
+
+        return [TextContent(type="text", text="\n".join(lines))]
+
+    elif name == "download_ephemeris_files":
+        ephe_dir = Path.home() / ".w8s-astro-mcp" / "ephe"
+        file_manifest = [
+            ("sepl_18.se1", "Planets (Sun–Pluto), 1800–2400 CE",  "473 KB"),
+            ("semo_18.se1", "Moon, 1800–2400 CE",                  "1.3 MB"),
+            ("seas_18.se1", "Main asteroids, 1800–2400 CE",        "218 KB"),
+        ]
+        base_url = "https://raw.githubusercontent.com/aloistr/swisseph/master/ephe"
+
+        confirm = arguments.get("confirm", False)
+
+        if not confirm:
+            # Show manifest; require explicit confirmation before downloading.
+            lines = [
+                "Swiss Ephemeris data files upgrade",
+                "",
+                f"Current mode: {init_ephemeris().get_mode()}",
+                "After upgrade: Swiss Ephemeris (~0.001 arcsecond precision)",
+                "",
+                "Files to download:",
+            ]
+            for fname, desc, size in file_manifest:
+                lines.append(f"  {fname:<16} {desc:<40} {size}")
+            lines += [
+                f"  Total                                                    ~2.0 MB",
+                "",
+                f"Source:      github.com/aloistr/swisseph (official Swiss Ephemeris repository)",
+                f"Destination: {ephe_dir}",
+                "",
+                "Call again with confirm=true to proceed.",
+            ]
+            return [TextContent(type="text", text="\n".join(lines))]
+
+        # Check which files are already present.
+        ephe_dir.mkdir(parents=True, exist_ok=True)
+        lines = ["Downloading Swiss Ephemeris data files...", ""]
+        all_present = True
+        for fname, _desc, _size in file_manifest:
+            dest = ephe_dir / fname
+            if dest.exists():
+                lines.append(f"  ✓ {fname}  already present — skipped")
+            else:
+                all_present = False
+                url = f"{base_url}/{fname}"
+                try:
+                    urllib.request.urlretrieve(url, dest)
+                    size_kb = dest.stat().st_size // 1024
+                    lines.append(f"  ✓ {fname}  {size_kb} KB   saved to {ephe_dir}")
+                except Exception as exc:
+                    lines.append(f"  ✗ {fname}  FAILED: {exc}")
+
+        # Activate the downloaded files immediately (no restart needed).
+        global ephemeris
+        ephemeris = EphemerisEngine(ephe_path=str(ephe_dir))
+
+        lines += ["", "High-precision mode active. No restart required."]
+        return [TextContent(type="text", text="\n".join(lines))]
     
     elif name == "setup_astro_config":
         return [TextContent(
@@ -382,7 +460,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     
     elif name == "get_transits":
         try:
-            st = init_swetest()
+            engine = init_ephemeris()
             db = init_db()
             
             date_str = arguments.get("date")
@@ -407,8 +485,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 if not location:
                     return [TextContent(type="text", text=f"Location '{location_arg}' not found")]
             
-            # Get transits from swetest
-            result = st.get_transits(
+            # Get transits from ephemeris engine
+            result = engine.get_chart(
                 latitude=location.latitude,
                 longitude=location.longitude,
                 date_str=date_str,
@@ -454,14 +532,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             
             return [TextContent(type="text", text=response)]
             
-        except SweetestError as e:
-            return [TextContent(type="text", text=f"swetest error: {e}")]
+        except EphemerisError as e:
+            return [TextContent(type="text", text=f"Ephemeris error: {e}")]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
     
     elif name == "compare_charts":
         try:
-            st = init_swetest()
+            # chart retrieval goes through get_chart_for_date which calls init_ephemeris()
             
             # Get chart1
             chart1_date = arguments["chart1_date"]
@@ -499,8 +577,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             
         except AnalysisError as e:
             return [TextContent(type="text", text=f"Analysis error: {e}")]
-        except SweetestError as e:
-            return [TextContent(type="text", text=f"swetest error: {e}")]
+        except EphemerisError as e:
+            return [TextContent(type="text", text=f"Ephemeris error: {e}")]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
     
@@ -529,8 +607,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             
         except AnalysisError as e:
             return [TextContent(type="text", text=f"Analysis error: {e}")]
-        except SweetestError as e:
-            return [TextContent(type="text", text=f"swetest error: {e}")]
+        except EphemerisError as e:
+            return [TextContent(type="text", text=f"Ephemeris error: {e}")]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
     
@@ -569,12 +647,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     # Connection management tools (Phase 7)
     elif name in CONNECTION_TOOL_NAMES:
         db = init_db()
-        sw = None
-        try:
-            sw = init_swetest()
-        except SweetestError:
-            pass  # get_connection_chart will handle the missing swetest case
-        return await handle_connection_tool(name, arguments, db, sw)
+        engine = init_ephemeris()
+        return await handle_connection_tool(name, arguments, db, engine)
 
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]

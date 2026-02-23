@@ -7,6 +7,7 @@ This package contains all database models:
 - HouseSystem: Reference data for house systems
 - Natal* models: Cached natal chart data
 - Transit* models: History of transit calculations
+- Connection* models: Relationship charts (composite, Davison) — Phase 7
 
 Example usage:
     from w8s_astro_mcp.models import Profile, Location, AppSettings
@@ -51,6 +52,12 @@ from w8s_astro_mcp.models.transit_lookup import TransitLookup
 from w8s_astro_mcp.models.transit_planet import TransitPlanet
 from w8s_astro_mcp.models.transit_house import TransitHouse
 from w8s_astro_mcp.models.transit_point import TransitPoint
+from w8s_astro_mcp.models.connection import Connection
+from w8s_astro_mcp.models.connection_member import ConnectionMember
+from w8s_astro_mcp.models.connection_chart import ConnectionChart
+from w8s_astro_mcp.models.connection_planet import ConnectionPlanet
+from w8s_astro_mcp.models.connection_house import ConnectionHouse
+from w8s_astro_mcp.models.connection_point import ConnectionPoint
 
 __all__ = [
     "AppSettings",
@@ -65,4 +72,10 @@ __all__ = [
     "TransitPlanet",
     "TransitHouse",
     "TransitPoint",
+    "Connection",
+    "ConnectionMember",
+    "ConnectionChart",
+    "ConnectionPlanet",
+    "ConnectionHouse",
+    "ConnectionPoint",
 ]

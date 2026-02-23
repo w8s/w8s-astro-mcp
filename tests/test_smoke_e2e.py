@@ -24,8 +24,8 @@ from w8s_astro_mcp.models import (
     TransitLookup, TransitPlanet, TransitHouse, TransitPoint
 )
 from w8s_astro_mcp.utils.db_helpers import DatabaseHelper
-from w8s_astro_mcp.utils.transit_logger import (
-    save_transit_data_to_db,
+from w8s_astro_mcp.utils.transit_logger import save_transit_data_to_db
+from w8s_astro_mcp.utils.position_utils import (
     decimal_to_dms,
     sign_to_absolute_position
 )

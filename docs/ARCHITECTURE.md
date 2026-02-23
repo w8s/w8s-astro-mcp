@@ -7,11 +7,11 @@ src/w8s_astro_mcp/
 ├── Core MCP Server
 │   ├── __init__.py
 │   ├── __main__.py              # Entry point
-│   └── server.py                # MCP server implementation
+│   └── server.py                # MCP server — tool registry & routing
 │
 ├── Database Layer
 │   ├── database.py              # SQLAlchemy engine, session management
-│   └── models/                  # SQLAlchemy ORM models (11 models)
+│   └── models/                  # SQLAlchemy ORM models (17 models)
 │       ├── __init__.py
 │       ├── app_settings.py      # Global settings (current profile ID)
 │       ├── house_system.py      # 7 house systems (Placidus, Koch, etc.)
@@ -23,113 +23,170 @@ src/w8s_astro_mcp/
 │       ├── transit_lookup.py    # Record of every transit check
 │       ├── transit_planet.py    # Planet positions for a transit
 │       ├── transit_house.py     # House cusps for a transit
-│       └── transit_point.py     # Angles for a transit
+│       ├── transit_point.py     # Angles for a transit
+│       ├── connection.py        # Named group of 2+ profiles
+│       ├── connection_member.py # Many-to-many: connection ↔ profile
+│       ├── connection_chart.py  # Cached composite/Davison chart metadata
+│       ├── connection_planet.py # Planet positions in a connection chart
+│       ├── connection_house.py  # House cusps in a connection chart
+│       └── connection_point.py  # Angles in a connection chart
 │
 ├── Analysis & Visualization
-│   └── tools/                   # MCP tools & analysis
+│   └── tools/                   # MCP tool handlers
 │       ├── __init__.py
 │       ├── analysis_tools.py    # Aspects, house placements
 │       ├── visualization.py     # Chart drawing (matplotlib)
-│       └── profile_management.py # Profile/location CRUD (feature branch)
+│       ├── profile_management.py # Profile/location CRUD tools
+│       └── connection_management.py # Connection/composite/Davison tools
 │
 ├── External Integration
-│   ├── parsers/                 # Parse external tool output
+│   ├── parsers/
 │   │   ├── __init__.py
-│   │   └── swetest.py           # Parse swetest output
-│   └── utils/                   # Utilities & Helpers
+│   │   └── swetest.py           # Parse swetest output into position dicts
+│   └── utils/
 │       ├── __init__.py
 │       ├── db_helpers.py        # High-level database queries
-│       ├── swetest_integration.py  # Swiss Ephemeris integration
+│       ├── connection_calculator.py # Composite & Davison math
+│       ├── position_utils.py    # Shared position conversion functions
+│       ├── swetest_integration.py   # Swiss Ephemeris integration
 │       ├── transit_logger.py    # Save transit data to database
 │       ├── geocoding.py         # Location lookup (lat/long)
 │       └── install_helper.py    # swetest installation help
 │
-└── Legacy (Unused)
-    └── config.py                # ⚠️  OLD config.json handling
-                                 # NO LONGER USED - kept for reference only
-                                 # Server uses SQLite exclusively
 ```
 
 ## Data Flow
 
-### Natal Chart Query (From Database)
-```
-User (Claude) → MCP Tool: get_natal_chart
-                ↓
-         server.py: get_natal_chart handler
-                ↓
-         init_db() → DatabaseHelper
-                ↓
-         db_helpers.get_natal_chart_data(profile)
-                ↓
-         SQLAlchemy queries: NatalPlanet, NatalHouse, NatalPoint
-                ↓
-         Format response → Return to user
+### Natal Chart Query
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_natal_chart| S[server.py]
+    S --> D[DatabaseHelper]
+    D --> Q[db_helpers.get_natal_chart_data]
+    Q --> DB[(SQLite\nNatalPlanet · NatalHouse · NatalPoint)]
+    DB --> R[Format response]
+    R --> U
 ```
 
-### Transit Query (With Auto-Logging)
-```
-User (Claude) → MCP Tool: get_transits(date, time, location)
-                ↓
-         server.py: get_transits handler
-                ↓
-         1. DatabaseHelper: get location by label
-         2. swetest_integration.get_transits(lat, lng, date, time)
-         3. Parse swetest output
-         4. 🆕 transit_logger.save_transit_data_to_db()
-            └─> Creates: TransitLookup, TransitPlanet, TransitHouse, TransitPoint
-         5. Format response → Return to user
+### Transit Query (with Auto-Logging)
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_transits\ndate · time · location| S[server.py]
+    S --> L[DatabaseHelper\nresolve location]
+    L --> SW[swetest_integration\ncalculate positions]
+    SW --> P[swetest.py\nparse output]
+    P --> LOG[transit_logger\nsave_transit_data_to_db]
+    LOG --> DB[(SQLite\nTransitLookup · Planet · House · Point)]
+    P --> R[Format response]
+    R --> U
 ```
 
-### Migration (One-Time Setup)
+### Composite Chart (pure math, no swetest)
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_connection_chart\ntype=composite| S[server.py]
+    S --> CACHE{Cache valid?}
+    CACHE -->|hit| R[Format response]
+    CACHE -->|miss| NATAL[db_helpers\nget natal chart per member]
+    NATAL --> ENRICH[connection_calculator\nenrich_natal_chart_for_composite]
+    ENRICH --> CALC[connection_calculator\ncalculate_composite_positions\ncircular mean via atan2]
+    CALC --> NORM[_normalize_position\ncoerce to standard format]
+    NORM --> SAVE[db_helpers\nsave_connection_chart\nupsert]
+    SAVE --> DB[(SQLite\nConnectionChart · Planet · House · Point)]
+    SAVE --> R
+    R --> U
 ```
-User runs: python scripts/migrate_config_to_sqlite.py
-                ↓
-         Read: ~/.w8s-astro-mcp/config.json
-                ↓
-         Parse birth data, locations, natal chart
-                ↓
-         SQLAlchemy: Create 10 models worth of data
-                ↓
-         Write: ~/.w8s-astro-mcp/astro.db
-                ↓
-         Done! Server now uses database automatically
+
+### Davison Chart (swetest required)
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|get_connection_chart\ntype=davison| S[server.py]
+    S --> CACHE{Cache valid?}
+    CACHE -->|hit| R[Format response]
+    CACHE -->|miss| LOC[db_helpers\nget birth location per member]
+    LOC --> MID[connection_calculator\ncalculate_davison_midpoint\nUTC timestamps · circular mean lat]
+    MID --> SW[swetest_integration\ncalculate chart at midpoint]
+    SW --> P[swetest.py\nparse decimal-degree output]
+    P --> NORM[_normalize_position\nderive DMS + absolute_position]
+    NORM --> SAVE[db_helpers\nsave_connection_chart\nwith davison_midpoint]
+    SAVE --> DB[(SQLite\nConnectionChart · Planet · House · Point)]
+    SAVE --> R
+    R --> U
+```
+
+### Migration (one-time setup)
+
+```mermaid
+flowchart TD
+    U([User]) -->|python scripts/migrate_config_to_sqlite.py| M[migrate_config_to_sqlite.py]
+    M --> J[Read ~/.w8s-astro-mcp/config.json]
+    J --> PARSE[Parse birth data\nlocations · natal chart]
+    PARSE --> ORM[SQLAlchemy\ncreate Profile + natal chart rows]
+    ORM --> DB[(~/.w8s-astro-mcp/astro.db)]
+    DB --> DONE([Done — server uses\ndatabase automatically])
 ```
 
 ## Key Design Decisions
 
-### 1. Database-First Architecture ✅
+### 1. Database-First Architecture
 - **Old:** config.json with cached natal chart
 - **New:** SQLite with normalized schema
 - **Why:** Enables multi-profile, transit history, proper queries
 
-### 2. AppSettings Table for Global State ✅
+### 2. AppSettings Table for Global State
 - **Old:** Profile.is_primary boolean flag
 - **New:** AppSettings.current_profile_id foreign key
 - **Why:** Cleaner architecture, ON DELETE SET NULL cascade, more extensible
 
-### 3. Profile-Owned Locations ✅
+### 3. Profile-Owned Locations
 - **Decision:** All locations require profile_id (no shared/global locations)
 - **Why:** Simpler mental model, easier CASCADE deletion, clearer ownership
 
-### 4. Separation of Concerns ✅
+### 4. Separation of Concerns
 - **Models:** Define data structure (SQLAlchemy ORM)
 - **Database:** Handle connections, sessions
-- **db_helpers:** Provide high-level queries
-- **transit_logger:** Handle complex inserts
-- **server.py:** Orchestrate everything
+- **db_helpers:** Provide high-level queries for the server
+- **transit_logger:** Handle complex transit inserts
+- **connection_calculator:** Pure math — composite means, Davison midpoints
+- **position_utils:** Shared low-level conversion functions
+- **server.py:** Orchestrate tool routing only
 
-### 5. Auto-Logging Transit Requests ✅
-- Every `get_transits` call logs to database
-- Preserves location snapshot (even if location changes)
+### 5. Auto-Logging Transit Requests
+- Every `get_transits` call logs to database automatically
+- Preserves location snapshot for historical accuracy
 - Builds queryable history over time
-- Graceful degradation (logging failures don't break requests)
+- Graceful degradation (logging failures don't break the request)
 
-### 6. Config.py Completely Unused ✅
-- **Status:** Legacy code kept for reference only
-- **Reality:** Server uses SQLite exclusively via DatabaseHelper
-- **Migration:** One-time script converts config.json → SQLite
-- **Future:** May be deleted entirely
+### 6. Connection Chart Caching
+- Composite and Davison charts are expensive to compute and deterministic
+- Results cached in `connection_charts` + child tables
+- `is_valid` flag allows invalidation without deletion
+- Adding/removing a connection member invalidates all charts for that connection
+- Upsert pattern: recalculating replaces rows, never duplicates
+
+### 7. Position Format Normalization (`_normalize_position`)
+- Two sources produce position dicts with different shapes:
+  - **Composite math:** `degree` (int), `minutes`, `seconds`, `absolute_position` all present
+  - **swetest parser:** `degree` (decimal float within sign), no `minutes`/`seconds`/`absolute_position`
+- `DatabaseHelper._normalize_position()` coerces either format before any DB write
+- Reuses `decimal_to_dms()` and `sign_to_absolute_position()` from `position_utils.py`
+
+### 8. `position_utils.py` — Shared Conversion Module
+- `decimal_to_dms()` and `sign_to_absolute_position()` were originally defined in
+  `transit_logger.py` but were needed by `db_helpers.py` too
+- Extracted to `utils/position_utils.py` to eliminate cross-module dependency
+  on a persistence module
+- `transit_logger.py` now imports from `position_utils` (no behaviour change)
+
+### 9. DatabaseHelper Test Mode
+- `DatabaseHelper.__init__()` accepts an optional `db_path` argument
+- When provided: creates the file if needed and runs `create_tables()` automatically
+- When omitted: production behaviour — uses `get_database_path()`, raises on missing DB
+- Enables real integration tests against isolated SQLite files without mocking
 
 ## Technology Stack
 
@@ -144,49 +201,62 @@ User runs: python scripts/migrate_config_to_sqlite.py
 - matplotlib (chart visualization)
 
 **Dev:**
-- pytest (testing)
+- pytest (236 tests, 2 skipped)
 - git (version control)
 
 ## Database Schema
 
 See `docs/DATABASE_SCHEMA.md` for full schema documentation.
 
-**11 Models:**
-1. AppSettings (global state - current profile ID)
-2. HouseSystem (reference data - 7 house systems)
-3. Location (profile-owned locations)
-4. Profile (people's charts)
-5. NatalPlanet, NatalHouse, NatalPoint (birth chart data)
-6. TransitLookup (history of queries)
-7. TransitPlanet, TransitHouse, TransitPoint (transit snapshots)
+**17 Models across 3 domains:**
 
-**Key Features:**
-- Normalized schema (no data duplication)
-- Foreign keys with proper CASCADE/RESTRICT/SET NULL
-- Location snapshots for historical accuracy
-- AppSettings for extensible global configuration
-- Profile-owned locations (no shared/global concept)
+Profiles & Locations (4):
+1. AppSettings — global state (current profile ID)
+2. HouseSystem — reference data (7 house systems)
+3. Location — profile-owned locations
+4. Profile — people's natal charts
+
+Natal Charts (3):
+5. NatalPlanet, 6. NatalHouse, 7. NatalPoint
+
+Transit History (4):
+8. TransitLookup, 9. TransitPlanet, 10. TransitHouse, 11. TransitPoint
+
+Connections — Phase 7 (6):
+12. Connection — named group of 2+ profiles
+13. ConnectionMember — join table
+14. ConnectionChart — cached chart metadata + Davison midpoint
+15. ConnectionPlanet, 16. ConnectionHouse, 17. ConnectionPoint
+
+## MCP Tools (22 total)
+
+**Core (8):**
+check_swetest_installation, setup_astro_config (deprecated), view_config,
+get_natal_chart, get_transits, compare_charts, find_house_placements,
+visualize_natal_chart
+
+**Profile Management (7):**
+list_profiles, create_profile, update_profile, delete_profile,
+set_current_profile, add_location, remove_location
+
+**Connection Management — Phase 7 (6):**
+create_connection, list_connections, add_connection_member,
+remove_connection_member, get_connection_chart, delete_connection
 
 ## Future Enhancements
-
-### In Progress (Feature Branch):
-- [x] Profile management tools (create/list/switch/update/delete) - **Stubbed**
-- [x] Location management tools (add/remove) - **Stubbed**
-- [ ] Implement stubbed profile management tools
-- [ ] Tests for profile management
 
 ### Planned:
 - [ ] Transit history queries ("last month's transits")
 - [ ] Statistics ("how often do I check Mercury?")
 - [ ] Database self-healing tools (repair inconsistencies)
-- [ ] Remove config.py entirely (no longer needed)
 
 ### Possible:
 - [ ] Web interface for database queries
 - [ ] Export transit history to CSV
 - [ ] Progressive natal chart (age progression)
-- [ ] Synastry between profiles
 - [ ] More house systems (Whole Sign, Equal, etc.)
+- [ ] Aspects table (natal-natal, transit-natal, transit-transit)
+- [ ] Progressions and solar/lunar returns
 
 ## Contributing
 
@@ -194,9 +264,11 @@ When adding features:
 1. Models go in `models/`
 2. Database queries go in `db_helpers.py`
 3. Complex inserts go in separate modules (like `transit_logger.py`)
-4. MCP tools go in `server.py`
-5. Analysis logic goes in `tools/`
-6. Always add tests!
+4. Pure math/calculation logic goes in `utils/` (like `connection_calculator.py`)
+5. Shared low-level conversions go in `position_utils.py`
+6. MCP tool definitions and handlers go in `tools/`
+7. Tool routing goes in `server.py`
+8. Always add tests — unit tests for math, integration tests for db_helpers
 
 ## Testing
 
@@ -204,11 +276,17 @@ When adding features:
 # Run all tests
 pytest
 
-# Run database tests only
+# Connection db_helper integration tests only
+pytest tests/test_connection_db_helpers.py
+
+# Connection math tests only
+pytest tests/test_connection_calculator.py
+
+# Model tests only
 pytest tests/models/
 
-# Run specific test file
-pytest tests/models/test_house_system.py
+# Specific test file
+pytest tests/models/test_connections.py
 ```
 
 ## Migration Guide
@@ -221,7 +299,7 @@ pytest tests/models/test_house_system.py
 
 **For new users:**
 - No migration needed
-- Server expects database to exist
+- Server expects database to exist at `~/.w8s-astro-mcp/astro.db`
 - Use migration script to create initial profile
 
 ## License

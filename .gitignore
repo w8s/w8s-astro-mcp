@@ -26,11 +26,13 @@ ENV/
 env/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# Local environment (machine-specific paths)
+.env
 
 # User data (don't commit personal info)
 data/config.json

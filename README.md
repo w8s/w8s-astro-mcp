@@ -1,114 +1,46 @@
 # w8s-astro-mcp
 
-Astrological transit MCP server using Swiss Ephemeris (swetest).
+Personal astrological MCP server powered by Swiss Ephemeris (swetest). Provides natal charts, transit calculations, aspect analysis, chart visualization, and relationship chart support (composite & Davison) — all backed by a queryable SQLite database.
 
 ## Features
 
-### Phase 1: MVP (Current)
-- Parse swetest output for daily transits
-- Calculate house positions
-- Detect mechanical changes (stelliums, anaretic degrees, sign changes)
-- Rich JSON data return for LLM analysis
-- Interactive setup wizard for birth data
+- **Natal charts** — planetary positions, houses, and angles at birth
+- **Transit calculations** — current sky positions auto-logged to history
+- **Aspect analysis** — compare any two charts (natal vs natal, natal vs transits)
+- **House placements** — determine which house each planet occupies
+- **Chart visualization** — render natal chart wheels as PNG
+- **Multi-profile** — manage charts for multiple people
+- **Relationship charts** — composite and Davison charts for any group of 2+ people
+- **Transit history** — every calculation stored in SQLite for future querying
 
 ## Installation
 
 ### Prerequisites
 
-**Swiss Ephemeris (swetest) is required.** If not installed, the MCP server will guide you through setup.
-
-### Quick Start
+**Swiss Ephemeris (`swetest`) is required.** The server will detect if it's missing and guide you through setup.
 
 ```bash
-# 1. Install this package
-cd ~/Documents/_git/w8s-astro-mcp
-pip install -e .
-
-# 2. Install Swiss Ephemeris
-# The MCP server will detect if swetest is missing and provide
-# interactive installation instructions when you first use it.
-```
-
-### Manual Swiss Ephemeris Installation
-
-If you prefer to install swetest manually:
-
-```bash
-# Clone Swiss Ephemeris to a directory of your choice
+# Clone and build Swiss Ephemeris
 git clone https://github.com/aloistr/swisseph.git
-cd swisseph
+cd swisseph && make
 
-# Build
-make
-
-# Add to PATH (choose one method):
-
-# Method A: Symlink to system bin (requires sudo)
-sudo ln -s $(pwd)/swetest /usr/local/bin/swetest
-
-# Method B: Add to shell PATH (no sudo needed)
-echo "export PATH=\"$(pwd):\$PATH\"" >> ~/.bashrc
-source ~/.bashrc
+# Add to PATH (no sudo needed)
+echo "export PATH=\"$(pwd):\$PATH\"" >> ~/.zshrc && source ~/.zshrc
 
 # Verify
-swetest -h  # Should show version 2.10.03
+swetest -h
 ```
 
-## Configuration
+### Install the Server
 
-### Initial Setup
-
-On first use, Claude will guide you through setting up your birth data:
-- Birth date, time, and location  
-- Coordinates will be looked up automatically
-- Configuration saved to `~/.w8s-astro-mcp/config.json`
-
-### Viewing Your Config
-
-Ask Claude: "Can you show me my astro configuration?"
-
-This will display your birth data, saved locations, and house system.
-
-### Updating Your Config
-
-**Option 1: Through Claude**
-Ask Claude to set up new birth data using the `setup_astro_config` tool.
-
-**Option 2: Manual Edit**
-Edit the config file directly:
 ```bash
-nano ~/.w8s-astro-mcp/config.json
+cd ~/Documents/_git/w8s-astro-mcp
+pip install -e .
 ```
 
-Example config structure:
-```json
-{
-  "birth_data": {
-    "date": "1990-05-15",
-    "time": "14:30",
-    "location": {
-      "name": "Richardson, TX",
-      "latitude": 32.9483,
-      "longitude": -96.7297,
-      "timezone": "America/Chicago"
-    }
-  },
-  "locations": {
-    "home": {
-      "name": "Richardson, TX",
-      "latitude": 32.9483,
-      "longitude": -96.7297,
-      "timezone": "America/Chicago"
-    },
-    "current": "home"
-  },
-  "house_system": "P"
-}
-```
+### Add to Claude Desktop
 
-## Usage
-
-Add to your MCP settings (typically `~/Library/Application Support/Claude/claude_desktop_config.json`):
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -120,61 +52,106 @@ Add to your MCP settings (typically `~/Library/Application Support/Claude/claude
 }
 ```
 
+## First-Time Setup
+
+On first use, create your profile:
+
+> "Create an astro profile for me — my name is [Name], born [date] at [time] in [city, state]."
+
+Claude will use `create_profile` to set up your birth data and set you as the active profile. Everything is stored in `~/.w8s-astro-mcp/astro.db`.
+
+**Migrating from an older version?** If you have a `config.json` from a previous install:
+
+```bash
+python scripts/migrate_config_to_sqlite.py
+```
+
 ## Tools
 
-### `setup_astro_config`
-Interactive wizard to configure birth data and preferences.
+### Core (8)
 
-### `get_daily_transits`
-Get transit data for a specific date with rich metadata.
+| Tool | Description |
+|------|-------------|
+| `check_swetest_installation` | Verify swetest is installed and working |
+| `setup_astro_config` | *(deprecated)* Legacy config wizard |
+| `view_config` | Show current profile and saved locations |
+| `get_natal_chart` | Planetary positions, houses, and angles at birth |
+| `get_transits` | Current sky positions (auto-logged to history) |
+| `compare_charts` | Aspects between any two charts |
+| `find_house_placements` | Which house each planet occupies |
+| `visualize_natal_chart` | Render natal chart wheel as PNG |
 
-**Parameters:**
-- `date` (optional): Date in YYYY-MM-DD format (default: today)
-- `location` (optional): Named location or "current" (default: current)
+### Profile Management (7)
 
-**Returns:** Rich JSON with planetary positions, houses, stelliums, and detected shifts.
+| Tool | Description |
+|------|-------------|
+| `list_profiles` | All profiles in the database |
+| `create_profile` | Add a new person's birth data |
+| `update_profile` | Edit name, birth date, or birth time |
+| `delete_profile` | Remove a profile (must leave connections first) |
+| `set_current_profile` | Switch the active profile |
+| `add_location` | Save a named location to a profile |
+| `remove_location` | Delete a saved location |
 
-### `get_transit_markdown`
-Get formatted markdown table for Obsidian daily notes.
+### Connection Management — Phase 7 (6)
 
-**Parameters:**
-- `date` (optional): Date in YYYY-MM-DD format (default: today)
-- `location` (optional): Named location or "current" (default: current)
+| Tool | Description |
+|------|-------------|
+| `create_connection` | Name a group of 2+ profiles |
+| `list_connections` | All connections in the database |
+| `add_connection_member` | Add a profile to a connection |
+| `remove_connection_member` | Remove a profile (invalidates cached charts) |
+| `get_connection_chart` | Calculate or retrieve composite/Davison chart |
+| `delete_connection` | Remove a connection and all its charts |
 
-**Returns:** Markdown formatted transit tables.
+## Database
 
-### `check_major_shifts`
-Detect significant astrological events.
+All data lives in `~/.w8s-astro-mcp/astro.db` — a standard SQLite file you can query directly.
 
-**Parameters:**
-- `date` (optional): Date to check (default: today)
-- `days_ahead` (optional): How many days to look ahead (default: 3)
+```bash
+sqlite3 ~/.w8s-astro-mcp/astro.db
 
-**Returns:** List of major shifts (sign changes, stations, stelliums, etc.)
+# Most-checked transit planets
+SELECT planet, COUNT(*) AS checks
+FROM transit_planets GROUP BY planet ORDER BY checks DESC;
+
+# All connections
+SELECT c.label, c.type FROM connections c;
+```
+
+See `docs/DATABASE_SCHEMA.md` for the full schema with ERDs and example queries.
+
+## Architecture
+
+See `docs/ARCHITECTURE.md` for data flow diagrams, design decisions, and the full directory structure.
+
+**Key design choices:**
+- Natal and transit positions stored as normalized rows (not JSON blobs) — fully queryable
+- Every `get_transits` call auto-logs to history with a denormalized location snapshot
+- Connection charts cached with an `is_valid` flag — invalidated when members change, recalculated on next access
+- Position format normalized at write time via `_normalize_position()` — both composite math output and swetest decimal-degree output coerced to `degree/minutes/seconds/absolute_position`
+
+## Testing
+
+```bash
+# Full suite
+pytest
+
+# By domain
+pytest tests/models/                          # ORM model tests
+pytest tests/test_connection_calculator.py    # Composite & Davison math
+pytest tests/test_connection_db_helpers.py    # Integration tests (real SQLite)
+
+# With coverage
+pytest --cov=src/w8s_astro_mcp
+```
+
+236 tests, 2 skipped. See `docs/ARCHITECTURE.md` for the full test command reference.
 
 ## Roadmap
 
-See ROADMAP.md for planned features.
+See `ROADMAP.md` for planned phases including transit history queries (Phase 4), device location detection (Phase 5), event charts (Phase 8), and database self-healing tools (Phase 9).
 
 ## License
 
 MIT
-
-
-## Testing
-
-### Quick Tests (No Dependencies)
-```bash
-pytest tests/ -k "not real" -v  # 33+ unit tests with mocking
-```
-
-### Full Integration Tests (Requires swetest)
-```bash
-# Install Swiss Ephemeris first
-brew install swisseph  # macOS
-
-# Then run integration tests
-pytest tests/test_swetest_real.py -v
-```
-
-See `tests/README_TESTING.md` for detailed testing strategy.

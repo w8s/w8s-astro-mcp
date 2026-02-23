@@ -37,13 +37,6 @@ echo "export PATH=\"$(pwd):\$PATH\"" >> ~/.zshrc && source ~/.zshrc
 swetest -h
 ```
 
-### Install the Server
-
-```bash
-cd ~/Documents/_git/w8s-astro-mcp
-pip install -e .
-```
-
 ### Add to Claude Desktop
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -52,11 +45,26 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "w8s-astro-mcp": {
-      "command": "w8s-astro-mcp"
+      "command": "uvx",
+      "args": ["w8s-astro-mcp"]
     }
   }
 }
 ```
+
+`uvx` pulls the package from PyPI and runs it in an isolated environment — no manual install needed. If you don't have `uv`, install it with:
+
+```bash
+brew install uv
+```
+
+### Alternative: pip install
+
+```bash
+pip install w8s-astro-mcp
+```
+
+Then use `"command": "w8s-astro-mcp"` (no `args`) in your Claude Desktop config.
 
 ## First-Time Setup
 
@@ -65,12 +73,6 @@ On first use, create your profile:
 > "Create an astro profile for me — my name is [Name], born [date] at [time] in [city, state]."
 
 Claude will use `create_profile` to set up your birth data and set you as the active profile. Everything is stored in `~/.w8s-astro-mcp/astro.db`.
-
-**Migrating from an older version?** If you have a `config.json` from a previous install:
-
-```bash
-python scripts/migrate_config_to_sqlite.py
-```
 
 ## Tools
 

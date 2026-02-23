@@ -121,9 +121,9 @@ class TestRealSweetest:
             assert "sign" in result["planets"][planet]
             assert "degree" in result["planets"][planet]
         
-        # Verify we got 12 houses
+        # Verify we got 12 houses (keys are strings: '1'-'12')
         for house_num in range(1, 13):
-            assert house_num in result["houses"]
+            assert str(house_num) in result["houses"]
         
         # Verify metadata
         assert result["metadata"]["date"] == "2026-02-03"

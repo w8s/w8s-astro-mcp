@@ -78,10 +78,22 @@ def create_db_engine(db_path: Path | None = None, echo: bool = False) -> Engine:
 def create_tables(engine: Engine) -> None:
     """
     Create all database tables.
-    
+
+    Imports all models before calling create_all to ensure every table is
+    registered with Base.metadata, including connection tables added in v0.9.
+
     Args:
         engine: SQLAlchemy engine instance
     """
+    # Import all models so they register with Base.metadata before create_all.
+    # This is the single place that must stay in sync with models/__init__.py.
+    from w8s_astro_mcp.models import (  # noqa: F401
+        AppSettings, HouseSystem, Location, Profile,
+        NatalPlanet, NatalHouse, NatalPoint,
+        TransitLookup, TransitPlanet, TransitHouse, TransitPoint,
+        Connection, ConnectionMember, ConnectionChart,
+        ConnectionPlanet, ConnectionHouse, ConnectionPoint,
+    )
     Base.metadata.create_all(engine)
 
 

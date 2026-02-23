@@ -180,6 +180,97 @@ directly from speed, and absolute position is the raw longitude value.
 
 ---
 
+## New Tool: `download_ephemeris_files`
+
+Allows users to upgrade from Moshier (built-in, ~1 arcminute precision) to the full
+Swiss Ephemeris data files (~0.001 arcsecond precision) without leaving Claude Desktop.
+
+### Behavior
+
+1. **If files already present** in `~/.w8s-astro-mcp/ephe/` — report status and skip
+2. **Otherwise** — present full file manifest and require `confirm: true` before downloading
+3. **On confirm** — download all three files, then call `swe.set_ephe_path()` immediately
+   (no server restart needed)
+4. **Report** — confirm each file saved, total size, and that high-precision mode is now active
+
+### File Manifest (shown to user before confirmation)
+
+| File | Contents | Size | Source |
+|------|----------|------|--------|
+| `sepl_18.se1` | Planets (Sun–Pluto), 1800–2400 CE | 473 KB | github.com/aloistr/swisseph |
+| `semo_18.se1` | Moon, 1800–2400 CE | 1.3 MB | github.com/aloistr/swisseph |
+| `seas_18.se1` | Main asteroids (Ceres, Chiron, etc.), 1800–2400 CE | 218 KB | github.com/aloistr/swisseph |
+| **Total** | | **~2 MB** | |
+
+**Destination:** `~/.w8s-astro-mcp/ephe/`  
+**Source URLs:**
+```
+https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/sepl_18.se1
+https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/semo_18.se1
+https://raw.githubusercontent.com/aloistr/swisseph/master/ephe/seas_18.se1
+```
+
+### Tool Schema
+
+```python
+Tool(
+    name="download_ephemeris_files",
+    description=(
+        "Download Swiss Ephemeris data files for higher-precision calculations. "
+        "Upgrades from built-in Moshier ephemeris (~1 arcminute) to full Swiss Ephemeris "
+        "files (~0.001 arcsecond). Downloads ~2 MB of data from the official Swiss Ephemeris "
+        "GitHub repository to ~/.w8s-astro-mcp/ephe/. "
+        "Use check_ephemeris first to see current precision mode."
+    ),
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "confirm": {
+                "type": "boolean",
+                "description": (
+                    "Must be true to proceed. The tool will show file details "
+                    "(names, sizes, source, destination) when confirm is omitted or false."
+                )
+            }
+        }
+    }
+)
+```
+
+### Without `confirm: true` — show manifest, prompt user
+
+```
+Swiss Ephemeris data files upgrade
+
+Current mode: Moshier (built-in, ~1 arcminute precision)
+After upgrade: Swiss Ephemeris (~0.001 arcsecond precision)
+
+Files to download:
+  sepl_18.se1   Planets (Sun–Pluto), 1800–2400 CE    473 KB
+  semo_18.se1   Moon, 1800–2400 CE                   1.3 MB
+  seas_18.se1   Main asteroids, 1800–2400 CE          218 KB
+  Total                                              ~2.0 MB
+
+Source:      github.com/aloistr/swisseph (official Swiss Ephemeris repository)
+Destination: ~/.w8s-astro-mcp/ephe/
+
+Call again with confirm=true to proceed.
+```
+
+### With `confirm: true` — download and activate
+
+```
+Downloading Swiss Ephemeris data files...
+
+  ✓ sepl_18.se1   473 KB   saved to ~/.w8s-astro-mcp/ephe/
+  ✓ semo_18.se1   1.3 MB   saved to ~/.w8s-astro-mcp/ephe/
+  ✓ seas_18.se1   218 KB   saved to ~/.w8s-astro-mcp/ephe/
+
+High-precision mode active. No restart required.
+```
+
+---
+
 ## Updated `check_swetest_installation` Tool
 
 The tool name will change to `check_ephemeris` (or we keep the name for backwards
@@ -195,9 +286,10 @@ compatibility but update its behavior). It should now report:
 
 Work through files in this order to keep things buildable at each step:
 
-1. **`pyproject.toml`** — add `pysweph` dependency, update license
+1. **`pyproject.toml`** — add `pysweph` dependency, update license ✅
 2. **`src/w8s_astro_mcp/utils/ephemeris.py`** — create new engine (TDD: write tests first)
-3. **`src/w8s_astro_mcp/server.py`** — swap imports and init logic
+3. **`src/w8s_astro_mcp/server.py`** — swap imports and init logic; add `download_ephemeris_files`
+   and `check_ephemeris` tools; remove `check_swetest_installation`
 4. **`src/w8s_astro_mcp/utils/transit_logger.py`** — update `calculation_method` string
 5. **`src/w8s_astro_mcp/tools/connection_management.py`** — update Davison call site
 6. **Model files** — update `default="swetest"` → `default="pysweph"` (10 files)
@@ -229,9 +321,8 @@ Bump to **0.9.0** on merge to main.
 
 ## Open Questions
 
-- [ ] Keep tool named `check_swetest_installation` (backwards compat) or rename to
-      `check_ephemeris`? Leaning rename since the swetest name will confuse users.
-- [ ] Expose `SE_EPHE_PATH` configuration in settings for power users who want
-      higher-precision `.se1` files?
+- [x] ~~Keep tool named `check_swetest_installation` or rename?~~ → Rename to `check_ephemeris`
+- [ ] Expose `SE_EPHE_PATH` environment variable override for power users who store
+      `.se1` files in a custom location?
 - [ ] Update `ephemeris_version` field in `TransitLookup` to report the pysweph
       version string at runtime rather than hardcoding `"2.10.03"`.

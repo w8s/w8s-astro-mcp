@@ -489,3 +489,228 @@ class DatabaseHelper:
             session.delete(profile)
             session.commit()
             return True
+
+
+    # =========================================================================
+    # Phase 7 — Connection Management
+    # =========================================================================
+
+    def create_connection(
+        self,
+        label: str,
+        profile_ids: list[int],
+        type: str = None,
+        start_date: str = None,
+    ):
+        """Create a connection and add initial members."""
+        from ..models import Connection, ConnectionMember
+        with get_session(self.engine) as session:
+            conn = Connection(label=label, type=type, start_date=start_date)
+            session.add(conn)
+            session.flush()
+            for pid in profile_ids:
+                session.add(ConnectionMember(connection_id=conn.id, profile_id=pid))
+            session.commit()
+            session.refresh(conn)
+            return conn
+
+    def list_all_connections(self) -> list:
+        """Return all connections."""
+        from ..models import Connection
+        with get_session(self.engine) as session:
+            return session.query(Connection).order_by(Connection.label).all()
+
+    def get_connection_by_id(self, connection_id: int):
+        """Return a Connection by ID, or None."""
+        from ..models import Connection
+        with get_session(self.engine) as session:
+            return session.query(Connection).filter_by(id=connection_id).first()
+
+    def get_connection_members(self, connection) -> list:
+        """Return Profile objects that are members of this connection."""
+        from ..models import ConnectionMember, Profile
+        with get_session(self.engine) as session:
+            rows = (
+                session.query(Profile)
+                .join(ConnectionMember, ConnectionMember.profile_id == Profile.id)
+                .filter(ConnectionMember.connection_id == connection.id)
+                .all()
+            )
+            return rows
+
+    def add_connection_member(self, connection_id: int, profile_id: int) -> None:
+        """Add a profile to a connection (raises IntegrityError on duplicate)."""
+        from ..models import ConnectionMember
+        with get_session(self.engine) as session:
+            session.add(ConnectionMember(connection_id=connection_id, profile_id=profile_id))
+            session.commit()
+
+    def remove_connection_member(self, connection_id: int, profile_id: int) -> None:
+        """Remove a profile from a connection."""
+        from ..models import ConnectionMember
+        with get_session(self.engine) as session:
+            row = session.query(ConnectionMember).filter_by(
+                connection_id=connection_id, profile_id=profile_id
+            ).first()
+            if row:
+                session.delete(row)
+                session.commit()
+
+    def delete_connection(self, connection_id: int) -> bool:
+        """Delete a connection and all its charts (CASCADE)."""
+        from ..models import Connection
+        with get_session(self.engine) as session:
+            conn = session.query(Connection).filter_by(id=connection_id).first()
+            if not conn:
+                return False
+            session.delete(conn)
+            session.commit()
+            return True
+
+    def get_connection_chart(self, connection_id: int, chart_type: str):
+        """Return cached ConnectionChart or None."""
+        from ..models import ConnectionChart
+        with get_session(self.engine) as session:
+            return session.query(ConnectionChart).filter_by(
+                connection_id=connection_id, chart_type=chart_type
+            ).first()
+
+    def invalidate_connection_charts(self, connection_id: int) -> None:
+        """Mark all charts for a connection as invalid."""
+        from ..models import ConnectionChart
+        from datetime import timezone
+        with get_session(self.engine) as session:
+            charts = session.query(ConnectionChart).filter_by(
+                connection_id=connection_id
+            ).all()
+            for chart in charts:
+                chart.is_valid = False
+            session.commit()
+
+    def save_connection_chart(
+        self,
+        connection_id: int,
+        chart_type: str,
+        positions: dict,
+        davison_midpoint: dict = None,
+        calculation_method: str = "swetest",
+    ):
+        """
+        Persist a calculated chart to the DB.
+
+        Upserts the ConnectionChart row, then replaces all planet/house/point rows.
+        `positions` must have keys 'planets', 'houses', 'points'.
+        Each value is a dict: {name: {absolute_position, sign, degree, minutes, seconds, ...}}
+        """
+        from datetime import timezone as tz
+        from ..models import (
+            ConnectionChart, ConnectionPlanet, ConnectionHouse,
+            ConnectionPoint, HouseSystem, HOUSE_SYSTEM_SEED_DATA,
+        )
+        with get_session(self.engine) as session:
+            # Upsert chart row
+            chart = session.query(ConnectionChart).filter_by(
+                connection_id=connection_id, chart_type=chart_type
+            ).first()
+            if chart is None:
+                chart = ConnectionChart(
+                    connection_id=connection_id, chart_type=chart_type
+                )
+                session.add(chart)
+
+            chart.is_valid = True
+            chart.calculated_at = datetime.now(tz.utc)
+            chart.calculation_method = calculation_method
+            chart.ephemeris_version = "2.10"
+
+            if davison_midpoint:
+                chart.davison_date = davison_midpoint.get("date")
+                chart.davison_time = davison_midpoint.get("time")
+                chart.davison_latitude = davison_midpoint.get("latitude")
+                chart.davison_longitude = davison_midpoint.get("longitude")
+                chart.davison_timezone = davison_midpoint.get("timezone", "UTC")
+
+            session.flush()
+
+            # Get Placidus house system id (default)
+            hs = session.query(HouseSystem).filter_by(code="P").first()
+            hs_id = hs.id if hs else None
+
+            # Replace planets
+            session.query(ConnectionPlanet).filter_by(
+                connection_chart_id=chart.id
+            ).delete()
+            for planet_name, data in positions.get("planets", {}).items():
+                session.add(ConnectionPlanet(
+                    connection_chart_id=chart.id,
+                    planet=planet_name,
+                    degree=int(data.get("degree", 0)),
+                    minutes=int(data.get("minutes", 0)),
+                    seconds=float(data.get("seconds", 0.0)),
+                    sign=data.get("sign", ""),
+                    absolute_position=data.get("absolute_position", 0.0),
+                    is_retrograde=data.get("is_retrograde", False),
+                    calculation_method=calculation_method,
+                ))
+
+            # Replace houses
+            session.query(ConnectionHouse).filter_by(
+                connection_chart_id=chart.id
+            ).delete()
+            for house_key, data in positions.get("houses", {}).items():
+                session.add(ConnectionHouse(
+                    connection_chart_id=chart.id,
+                    house_system_id=hs_id,
+                    house_number=int(house_key),
+                    degree=int(data.get("degree", 0)),
+                    minutes=int(data.get("minutes", 0)),
+                    seconds=float(data.get("seconds", 0.0)),
+                    sign=data.get("sign", ""),
+                    absolute_position=data.get("absolute_position", 0.0),
+                    calculation_method=calculation_method,
+                ))
+
+            # Replace points
+            session.query(ConnectionPoint).filter_by(
+                connection_chart_id=chart.id
+            ).delete()
+            for point_type, data in positions.get("points", {}).items():
+                session.add(ConnectionPoint(
+                    connection_chart_id=chart.id,
+                    house_system_id=hs_id,
+                    point_type=point_type,
+                    degree=int(data.get("degree", 0)),
+                    minutes=int(data.get("minutes", 0)),
+                    seconds=float(data.get("seconds", 0.0)),
+                    sign=data.get("sign", ""),
+                    absolute_position=data.get("absolute_position", 0.0),
+                    calculation_method=calculation_method,
+                ))
+
+            session.commit()
+            session.refresh(chart)
+            return chart
+
+    def get_connection_planets(self, connection_chart_id: int) -> list:
+        """Return ConnectionPlanet rows for a chart."""
+        from ..models import ConnectionPlanet
+        with get_session(self.engine) as session:
+            return session.query(ConnectionPlanet).filter_by(
+                connection_chart_id=connection_chart_id
+            ).order_by(ConnectionPlanet.planet).all()
+
+    def get_connection_houses(self, connection_chart_id: int) -> list:
+        """Return ConnectionHouse rows for a chart."""
+        from ..models import ConnectionHouse
+        with get_session(self.engine) as session:
+            return session.query(ConnectionHouse).filter_by(
+                connection_chart_id=connection_chart_id
+            ).order_by(ConnectionHouse.house_number).all()
+
+    def get_connection_points(self, connection_chart_id: int) -> list:
+        """Return ConnectionPoint rows for a chart."""
+        from ..models import ConnectionPoint
+        with get_session(self.engine) as session:
+            return session.query(ConnectionPoint).filter_by(
+                connection_chart_id=connection_chart_id
+            ).order_by(ConnectionPoint.point_type).all()

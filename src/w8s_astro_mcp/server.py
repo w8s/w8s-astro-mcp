@@ -25,6 +25,11 @@ from .tools.profile_management import (
     get_profile_management_tools,
     handle_profile_tool
 )
+from .tools.connection_management import (
+    get_connection_tools,
+    handle_connection_tool,
+    CONNECTION_TOOL_NAMES,
+)
 
 
 # Initialize MCP server
@@ -266,8 +271,11 @@ async def list_tools() -> list[Tool]:
     
     # Add profile management tools
     profile_tools = get_profile_management_tools()
-    
-    return core_tools + profile_tools
+
+    # Add connection management tools (Phase 7)
+    connection_tools = get_connection_tools()
+
+    return core_tools + profile_tools + connection_tools
 
 
 
@@ -557,7 +565,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                   "set_current_profile", "add_location", "remove_location"]:
         db = init_db()
         return await handle_profile_tool(name, arguments, db)
-    
+
+    # Connection management tools (Phase 7)
+    elif name in CONNECTION_TOOL_NAMES:
+        db = init_db()
+        sw = None
+        try:
+            sw = init_swetest()
+        except SweetestError:
+            pass  # get_connection_chart will handle the missing swetest case
+        return await handle_connection_tool(name, arguments, db, sw)
+
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
 

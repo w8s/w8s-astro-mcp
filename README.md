@@ -12,12 +12,13 @@ Personal astrological MCP server using the Swiss Ephemeris via pysweph. Provides
 
 - **Natal charts** — planetary positions, houses, and angles at birth
 - **Transit calculations** — current sky positions auto-logged to history
+- **Transit history** — query logged transits by date, planet, or sign
+- **Ingress forecasting** — upcoming or past sign ingresses and stations; supports far-future and historical windows
 - **Aspect analysis** — compare any two charts (natal vs natal, natal vs transits)
 - **House placements** — determine which house each planet occupies
 - **Chart visualization** — render natal chart wheels as PNG
 - **Multi-profile** — manage charts for multiple people
 - **Relationship charts** — composite and Davison charts for any group of 2+ people
-- **Transit history** — every calculation stored in SQLite for future querying
 
 ## Installation
 
@@ -60,7 +61,7 @@ Claude will use `create_profile` to set up your birth data and set you as the ac
 
 ## Tools
 
-### Core (8)
+### Core (9)
 
 | Tool | Description |
 |------|-------------|
@@ -73,6 +74,14 @@ Claude will use `create_profile` to set up your birth data and set you as the ac
 | `compare_charts` | Aspects between any two charts |
 | `find_house_placements` | Which house each planet occupies |
 | `visualize_natal_chart` | Render natal chart wheel as PNG |
+
+### Transit History & Forecasting — Phase 4 (3)
+
+| Tool | Description |
+|------|-------------|
+| `get_transit_history` | Query logged transits by date range, planet, or sign |
+| `find_last_transit` | Most recent logged transit matching planet + sign/retrograde/house |
+| `get_ingresses` | Ephemeris-backed sign ingress and station forecast; supports offset, future/past, and extended mode for historical or far-future windows |
 
 ### Profile Management (7)
 
@@ -139,7 +148,7 @@ pytest tests/test_connection_db_helpers.py    # Integration tests (real SQLite)
 pytest --cov=src/w8s_astro_mcp
 ```
 
-274 tests. See `docs/ARCHITECTURE.md` for the full test command reference.
+291 tests. See `docs/ARCHITECTURE.md` for the full test command reference.
 
 ## Roadmap
 

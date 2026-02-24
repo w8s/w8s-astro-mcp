@@ -352,7 +352,7 @@ async def list_tools() -> list[Tool]:
                             "but only returns outer planets (Jupiter through Pluto). "
                             "Inner planets are excluded in extended mode — they produce "
                             "thousands of events over long windows and become unreadable. "
-                            "See docs/DESIGN-DECISIONS.md for rationale and how to request changes."
+                            "See docs/ARCHITECTURE.md for rationale and how to request changes."
                         )
                     }
                 }

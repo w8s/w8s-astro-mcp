@@ -21,13 +21,14 @@
 - [x] Applying vs separating
 - [x] Aspect patterns (T-squares, Grand Trines, etc.)
 
-## Phase 4: Historical & Predictive — Partial
+## Phase 4: Historical & Predictive ✅
 - [x] SQLite database (normalized schema, multi-profile)
 - [x] Transit-to-natal aspects
 - [x] Auto-log every transit request to history
-- [ ] Query historical transits ("last month's transits")
-- [ ] "When was the last time...?" queries
-- [ ] Future transit lookups ("Next Mercury retrograde?")
+- [x] `get_transit_history` — query logged transits by date range, planet, sign
+- [x] `find_last_transit` — scan logged history for last match (sign, retrograde, house)
+- [x] `get_ingresses` — ephemeris-backed sign ingress and station forecast
+       (offset, future/past, extended mode for historical/far-future queries)
 
 ## Phase 5: Location Intelligence — Partial
 - [x] Named locations per profile

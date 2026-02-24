@@ -317,19 +317,43 @@ async def list_tools() -> list[Tool]:
                 "and stations (retrograde/direct). "
                 "Examples: 'what transits are coming up this month?', "
                 "'when does Mercury go retrograde?', "
-                "'what ingresses just happened?'. "
-                "Days capped at 365."
+                "'show me major transits next April', "
+                "'what were the outer planet movements during the Renaissance?'. "
+                "Use offset to shift the window from today. "
+                "Use extended=true for historical or far-future windows (outer planets only)."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "days": {
                         "type": "integer",
-                        "description": "Number of days to scan (default 30, max 365)"
+                        "description": (
+                            "Number of days to scan. "
+                            "Normal mode: default 30, max 365. "
+                            "Extended mode: default 30, max 3650."
+                        )
                     },
                     "future": {
                         "type": "boolean",
-                        "description": "True = upcoming events (default), False = recent events"
+                        "description": "True = scan forward from today+offset (default), False = backward"
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": (
+                            "Days from today to start the scan window (default 0). "
+                            "Normal mode: max 36500 (~100 years). "
+                            "Extended mode: uncapped."
+                        )
+                    },
+                    "extended": {
+                        "type": "boolean",
+                        "description": (
+                            "If true, removes offset cap and raises scan cap to 3650 days, "
+                            "but only returns outer planets (Jupiter through Pluto). "
+                            "Inner planets are excluded in extended mode — they produce "
+                            "thousands of events over long windows and become unreadable. "
+                            "See docs/DESIGN-DECISIONS.md for rationale and how to request changes."
+                        )
                     }
                 }
             }
@@ -736,24 +760,35 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             if not profile:
                 return [TextContent(type="text", text="Error: No profile configured.")]
 
-            days = min(int(arguments.get("days", 30)), 365)
+            extended = bool(arguments.get("extended", False))
+            days = int(arguments.get("days", 30))
             future = arguments.get("future", True)
+            offset = int(arguments.get("offset", 0))
 
-            events = db.get_ingresses(profile, ephem_engine, days=days, future=future)
+            events = db.get_ingresses(
+                profile, ephem_engine,
+                days=days, future=future,
+                offset=offset, extended=extended,
+            )
 
             direction_word = "Upcoming" if future else "Recent"
-            response = f"# {direction_word} Ingresses & Stations — {days} days\n\n"
+            offset_note = f", starting {offset} days from today" if offset else ""
+            ext_note = " _(extended mode — outer planets only)_" if extended else ""
+            response = (
+                f"# {direction_word} Ingresses & Stations"
+                f" — {days} days{offset_note}{ext_note}\n\n"
+            )
 
             if not events:
                 response += "No ingresses or stations found in this period.\n"
                 return [TextContent(type="text", text=response)]
 
             # Group by month for readability
+            from datetime import date
             current_month = None
             for event in events:
                 month = event["date"][:7]  # YYYY-MM
                 if month != current_month:
-                    from datetime import date
                     d = date.fromisoformat(event["date"])
                     response += f"## {d.strftime('%B %Y')}\n"
                     current_month = month

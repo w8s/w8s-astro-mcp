@@ -245,6 +245,96 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_transit_history",
+            description=(
+                "Query historical transit lookups stored in the database for the current profile. "
+                "Supports filtering by date range, planet, and sign. "
+                "Examples: 'show me last month\\'s transits', "
+                "'when was Mercury in Capricorn?', 'what sign was Jupiter in last year?'"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "after": {
+                        "type": "string",
+                        "description": "Return lookups on or after this date (YYYY-MM-DD, optional)"
+                    },
+                    "before": {
+                        "type": "string",
+                        "description": "Return lookups on or before this date (YYYY-MM-DD, optional)"
+                    },
+                    "planet": {
+                        "type": "string",
+                        "description": "Filter by planet name, e.g. 'Mercury' (optional)"
+                    },
+                    "sign": {
+                        "type": "string",
+                        "description": "Filter by zodiac sign, e.g. 'Capricorn' — requires planet (optional)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of results to return (default 20, max 100)"
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="find_last_transit",
+            description=(
+                "Find the most recent logged transit where a planet met specific conditions. "
+                "Examples: 'when was Mercury last retrograde?', "
+                "'when was the Moon last in Scorpio?', "
+                "'when was Mars last in my 7th house?'. "
+                "Requires at least one of: sign, retrograde, or house."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "planet": {
+                        "type": "string",
+                        "description": "Planet name, e.g. 'Mercury', 'Mars'"
+                    },
+                    "sign": {
+                        "type": "string",
+                        "description": "Zodiac sign to match, e.g. 'Capricorn' (optional)"
+                    },
+                    "retrograde": {
+                        "type": "boolean",
+                        "description": "If true, find last retrograde; if false, find last direct (optional)"
+                    },
+                    "house": {
+                        "type": "integer",
+                        "description": "Natal house number to match, 1-12 (optional)"
+                    }
+                },
+                "required": ["planet"]
+            }
+        ),
+        Tool(
+            name="get_ingresses",
+            description=(
+                "Scan the ephemeris for upcoming or recent planetary sign ingresses "
+                "and stations (retrograde/direct). "
+                "Examples: 'what transits are coming up this month?', "
+                "'when does Mercury go retrograde?', "
+                "'what ingresses just happened?'. "
+                "Days capped at 365."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to scan (default 30, max 365)"
+                    },
+                    "future": {
+                        "type": "boolean",
+                        "description": "True = upcoming events (default), False = recent events"
+                    }
+                }
+            }
+        ),
+        Tool(
             name="compare_charts",
             description=(
                 "Calculate aspects between two charts. "
@@ -489,7 +579,205 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return [TextContent(type="text", text=response)]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
-    
+
+    elif name == "get_transit_history":
+        try:
+            db = init_db()
+            profile = db.get_current_profile()
+            if not profile:
+                return [TextContent(type="text", text="Error: No profile configured.")]
+
+            after = arguments.get("after")
+            before = arguments.get("before")
+            planet = arguments.get("planet")
+            sign = arguments.get("sign")
+            limit = min(int(arguments.get("limit", 20)), 100)
+
+            rows = db.get_transit_history(
+                profile,
+                after=after,
+                before=before,
+                planet=planet,
+                sign=sign,
+                limit=limit,
+            )
+
+            if not rows:
+                filters = []
+                if after:
+                    filters.append(f"after {after}")
+                if before:
+                    filters.append(f"before {before}")
+                if planet:
+                    filters.append(f"planet={planet}")
+                if sign:
+                    filters.append(f"sign={sign}")
+                filter_str = ", ".join(filters) if filters else "no filters"
+                return [TextContent(
+                    type="text",
+                    text=f"No transit history found for {profile.name} ({filter_str})."
+                )]
+
+            # Format response
+            response = f"# Transit History — {profile.name}\n"
+            if after or before:
+                date_range = f"{after or '...'} → {before or 'now'}"
+                response += f"Date range: {date_range}\n"
+            if planet:
+                response += f"Planet filter: {planet}"
+                if sign:
+                    response += f" in {sign}"
+                response += "\n"
+            response += f"Showing {len(rows)} lookup(s), newest first\n\n"
+
+            PLANET_ORDER = ["Sun", "Moon", "Mercury", "Venus", "Mars",
+                            "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
+
+            for row in rows:
+                dt = row["lookup_datetime"].replace("T", " ")[:16]
+                response += f"## {dt}  —  {row['location_label']}\n"
+
+                planets_to_show = (
+                    {planet: row["planets"][planet]}
+                    if planet and planet in row["planets"]
+                    else row["planets"]
+                )
+
+                for pname in PLANET_ORDER:
+                    if pname not in planets_to_show:
+                        continue
+                    pdata = planets_to_show[pname]
+                    retro = " ℞" if pdata.get("is_retrograde") else ""
+                    response += (
+                        f"  {pname}: {pdata['degree']:.1f}° {pdata['sign']}{retro}\n"
+                    )
+                response += "\n"
+
+            return [TextContent(type="text", text=response)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
+    elif name == "find_last_transit":
+        try:
+            db = init_db()
+            profile = db.get_current_profile()
+            if not profile:
+                return [TextContent(type="text", text="Error: No profile configured.")]
+
+            planet = arguments.get("planet")
+            if not planet:
+                return [TextContent(type="text", text="Error: 'planet' is required.")]
+
+            sign = arguments.get("sign")
+            retrograde = arguments.get("retrograde")  # None / True / False
+            house = arguments.get("house")
+            if house is not None:
+                house = int(house)
+
+            if sign is None and retrograde is None and house is None:
+                return [TextContent(
+                    type="text",
+                    text="Error: Provide at least one filter: sign, retrograde, or house."
+                )]
+
+            result = db.find_last_transit(
+                profile,
+                planet=planet,
+                sign=sign,
+                retrograde=retrograde,
+                house=house,
+            )
+
+            if result is None:
+                conditions = []
+                if sign:
+                    conditions.append(f"in {sign}")
+                if retrograde is True:
+                    conditions.append("retrograde")
+                elif retrograde is False:
+                    conditions.append("direct")
+                if house:
+                    conditions.append(f"in house {house}")
+                cond_str = " and ".join(conditions)
+                return [TextContent(
+                    type="text",
+                    text=f"No logged transit found for {planet} {cond_str} in {profile.name}'s history."
+                )]
+
+            dt = result["lookup_datetime"].replace("T", " ")[:16]
+            retro_str = " ℞ (retrograde)" if result["is_retrograde"] else ""
+            house_str = f", House {result['house_number']}" if result["house_number"] else ""
+
+            conditions = []
+            if sign:
+                conditions.append(f"in {sign}")
+            if retrograde is True:
+                conditions.append("retrograde")
+            elif retrograde is False:
+                conditions.append("direct")
+            if house:
+                conditions.append(f"in house {house}")
+            cond_str = " and ".join(conditions)
+
+            response = (
+                f"# Last {planet} {cond_str}\n\n"
+                f"**{dt}** — {result['location_label']}\n"
+                f"{planet}: {result['degree']:.1f}° {result['sign']}{retro_str}{house_str}\n"
+            )
+            return [TextContent(type="text", text=response)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
+    elif name == "get_ingresses":
+        try:
+            ephem_engine = init_ephemeris()
+            db = init_db()
+            profile = db.get_current_profile()
+            if not profile:
+                return [TextContent(type="text", text="Error: No profile configured.")]
+
+            days = min(int(arguments.get("days", 30)), 365)
+            future = arguments.get("future", True)
+
+            events = db.get_ingresses(profile, ephem_engine, days=days, future=future)
+
+            direction_word = "Upcoming" if future else "Recent"
+            response = f"# {direction_word} Ingresses & Stations — {days} days\n\n"
+
+            if not events:
+                response += "No ingresses or stations found in this period.\n"
+                return [TextContent(type="text", text=response)]
+
+            # Group by month for readability
+            current_month = None
+            for event in events:
+                month = event["date"][:7]  # YYYY-MM
+                if month != current_month:
+                    from datetime import date
+                    d = date.fromisoformat(event["date"])
+                    response += f"## {d.strftime('%B %Y')}\n"
+                    current_month = month
+
+                d = date.fromisoformat(event["date"])
+                day_str = d.strftime("%b %-d")
+
+                if event["event_type"] == "ingress":
+                    response += (
+                        f"**{day_str}** — {event['planet']} {event['detail']} "
+                        f"(from {event['from_sign']})\n"
+                    )
+                else:  # station
+                    retro_symbol = " ℞" if event["is_retrograde"] else " D"
+                    response += (
+                        f"**{day_str}** — {event['planet']}{retro_symbol} "
+                        f"{event['detail']} in {event['sign']}\n"
+                    )
+
+            response += f"\n_{len(events)} event(s) total_\n"
+            return [TextContent(type="text", text=response)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
     elif name == "get_transits":
         try:
             engine = init_ephemeris()

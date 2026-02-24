@@ -269,3 +269,281 @@ def test_save_natal_chart_idempotent(db_helper, temp_db):
         assert len(planets) == 2
         names = {p.planet for p in planets}
         assert names == {"Sun", "Moon"}
+
+
+def _make_profile_with_transits(db_helper, engine):
+    """Helper: create a profile and seed two transit lookups."""
+    from datetime import datetime
+    from w8s_astro_mcp.models import TransitLookup, TransitPlanet, Location
+    from w8s_astro_mcp.database import get_session
+
+    profile = db_helper.create_profile_with_location(
+        name="History Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    with get_session(engine) as session:
+        loc = session.query(Location).filter_by(profile_id=profile.id).first()
+
+        for dt_str, mercury_sign in [
+            ("2026-01-01T12:00:00", "Capricorn"),
+            ("2026-02-01T12:00:00", "Aquarius"),
+        ]:
+            lookup = TransitLookup(
+                profile_id=profile.id,
+                location_id=loc.id,
+                house_system_id=1,
+                lookup_datetime=datetime.fromisoformat(dt_str),
+                location_snapshot_label=loc.label,
+                location_snapshot_latitude=loc.latitude,
+                location_snapshot_longitude=loc.longitude,
+                location_snapshot_timezone=loc.timezone,
+            )
+            session.add(lookup)
+            session.flush()
+            session.add(TransitPlanet(
+                transit_lookup_id=lookup.id,
+                planet="Mercury",
+                degree=5, minutes=0, seconds=0.0,
+                sign=mercury_sign,
+                absolute_position=5.0,
+                is_retrograde=False,
+                calculation_method="pysweph",
+            ))
+        session.commit()
+
+    return profile
+
+
+def test_get_transit_history_all(db_helper, temp_db):
+    """get_transit_history returns all rows when no filters applied."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(profile, limit=10)
+    assert len(rows) == 2
+    # Newest first
+    assert rows[0]["lookup_datetime"] > rows[1]["lookup_datetime"]
+
+
+def test_get_transit_history_date_filter(db_helper, temp_db):
+    """get_transit_history respects after/before date filters."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(profile, after="2026-01-15", limit=10)
+    assert len(rows) == 1
+    assert "2026-02" in rows[0]["lookup_datetime"]
+
+
+def test_get_transit_history_planet_sign_filter(db_helper, temp_db):
+    """get_transit_history filters by planet and sign correctly."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(
+        profile, planet="Mercury", sign="Capricorn", limit=10
+    )
+    assert len(rows) == 1
+    assert rows[0]["planets"]["Mercury"]["sign"] == "Capricorn"
+
+
+def test_get_transit_history_limit(db_helper, temp_db):
+    """get_transit_history respects the limit parameter."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(profile, limit=1)
+    assert len(rows) == 1
+
+
+def test_find_last_transit_by_sign(db_helper, temp_db):
+    """find_last_transit returns the most recent match for planet+sign."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    result = db_helper.find_last_transit(profile, planet="Mercury", sign="Aquarius")
+    assert result is not None
+    assert result["sign"] == "Aquarius"
+    assert result["planet"] == "Mercury"
+    assert "2026-02" in result["lookup_datetime"]
+
+
+def test_find_last_transit_by_sign_no_match(db_helper, temp_db):
+    """find_last_transit returns None when no match exists."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    result = db_helper.find_last_transit(profile, planet="Mercury", sign="Scorpio")
+    assert result is None
+
+
+def test_find_last_transit_by_retrograde(db_helper, temp_db):
+    """find_last_transit matches on retrograde flag."""
+    from datetime import datetime
+    from w8s_astro_mcp.models import TransitLookup, TransitPlanet, Location
+    from w8s_astro_mcp.database import get_session
+
+    _db_path, engine = temp_db
+    profile = db_helper.create_profile_with_location(
+        name="Retro Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    with get_session(engine) as session:
+        loc = session.query(Location).filter_by(profile_id=profile.id).first()
+        lookup = TransitLookup(
+            profile_id=profile.id,
+            location_id=loc.id,
+            house_system_id=1,
+            lookup_datetime=datetime.fromisoformat("2026-01-10T12:00:00"),
+            location_snapshot_label=loc.label,
+            location_snapshot_latitude=loc.latitude,
+            location_snapshot_longitude=loc.longitude,
+            location_snapshot_timezone=loc.timezone,
+        )
+        session.add(lookup)
+        session.flush()
+        session.add(TransitPlanet(
+            transit_lookup_id=lookup.id,
+            planet="Mercury",
+            degree=12, minutes=0, seconds=0.0,
+            sign="Capricorn",
+            absolute_position=282.0,
+            is_retrograde=True,
+            calculation_method="pysweph",
+        ))
+        session.commit()
+
+    result = db_helper.find_last_transit(profile, planet="Mercury", retrograde=True)
+    assert result is not None
+    assert result["is_retrograde"] is True
+
+    result_direct = db_helper.find_last_transit(profile, planet="Mercury", retrograde=False)
+    assert result_direct is None
+
+
+def test_get_ingresses_future(db_helper):
+    """get_ingresses returns events in chronological order, future=True."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Ingress Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    events = db_helper.get_ingresses(profile, ephem, days=90, future=True)
+
+    # All events should be in the future range
+    from datetime import date
+    today = date.today().isoformat()
+    for event in events:
+        assert event["date"] >= today
+
+    # Chronological order
+    dates = [e["date"] for e in events]
+    assert dates == sorted(dates)
+
+    # Each event has required fields
+    for event in events:
+        assert "date" in event
+        assert "planet" in event
+        assert "event_type" in event
+        assert event["event_type"] in ("ingress", "station")
+        assert "detail" in event
+
+
+def test_get_ingresses_past(db_helper):
+    """get_ingresses returns events in chronological order, future=False."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Ingress Past Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    events = db_helper.get_ingresses(profile, ephem, days=90, future=False)
+
+    from datetime import date
+    today = date.today().isoformat()
+    for event in events:
+        assert event["date"] <= today
+
+    dates = [e["date"] for e in events]
+    assert dates == sorted(dates)
+
+
+def test_get_ingresses_days_clamped(db_helper):
+    """get_ingresses clamps days to 1-365."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Clamp Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    # 9999 days should be clamped to 365 — just verify it doesn't error
+    events = db_helper.get_ingresses(profile, ephem, days=9999, future=True)
+    assert isinstance(events, list)
+
+    # 0 days should be clamped to 1 — minimal scan
+    events_zero = db_helper.get_ingresses(profile, ephem, days=0, future=True)
+    assert isinstance(events_zero, list)
+
+
+def test_get_ingresses_ingress_fields(db_helper):
+    """Ingress events have from_sign and to_sign fields."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Fields Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    events = db_helper.get_ingresses(profile, ephem, days=365, future=True)
+
+    ingresses = [e for e in events if e["event_type"] == "ingress"]
+    stations = [e for e in events if e["event_type"] == "station"]
+
+    for e in ingresses:
+        assert "from_sign" in e
+        assert "to_sign" in e
+        assert e["from_sign"] != e["to_sign"]
+
+    for e in stations:
+        assert "sign" in e
+        assert "is_retrograde" in e

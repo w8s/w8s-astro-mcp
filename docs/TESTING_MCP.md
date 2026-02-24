@@ -4,30 +4,15 @@
 
 Add to your Claude Desktop config:
 
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "w8s-astro-mcp": {
-      "command": "w8s-astro-mcp"
-    }
-  }
-}
-```
-
-If swetest isn't on your system PATH, add it explicitly:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "w8s-astro-mcp": {
-      "command": "w8s-astro-mcp",
-      "env": {
-        "PATH": "/path/to/swisseph:/usr/local/bin:/usr/bin:/bin"
-      }
+      "command": "uvx",
+      "args": ["w8s-astro-mcp"]
     }
   }
 }
@@ -39,10 +24,10 @@ Close and reopen Claude Desktop completely.
 
 ## 3. Verify the Tools
 
-You should see 22 tools available. Quick smoke test:
+You should see 26 tools available. Quick smoke test:
 
 ```
-Can you check if swetest is installed using check_swetest_installation?
+Can you check the ephemeris mode using check_ephemeris?
 ```
 
 ## 4. First-Time Setup
@@ -69,15 +54,18 @@ What are my transits for today?
 ## Troubleshooting
 
 **Tools not showing up:**
+
 - Check Claude Desktop config is valid JSON
 - Restart Claude Desktop fully
 - Check logs: `~/Library/Logs/Claude/mcp.log` (macOS)
 
-**swetest errors:**
-- Run `which swetest` in terminal to confirm it's on PATH
-- Run `swetest -h` to confirm it works
-- Add explicit PATH to MCP config (see above)
+**Ephemeris errors:**
+
+- Run `uvx w8s-astro-mcp` in terminal to confirm it starts cleanly
+- Use the `check_ephemeris` tool to verify the ephemeris mode
+- Use `download_ephemeris_files` to upgrade to full Swiss Ephemeris precision (optional)
 
 **Python/import errors:**
-- Re-install: `pip install -e .` from the repo root
+
+- Re-install: `pip install -e ".[dev]"` from the repo root
 - Confirm you're using the right Python environment

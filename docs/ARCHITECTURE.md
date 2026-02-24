@@ -196,7 +196,7 @@ flowchart TD
 - matplotlib (chart visualization)
 
 **Dev:**
-- pytest (274 tests)
+- pytest (291 tests)
 - git (version control)
 
 ## Database Schema
@@ -223,7 +223,7 @@ Connections — Phase 7 (6):
 14. ConnectionChart — cached chart metadata + Davison midpoint
 15. ConnectionPlanet, 16. ConnectionHouse, 17. ConnectionPoint
 
-## MCP Tools (23 total)
+## MCP Tools (26 total)
 
 **Core (9):**
 check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config,
@@ -234,6 +234,9 @@ visualize_natal_chart
 list_profiles, create_profile, update_profile, delete_profile,
 set_current_profile, add_location, remove_location
 
+**Transit History & Forecasting — Phase 4 (3):**
+get_transit_history, find_last_transit, get_ingresses
+
 **Connection Management — Phase 7 (6):**
 create_connection, list_connections, add_connection_member,
 remove_connection_member, get_connection_chart, delete_connection
@@ -241,7 +244,6 @@ remove_connection_member, get_connection_chart, delete_connection
 ## Future Enhancements
 
 ### Planned:
-- [ ] Transit history queries ("last month's transits")
 - [ ] Statistics ("how often do I check Mercury?")
 - [ ] Database self-healing tools (repair inconsistencies)
 
@@ -252,6 +254,31 @@ remove_connection_member, get_connection_chart, delete_connection
 - [ ] More house systems (Whole Sign, Equal, etc.)
 - [ ] Aspects table (natal-natal, transit-natal, transit-transit)
 - [ ] Progressions and solar/lunar returns
+
+---
+
+## Design Decisions
+
+Intentional choices that may look like limitations — with the reasoning and path to changing them.
+
+### get_ingresses — Extended Mode Omits Inner Planets
+
+When `extended=True`, only outer planets (Jupiter through Pluto) are returned. Inner planets (Sun, Moon, Mercury, Venus, Mars) are excluded.
+
+**Why:** Inner planets move fast. Over a multi-year window the Moon alone produces ~146 sign changes per year, Mercury ~15–20, the Sun ~12. A 10-year extended scan would return 1,500+ Moon events — noise, not signal. The primary use case for extended mode is historical or far-future context where outer planet cycles are what matter ("what were the major alignments during the Renaissance?", "when does Pluto enter Aquarius?", "what was the outer planet weather during the life of Jesus?").
+
+**To change this:** Open an issue. The right solution is one of:
+1. A `planets` filter parameter on `get_ingresses`
+2. A separate `get_inner_planet_ingresses` tool designed for high-volume paginated output
+
+The constraint exists to keep output readable for the primary user (an AI assistant), not as a permanent architectural limitation.
+
+### get_ingresses — Offset and Days Caps
+
+Normal mode: `offset` 0–36,500 days (~100 years), `days` 1–365.
+Extended mode: `offset` uncapped (Swiss Ephemeris supports 13,000 BCE – 17,000 CE), `days` 1–3,650.
+
+The 10-year scan cap in extended mode keeps results manageable (~180 events max with outer planets only). For longer ranges, call the tool multiple times with different offsets. The 36,500-day offset cap in normal mode covers retirement planning, generational forecasting, and most practical predictive astrology.
 
 ## Contributing
 

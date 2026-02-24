@@ -547,3 +547,85 @@ def test_get_ingresses_ingress_fields(db_helper):
     for e in stations:
         assert "sign" in e
         assert "is_retrograde" in e
+
+def test_get_ingresses_offset(db_helper):
+    """offset shifts the scan window forward from today."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+    from datetime import date, timedelta
+
+    profile = db_helper.create_profile_with_location(
+        name="Offset Test",
+        birth_date="1981-05-06", birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483, birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    offset = 60
+    events = db_helper.get_ingresses(profile, ephem, days=30, future=True, offset=offset)
+
+    earliest_expected = (date.today() + timedelta(days=offset)).isoformat()
+    for event in events:
+        assert event["date"] >= earliest_expected
+
+
+def test_get_ingresses_extended_outer_only(db_helper):
+    """extended=True returns only outer planets."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Extended Test",
+        birth_date="1981-05-06", birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483, birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    events = db_helper.get_ingresses(profile, ephem, days=365, future=True, extended=True)
+
+    INNER_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}
+    for event in events:
+        assert event["planet"] not in INNER_PLANETS
+        assert event["extended_mode"] is True
+
+
+def test_get_ingresses_extended_days_cap(db_helper):
+    """extended=True raises the days cap to 3650."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Extended Cap Test",
+        birth_date="1981-05-06", birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483, birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    # 9999 days should be clamped to 3650, not 365 — verify no error and
+    # that we get outer-planet-only results
+    events = db_helper.get_ingresses(profile, ephem, days=9999, future=True, extended=True)
+    assert isinstance(events, list)
+    INNER_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}
+    for event in events:
+        assert event["planet"] not in INNER_PLANETS
+
+
+def test_get_ingresses_normal_excludes_offset_beyond_cap(db_helper):
+    """Normal mode clamps offset to 36500."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Cap Clamp Test",
+        birth_date="1981-05-06", birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483, birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    # Should not raise — just clamps silently
+    events = db_helper.get_ingresses(profile, ephem, days=30, future=True, offset=999999)
+    assert isinstance(events, list)

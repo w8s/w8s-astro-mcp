@@ -277,19 +277,39 @@ class DatabaseHelper:
         engine: Any,
         days: int = 30,
         future: bool = True,
+        offset: int = 0,
+        extended: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Scan the ephemeris for planetary sign ingresses and stations.
 
-        Checks each day in the range for:
+        Checks each day in the window for:
         - Sign change: planet moves into a new zodiac sign
         - Station: planet switches between retrograde and direct
 
         Args:
-            profile:  Profile whose birth location is used for house context.
-            engine:   EphemerisEngine instance.
-            days:     Number of days to scan (clamped to 1-365).
-            future:   If True, scan forward from today; if False, scan backward.
+            profile:   Profile whose birth location provides coordinates.
+            engine:    EphemerisEngine instance.
+            days:      Number of days to scan.
+                       Normal mode: clamped to 1-365.
+                       Extended mode: clamped to 1-3650.
+            future:    If True, scan forward from today+offset;
+                       if False, scan backward from today-offset.
+            offset:    Days from today to start the scan window.
+                       Normal mode: clamped to 0-36500 (~100 years).
+                       Extended mode: uncapped (Swiss Ephemeris supports
+                       13000 BCE to 17000 CE).
+            extended:  If True, removes offset cap and raises days cap to
+                       3650, but restricts planets to outer planets only
+                       (Jupiter, Saturn, Uranus, Neptune, Pluto). Fast movers
+                       (Sun through Mars) produce thousands of events over
+                       multi-year windows and are excluded for readability.
+
+                       DESIGN NOTE: extended=True intentionally omits inner
+                       planets. If you need inner planet data over long windows,
+                       open an issue — a separate chunked tool or a planet
+                       filter parameter would be the right approach rather
+                       than removing this constraint.
 
         Returns:
             List of event dicts sorted chronologically, each containing:
@@ -298,22 +318,33 @@ class DatabaseHelper:
         """
         from datetime import date, timedelta
 
-        days = max(1, min(days, 365))
+        # Apply mode-appropriate caps
+        if extended:
+            days = max(1, min(days, 3650))
+            offset = max(0, offset)  # no upper cap in extended mode
+        else:
+            days = max(1, min(days, 365))
+            offset = max(0, min(offset, 36500))
 
-        # Get current home location for house calculations (optional, for coords)
+        # Planet list depends on mode
+        ALL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars",
+                       "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
+        OUTER_PLANETS = ["Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
+        planets_to_check = OUTER_PLANETS if extended else ALL_PLANETS
+
+        # Build date range
         birth_loc = self.get_birth_location(profile)
         lat = birth_loc.latitude if birth_loc else 0.0
         lng = birth_loc.longitude if birth_loc else 0.0
 
         today = date.today()
         if future:
-            dates = [today + timedelta(days=i) for i in range(days + 1)]
+            start = today + timedelta(days=offset)
+            dates = [start + timedelta(days=i) for i in range(days + 1)]
         else:
-            dates = [today - timedelta(days=i) for i in range(days + 1)]
+            start = today - timedelta(days=offset)
+            dates = [start - timedelta(days=i) for i in range(days + 1)]
             dates = list(reversed(dates))  # chronological order
-
-        PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars",
-                   "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
 
         events = []
         prev_chart = None
@@ -324,7 +355,7 @@ class DatabaseHelper:
                 prev_chart = chart
                 continue
 
-            for planet in PLANETS:
+            for planet in planets_to_check:
                 prev = prev_chart["planets"].get(planet)
                 curr = chart["planets"].get(planet)
                 if not prev or not curr:
@@ -339,6 +370,7 @@ class DatabaseHelper:
                         "detail": f"enters {curr['sign']}",
                         "from_sign": prev["sign"],
                         "to_sign": curr["sign"],
+                        "extended_mode": extended,
                     })
 
                 # Station (retrograde ↔ direct)
@@ -351,6 +383,7 @@ class DatabaseHelper:
                         "detail": f"stations {direction}",
                         "sign": curr["sign"],
                         "is_retrograde": curr["is_retrograde"],
+                        "extended_mode": extended,
                     })
 
             prev_chart = chart

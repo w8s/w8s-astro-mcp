@@ -30,14 +30,14 @@
 - [x] `get_ingresses` — ephemeris-backed sign ingress and station forecast
        (offset, future/past, extended mode for historical/far-future queries)
 
-## Phase 5: Location Intelligence — Partial
+## Phase 5: Location Intelligence ✅
 - [x] Named locations per profile
 - [x] Compare to saved locations
-- [ ] Device location detection (CoreLocationCLI integration)
-- [ ] Opt-in auto-detection config
-- [ ] Travel mode (temporary location override)
-- [ ] Location history log
-- [ ] "Ask me when location changes" prompt
+- [x] Inline location geocoding — `get_transits(location="Bangkok, Thailand")` resolves
+      any city name via Nominatim without requiring a saved label
+- [x] Accurate IANA timezone lookup via `timezonefinder` — replaces US-only longitude
+      estimate; works correctly for historical queries (Bangkok 1995, etc.)
+- [x] Ad-hoc locations used for ephemeris call but not persisted to transit history
 
 ## Phase 6: Integration — Not Started
 - [ ] Combine with tarot workflow
@@ -56,26 +56,20 @@
 - [x] 6 MCP tools: `create_connection`, `list_connections`,
   `add_connection_member`, `remove_connection_member`,
   `get_connection_chart`, `delete_connection`
-- [x] 274 tests (model, math, integration)
+- [x] 302 tests (model, math, integration)
 
 ## Phase 8: Event Charts — Not Started
 
-Standalone charts cast for a moment in time and location — no profile or
-connection required. Useful for weddings, business launches, electional
-astrology, and historical event analysis. Compared to natal/connection
-charts via the existing `compare_charts` tool.
+Standalone charts cast for a moment in time and location — no profile or connection required. Useful for weddings, business launches, electional astrology, and historical event analysis. Compared to natal/connection charts via the existing `compare_charts` tool.
 
 Schema TBD — design separately.
 
 ## Phase 9: Database Self-Healing — Not Started
 
-Tools for schema diagnosis and repair as the schema evolves across versions.
-Motivated by a 2026-02-12 incident where `app_settings` was missing from
+Tools for schema diagnosis and repair as the schema evolves across versions. Motivated by a 2026-02-12 incident where `app_settings` was missing from
 databases created before that migration.
 
-Planned tools: `diagnose_database`, `repair_database`, `migrate_database`
-with dry-run mode, backup/rollback, and schema versioning via
-`AppSettings.schema_version`.
+Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with dry-run mode, backup/rollback, and schema versioning via `AppSettings.schema_version`.
 
 ## Future / Maybe
 - [ ] Progressions and solar/lunar returns

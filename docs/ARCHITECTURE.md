@@ -48,7 +48,7 @@ src/w8s_astro_mcp/
 │       ├── connection_calculator.py # Composite & Davison math
 │       ├── position_utils.py    # Shared position conversion functions
 │       ├── transit_logger.py    # Save transit data to database
-│       └── geocoding.py         # Location lookup (lat/long)
+│       └── geocoding.py         # Nominatim geocoding + IANA timezone lookup (timezonefinder)
 │
 ```
 
@@ -71,11 +71,16 @@ flowchart TD
 ```mermaid
 flowchart TD
     U([User / Claude]) -->|get_transits\ndate · time · location| S[server.py]
-    S --> L[DatabaseHelper\nresolve location]
-    L --> E[EphemerisEngine\nget_chart]
-    E --> LOG[transit_logger\nsave_transit_data_to_db]
-    LOG --> DB[(SQLite\nTransitLookup · Planet · House · Point)]
-    E --> R[Format response]
+    S --> SAVED{Saved label?}
+    SAVED -->|yes| E[EphemerisEngine\nget_chart]
+    SAVED -->|no| GEO[geocoding.py\nNominatim + timezonefinder]
+    GEO -->|found| E
+    GEO -->|not found| ERR([Error: location not found])
+    E --> LOG{Saved location?}
+    LOG -->|yes| SAVE[transit_logger\nsave_transit_data_to_db]
+    LOG -->|no — ad-hoc| R[Format response]
+    SAVE --> DB[(SQLite\nTransitLookup · Planet · House · Point)]
+    DB --> R
     R --> U
 ```
 
@@ -151,10 +156,12 @@ flowchart TD
 - **server.py:** Orchestrate tool routing only
 
 ### 5. Auto-Logging Transit Requests
-- Every `get_transits` call logs to database automatically
+- Every `get_transits` call with a **saved location** logs to database automatically
 - Preserves location snapshot for historical accuracy
 - Builds queryable history over time
 - Graceful degradation (logging failures don't break the request)
+- Ad-hoc geocoded locations (inline city names) are intentionally not logged — they
+  have no stable profile FK and would pollute history with one-off lookups
 
 ### 6. Connection Chart Caching
 - Composite and Davison charts are expensive to compute and deterministic
@@ -194,9 +201,10 @@ flowchart TD
 **External:**
 - pysweph (Python Swiss Ephemeris extension — no binary required)
 - matplotlib (chart visualization)
+- timezonefinder (offline IANA timezone lookup from coordinates)
 
 **Dev:**
-- pytest (291 tests)
+- pytest (302 tests)
 - git (version control)
 
 ## Database Schema
@@ -279,6 +287,18 @@ Normal mode: `offset` 0–36,500 days (~100 years), `days` 1–365.
 Extended mode: `offset` uncapped (Swiss Ephemeris supports 13,000 BCE – 17,000 CE), `days` 1–3,650.
 
 The 10-year scan cap in extended mode keeps results manageable (~180 events max with outer planets only). For longer ranges, call the tool multiple times with different offsets. The 36,500-day offset cap in normal mode covers retirement planning, generational forecasting, and most practical predictive astrology.
+
+### 10. Inline Location Geocoding (`get_transits`)
+
+`get_transits` resolves the `location` parameter in priority order:
+1. Special keywords: `current` / `home` → current home location from DB
+2. `birth` → birth location from DB
+3. Saved label match (profile-owned locations)
+4. Geocode via Nominatim (OpenStreetMap) — any city name that resolves
+
+The old `geocoding.py` used a longitude-band estimate for timezones (US-only, UTC elsewhere). This was replaced with `timezonefinder`, which does a full polygon lookup against the IANA timezone database — necessary for correctness on historical queries in non-US locations (e.g. Bangkok 1995 would have returned UTC instead of Asia/Bangkok).
+
+Ad-hoc locations from step 4 are never saved to the profile or logged to transit history. They exist only for the duration of that ephemeris call.
 
 ## Contributing
 

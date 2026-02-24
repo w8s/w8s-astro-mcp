@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — Phase 4: Transit History & Forecasting
+## [Unreleased] — Phase 4 & 5: Transit History, Forecasting & Location Intelligence
 
 ### Added
 - **`get_transit_history`** — query logged transits by date range, planet, and/or
@@ -20,11 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `extended=True` switches to a 10-year outer-planet-only mode for historical
     or far-future queries (e.g. "what were the ingresses during the Renaissance?")
   - Normal mode offset cap: 36,500 days (~100 years); extended mode: uncapped
+- **Inline location geocoding** — `get_transits` now accepts any city name as the
+  `location` parameter, not just saved labels. "Bangkok, Thailand", "Seattle, WA",
+  or any Nominatim-resolvable place name works out of the box.
+- **`timezonefinder` dependency** — replaces the old US-only longitude estimate
+  with accurate IANA timezone lookup anywhere on earth. Critical for historical
+  queries like "transits in Bangkok, April 1995" (Asia/Bangkok, not UTC).
 
 ### Changed
-- 3 new Phase 4 tools bring the total to **26 MCP tools** and **291 tests**.
-- `docs/DESIGN-DECISIONS.md` deleted — content merged into `docs/ARCHITECTURE.md`
-  as a "Design Decisions" section.
+- 3 new Phase 4 tools bring the total to **26 MCP tools** and **302 tests**.
+- Ad-hoc geocoded locations are used for the ephemeris call but not persisted
+  to transit history — only saved profile locations are logged.
+- `docs/DESIGN-DECISIONS.md` deleted — content merged into `docs/ARCHITECTURE.md`.
 
 ## [0.9.1] — 2026-02-23
 

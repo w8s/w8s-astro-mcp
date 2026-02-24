@@ -245,6 +245,40 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_transit_history",
+            description=(
+                "Query historical transit lookups stored in the database for the current profile. "
+                "Supports filtering by date range, planet, and sign. "
+                "Examples: 'show me last month\\'s transits', "
+                "'when was Mercury in Capricorn?', 'what sign was Jupiter in last year?'"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "after": {
+                        "type": "string",
+                        "description": "Return lookups on or after this date (YYYY-MM-DD, optional)"
+                    },
+                    "before": {
+                        "type": "string",
+                        "description": "Return lookups on or before this date (YYYY-MM-DD, optional)"
+                    },
+                    "planet": {
+                        "type": "string",
+                        "description": "Filter by planet name, e.g. 'Mercury' (optional)"
+                    },
+                    "sign": {
+                        "type": "string",
+                        "description": "Filter by zodiac sign, e.g. 'Capricorn' — requires planet (optional)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of results to return (default 20, max 100)"
+                    }
+                }
+            }
+        ),
+        Tool(
             name="compare_charts",
             description=(
                 "Calculate aspects between two charts. "
@@ -489,7 +523,84 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return [TextContent(type="text", text=response)]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
-    
+
+    elif name == "get_transit_history":
+        try:
+            db = init_db()
+            profile = db.get_current_profile()
+            if not profile:
+                return [TextContent(type="text", text="Error: No profile configured.")]
+
+            after = arguments.get("after")
+            before = arguments.get("before")
+            planet = arguments.get("planet")
+            sign = arguments.get("sign")
+            limit = min(int(arguments.get("limit", 20)), 100)
+
+            rows = db.get_transit_history(
+                profile,
+                after=after,
+                before=before,
+                planet=planet,
+                sign=sign,
+                limit=limit,
+            )
+
+            if not rows:
+                filters = []
+                if after:
+                    filters.append(f"after {after}")
+                if before:
+                    filters.append(f"before {before}")
+                if planet:
+                    filters.append(f"planet={planet}")
+                if sign:
+                    filters.append(f"sign={sign}")
+                filter_str = ", ".join(filters) if filters else "no filters"
+                return [TextContent(
+                    type="text",
+                    text=f"No transit history found for {profile.name} ({filter_str})."
+                )]
+
+            # Format response
+            response = f"# Transit History — {profile.name}\n"
+            if after or before:
+                date_range = f"{after or '...'} → {before or 'now'}"
+                response += f"Date range: {date_range}\n"
+            if planet:
+                response += f"Planet filter: {planet}"
+                if sign:
+                    response += f" in {sign}"
+                response += "\n"
+            response += f"Showing {len(rows)} lookup(s), newest first\n\n"
+
+            PLANET_ORDER = ["Sun", "Moon", "Mercury", "Venus", "Mars",
+                            "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
+
+            for row in rows:
+                dt = row["lookup_datetime"].replace("T", " ")[:16]
+                response += f"## {dt}  —  {row['location_label']}\n"
+
+                planets_to_show = (
+                    {planet: row["planets"][planet]}
+                    if planet and planet in row["planets"]
+                    else row["planets"]
+                )
+
+                for pname in PLANET_ORDER:
+                    if pname not in planets_to_show:
+                        continue
+                    pdata = planets_to_show[pname]
+                    retro = " ℞" if pdata.get("is_retrograde") else ""
+                    response += (
+                        f"  {pname}: {pdata['degree']:.1f}° {pdata['sign']}{retro}\n"
+                    )
+                response += "\n"
+
+            return [TextContent(type="text", text=response)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
     elif name == "get_transits":
         try:
             engine = init_ephemeris()

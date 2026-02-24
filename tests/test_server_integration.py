@@ -269,3 +269,94 @@ def test_save_natal_chart_idempotent(db_helper, temp_db):
         assert len(planets) == 2
         names = {p.planet for p in planets}
         assert names == {"Sun", "Moon"}
+
+
+def _make_profile_with_transits(db_helper, engine):
+    """Helper: create a profile and seed two transit lookups."""
+    from datetime import datetime
+    from w8s_astro_mcp.models import TransitLookup, TransitPlanet, Location
+    from w8s_astro_mcp.database import get_session
+
+    profile = db_helper.create_profile_with_location(
+        name="History Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    with get_session(engine) as session:
+        loc = session.query(Location).filter_by(profile_id=profile.id).first()
+
+        for dt_str, mercury_sign in [
+            ("2026-01-01T12:00:00", "Capricorn"),
+            ("2026-02-01T12:00:00", "Aquarius"),
+        ]:
+            lookup = TransitLookup(
+                profile_id=profile.id,
+                location_id=loc.id,
+                house_system_id=1,
+                lookup_datetime=datetime.fromisoformat(dt_str),
+                location_snapshot_label=loc.label,
+                location_snapshot_latitude=loc.latitude,
+                location_snapshot_longitude=loc.longitude,
+                location_snapshot_timezone=loc.timezone,
+            )
+            session.add(lookup)
+            session.flush()
+            session.add(TransitPlanet(
+                transit_lookup_id=lookup.id,
+                planet="Mercury",
+                degree=5, minutes=0, seconds=0.0,
+                sign=mercury_sign,
+                absolute_position=5.0,
+                is_retrograde=False,
+                calculation_method="pysweph",
+            ))
+        session.commit()
+
+    return profile
+
+
+def test_get_transit_history_all(db_helper, temp_db):
+    """get_transit_history returns all rows when no filters applied."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(profile, limit=10)
+    assert len(rows) == 2
+    # Newest first
+    assert rows[0]["lookup_datetime"] > rows[1]["lookup_datetime"]
+
+
+def test_get_transit_history_date_filter(db_helper, temp_db):
+    """get_transit_history respects after/before date filters."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(profile, after="2026-01-15", limit=10)
+    assert len(rows) == 1
+    assert "2026-02" in rows[0]["lookup_datetime"]
+
+
+def test_get_transit_history_planet_sign_filter(db_helper, temp_db):
+    """get_transit_history filters by planet and sign correctly."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(
+        profile, planet="Mercury", sign="Capricorn", limit=10
+    )
+    assert len(rows) == 1
+    assert rows[0]["planets"]["Mercury"]["sign"] == "Capricorn"
+
+
+def test_get_transit_history_limit(db_helper, temp_db):
+    """get_transit_history respects the limit parameter."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    rows = db_helper.get_transit_history(profile, limit=1)
+    assert len(rows) == 1

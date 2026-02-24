@@ -202,6 +202,75 @@ class DatabaseHelper:
         with get_session(self.engine) as session:
             save_natal_data_to_db(session, profile, chart_data, house_system_id)
 
+    def get_transit_history(
+        self,
+        profile: Profile,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        planet: Optional[str] = None,
+        sign: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """
+        Query historical transit lookups for a profile.
+
+        Filters are all optional and combinable:
+        - after/before:  ISO date strings (YYYY-MM-DD) for a date range
+        - planet:        e.g. "Mercury" — only return lookups where that planet
+                         appears in the results
+        - sign:          e.g. "Scorpio" — further filter by the planet's sign
+        - limit:         max number of lookup rows returned (default 20)
+
+        Returns a list of dicts, newest first, each containing:
+            lookup_datetime, location_label, planets (dict of planet→sign/degree)
+        """
+        with get_session(self.engine) as session:
+            query = session.query(TransitLookup).filter_by(profile_id=profile.id)
+
+            if after:
+                query = query.filter(
+                    TransitLookup.lookup_datetime >= datetime.fromisoformat(after)
+                )
+            if before:
+                query = query.filter(
+                    TransitLookup.lookup_datetime <= datetime.fromisoformat(before)
+                )
+
+            # If filtering by planet (and optionally sign), join transit_planets
+            if planet:
+                query = query.join(TransitPlanet, TransitPlanet.transit_lookup_id == TransitLookup.id)
+                query = query.filter(TransitPlanet.planet == planet)
+                if sign:
+                    query = query.filter(TransitPlanet.sign == sign)
+                query = query.distinct()
+
+            query = query.order_by(TransitLookup.lookup_datetime.desc()).limit(limit)
+            lookups = query.all()
+
+            results = []
+            for lookup in lookups:
+                # Fetch all planets for this lookup
+                planet_rows = session.query(TransitPlanet).filter_by(
+                    transit_lookup_id=lookup.id
+                ).all()
+                planets_dict = {
+                    p.planet: {
+                        "sign": p.sign,
+                        "degree": round(p.absolute_position % 30, 2),
+                        "is_retrograde": p.is_retrograde,
+                    }
+                    for p in planet_rows
+                }
+                results.append({
+                    "lookup_datetime": lookup.lookup_datetime.isoformat(),
+                    "location_label": lookup.location_snapshot_label,
+                    "latitude": lookup.location_snapshot_latitude,
+                    "longitude": lookup.location_snapshot_longitude,
+                    "planets": planets_dict,
+                })
+
+            return results
+
     def save_transit_lookup(
         self,
         profile: Profile,

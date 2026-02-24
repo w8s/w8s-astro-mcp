@@ -76,5 +76,5 @@ Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with d
 - [ ] Transits to composite/Davison charts (partial Phase 7 item)
 - [ ] Chart wheel visualizer for composite, Davison, and synastry wheels
 - [ ] `visualize_custom_chart(planets, title)` — render any arbitrary positions
-- [ ] Electional astrology helpers
+- [ ] Electional astrology helpers (selecting auspicious moments — builds on Phase 8 event charts)
 - [ ] Voice mode ("What's my transit weather?")

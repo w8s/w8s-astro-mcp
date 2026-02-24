@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — Phase 4 & 5: Transit History, Forecasting & Location Intelligence
+## [0.10.0] — 2026-02-23
 
 ### Added
 - **`get_transit_history`** — query logged transits by date range, planet, and/or

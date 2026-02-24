@@ -311,6 +311,30 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_ingresses",
+            description=(
+                "Scan the ephemeris for upcoming or recent planetary sign ingresses "
+                "and stations (retrograde/direct). "
+                "Examples: 'what transits are coming up this month?', "
+                "'when does Mercury go retrograde?', "
+                "'what ingresses just happened?'. "
+                "Days capped at 365."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to scan (default 30, max 365)"
+                    },
+                    "future": {
+                        "type": "boolean",
+                        "description": "True = upcoming events (default), False = recent events"
+                    }
+                }
+            }
+        ),
+        Tool(
             name="compare_charts",
             description=(
                 "Calculate aspects between two charts. "
@@ -700,6 +724,56 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 f"**{dt}** — {result['location_label']}\n"
                 f"{planet}: {result['degree']:.1f}° {result['sign']}{retro_str}{house_str}\n"
             )
+            return [TextContent(type="text", text=response)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
+    elif name == "get_ingresses":
+        try:
+            ephem_engine = init_ephemeris()
+            db = init_db()
+            profile = db.get_current_profile()
+            if not profile:
+                return [TextContent(type="text", text="Error: No profile configured.")]
+
+            days = min(int(arguments.get("days", 30)), 365)
+            future = arguments.get("future", True)
+
+            events = db.get_ingresses(profile, ephem_engine, days=days, future=future)
+
+            direction_word = "Upcoming" if future else "Recent"
+            response = f"# {direction_word} Ingresses & Stations — {days} days\n\n"
+
+            if not events:
+                response += "No ingresses or stations found in this period.\n"
+                return [TextContent(type="text", text=response)]
+
+            # Group by month for readability
+            current_month = None
+            for event in events:
+                month = event["date"][:7]  # YYYY-MM
+                if month != current_month:
+                    from datetime import date
+                    d = date.fromisoformat(event["date"])
+                    response += f"## {d.strftime('%B %Y')}\n"
+                    current_month = month
+
+                d = date.fromisoformat(event["date"])
+                day_str = d.strftime("%b %-d")
+
+                if event["event_type"] == "ingress":
+                    response += (
+                        f"**{day_str}** — {event['planet']} {event['detail']} "
+                        f"(from {event['from_sign']})\n"
+                    )
+                else:  # station
+                    retro_symbol = " ℞" if event["is_retrograde"] else " D"
+                    response += (
+                        f"**{day_str}** — {event['planet']}{retro_symbol} "
+                        f"{event['detail']} in {event['sign']}\n"
+                    )
+
+            response += f"\n_{len(events)} event(s) total_\n"
             return [TextContent(type="text", text=response)]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]

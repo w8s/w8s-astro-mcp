@@ -271,6 +271,92 @@ class DatabaseHelper:
 
             return results
 
+    def get_ingresses(
+        self,
+        profile: Profile,
+        engine: Any,
+        days: int = 30,
+        future: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Scan the ephemeris for planetary sign ingresses and stations.
+
+        Checks each day in the range for:
+        - Sign change: planet moves into a new zodiac sign
+        - Station: planet switches between retrograde and direct
+
+        Args:
+            profile:  Profile whose birth location is used for house context.
+            engine:   EphemerisEngine instance.
+            days:     Number of days to scan (clamped to 1-365).
+            future:   If True, scan forward from today; if False, scan backward.
+
+        Returns:
+            List of event dicts sorted chronologically, each containing:
+            date, planet, event_type ('ingress' or 'station'),
+            detail (e.g. 'enters Pisces' or 'stations retrograde')
+        """
+        from datetime import date, timedelta
+
+        days = max(1, min(days, 365))
+
+        # Get current home location for house calculations (optional, for coords)
+        birth_loc = self.get_birth_location(profile)
+        lat = birth_loc.latitude if birth_loc else 0.0
+        lng = birth_loc.longitude if birth_loc else 0.0
+
+        today = date.today()
+        if future:
+            dates = [today + timedelta(days=i) for i in range(days + 1)]
+        else:
+            dates = [today - timedelta(days=i) for i in range(days + 1)]
+            dates = list(reversed(dates))  # chronological order
+
+        PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars",
+                   "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
+
+        events = []
+        prev_chart = None
+
+        for d in dates:
+            chart = engine.get_chart(lat, lng, d.isoformat(), "12:00")
+            if prev_chart is None:
+                prev_chart = chart
+                continue
+
+            for planet in PLANETS:
+                prev = prev_chart["planets"].get(planet)
+                curr = chart["planets"].get(planet)
+                if not prev or not curr:
+                    continue
+
+                # Sign ingress
+                if curr["sign"] != prev["sign"]:
+                    events.append({
+                        "date": d.isoformat(),
+                        "planet": planet,
+                        "event_type": "ingress",
+                        "detail": f"enters {curr['sign']}",
+                        "from_sign": prev["sign"],
+                        "to_sign": curr["sign"],
+                    })
+
+                # Station (retrograde ↔ direct)
+                if curr["is_retrograde"] != prev["is_retrograde"]:
+                    direction = "retrograde" if curr["is_retrograde"] else "direct"
+                    events.append({
+                        "date": d.isoformat(),
+                        "planet": planet,
+                        "event_type": "station",
+                        "detail": f"stations {direction}",
+                        "sign": curr["sign"],
+                        "is_retrograde": curr["is_retrograde"],
+                    })
+
+            prev_chart = chart
+
+        return events
+
     def find_last_transit(
         self,
         profile: Profile,

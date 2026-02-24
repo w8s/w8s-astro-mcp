@@ -431,3 +431,119 @@ def test_find_last_transit_by_retrograde(db_helper, temp_db):
 
     result_direct = db_helper.find_last_transit(profile, planet="Mercury", retrograde=False)
     assert result_direct is None
+
+
+def test_get_ingresses_future(db_helper):
+    """get_ingresses returns events in chronological order, future=True."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Ingress Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    events = db_helper.get_ingresses(profile, ephem, days=90, future=True)
+
+    # All events should be in the future range
+    from datetime import date
+    today = date.today().isoformat()
+    for event in events:
+        assert event["date"] >= today
+
+    # Chronological order
+    dates = [e["date"] for e in events]
+    assert dates == sorted(dates)
+
+    # Each event has required fields
+    for event in events:
+        assert "date" in event
+        assert "planet" in event
+        assert "event_type" in event
+        assert event["event_type"] in ("ingress", "station")
+        assert "detail" in event
+
+
+def test_get_ingresses_past(db_helper):
+    """get_ingresses returns events in chronological order, future=False."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Ingress Past Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    events = db_helper.get_ingresses(profile, ephem, days=90, future=False)
+
+    from datetime import date
+    today = date.today().isoformat()
+    for event in events:
+        assert event["date"] <= today
+
+    dates = [e["date"] for e in events]
+    assert dates == sorted(dates)
+
+
+def test_get_ingresses_days_clamped(db_helper):
+    """get_ingresses clamps days to 1-365."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Clamp Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    # 9999 days should be clamped to 365 — just verify it doesn't error
+    events = db_helper.get_ingresses(profile, ephem, days=9999, future=True)
+    assert isinstance(events, list)
+
+    # 0 days should be clamped to 1 — minimal scan
+    events_zero = db_helper.get_ingresses(profile, ephem, days=0, future=True)
+    assert isinstance(events_zero, list)
+
+
+def test_get_ingresses_ingress_fields(db_helper):
+    """Ingress events have from_sign and to_sign fields."""
+    from w8s_astro_mcp.utils.ephemeris import EphemerisEngine
+
+    profile = db_helper.create_profile_with_location(
+        name="Fields Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    ephem = EphemerisEngine()
+    events = db_helper.get_ingresses(profile, ephem, days=365, future=True)
+
+    ingresses = [e for e in events if e["event_type"] == "ingress"]
+    stations = [e for e in events if e["event_type"] == "station"]
+
+    for e in ingresses:
+        assert "from_sign" in e
+        assert "to_sign" in e
+        assert e["from_sign"] != e["to_sign"]
+
+    for e in stations:
+        assert "sign" in e
+        assert "is_retrograde" in e

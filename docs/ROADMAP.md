@@ -57,11 +57,18 @@ The AI assistant (Claude) already handles cross-tool integration natively — co
 - [x] 6 MCP tools: `create_connection`, `list_connections`, `add_connection_member`, `remove_connection_member`, `get_connection_chart`, `delete_connection`
 - [x] 302 tests (model, math, integration)
 
-## Phase 8: Event Charts — Not Started
+## Phase 8: Event Charts & Electional Astrology — Not Started
 
-Standalone charts cast for a moment in time and location — no profile or connection required. Useful for weddings, business launches, electional astrology, and historical event analysis. Compared to natal/connection charts via the existing `compare_charts` tool.
+Charts cast for a moment in time and place — no profile required. Useful for weddings, business launches, historical event analysis, and electional astrology (finding auspicious moments).
 
-Schema TBD — design separately.
+See `docs/PHASE-8-PLANNING.md` for full spec.
+
+- [ ] `cast_event_chart` — cast a chart for any date/time/location; optionally save by label
+- [ ] `list_event_charts` — list all saved event charts
+- [ ] `delete_event_chart` — remove a saved event chart
+- [ ] `find_electional_windows` — scan a time window and return candidate moments scored against criteria (Moon not void, planets direct, benefics angular, etc.)
+- [ ] `compare_charts` gains `event:<label>` resolver — compare any saved event chart to natal or transits
+- [ ] Void-of-course Moon detection utility
 
 ## Phase 9: Database Self-Healing — Not Started
 

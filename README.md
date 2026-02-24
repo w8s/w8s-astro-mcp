@@ -154,6 +154,10 @@ pytest --cov=src/w8s_astro_mcp
 
 See `docs/ROADMAP.md` for planned phases including transit history queries (Phase 4), device location detection (Phase 5), event charts (Phase 8), and database self-healing tools (Phase 9).
 
+## Questions, Bugs, Ideas
+
+Open an issue on [GitHub](https://github.com/w8s/w8s-astro-mcp/issues) — that's the best place for bug reports, feature requests, or questions.
+
 ## License
 
 AGPL-3.0

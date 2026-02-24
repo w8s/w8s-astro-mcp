@@ -5,79 +5,69 @@ from typing import Optional, Dict, Any
 import urllib.request
 import urllib.parse
 
+from timezonefinder import TimezoneFinder
+
+# Module-level instance — initialization loads polygon data once
+_tf = TimezoneFinder()
+
+
+def get_timezone_for_coords(lat: float, lon: float) -> str:
+    """
+    Return the IANA timezone string for any coordinates on earth.
+
+    Uses timezonefinder's full polygon dataset — accurate to timezone borders,
+    not just a rough longitude estimate. Falls back to UTC if coordinates are
+    over open ocean with no timezone polygon (rare).
+
+    Args:
+        lat: Latitude in decimal degrees
+        lon: Longitude in decimal degrees
+
+    Returns:
+        IANA timezone string, e.g. 'Asia/Bangkok', 'America/Chicago', 'UTC'
+    """
+    tz = _tf.timezone_at(lat=lat, lng=lon)
+    return tz if tz else "UTC"
+
 
 def geocode_location(location_name: str) -> Optional[Dict[str, Any]]:
     """
-    Look up coordinates for a location using Nominatim (OpenStreetMap).
-    
+    Look up coordinates and timezone for a location name using Nominatim (OpenStreetMap).
+
     Args:
-        location_name: Location like "Richardson, TX" or "New York, NY"
-        
+        location_name: Anything Nominatim understands — city, address, country, etc.
+                       e.g. "Bangkok, Thailand", "Seattle, WA", "Richardson, TX"
+
     Returns:
-        Dict with name, latitude, longitude, and suggested timezone, or None if not found
+        Dict with name, latitude, longitude, and timezone, or None if not found.
     """
     try:
-        # URL encode the location
         encoded_location = urllib.parse.quote(location_name)
-        
-        # Use Nominatim API (OpenStreetMap's geocoding service)
-        url = f"https://nominatim.openstreetmap.org/search?q={encoded_location}&format=json&limit=1"
-        
-        # Make request with proper headers
+        url = (
+            f"https://nominatim.openstreetmap.org/search"
+            f"?q={encoded_location}&format=json&limit=1"
+        )
         req = urllib.request.Request(
             url,
-            headers={'User-Agent': 'w8s-astro-mcp/0.1.0'}
+            headers={"User-Agent": "w8s-astro-mcp/1.0.0"}
         )
-        
+
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode())
-        
+
         if not data:
             return None
-        
+
         result = data[0]
-        
-        # Extract coordinates
-        lat = float(result['lat'])
-        lon = float(result['lon'])
-        
-        # Guess timezone based on longitude (rough approximation)
-        # This is a simplified version - for production, use a proper timezone lookup
-        tz = guess_timezone_from_coords(lat, lon)
-        
+        lat = float(result["lat"])
+        lon = float(result["lon"])
+
         return {
-            "name": result.get('display_name', location_name),
+            "name": result.get("display_name", location_name),
             "latitude": lat,
             "longitude": lon,
-            "timezone": tz
+            "timezone": get_timezone_for_coords(lat, lon),
         }
-    
+
     except Exception:
         return None
-
-
-def guess_timezone_from_coords(lat: float, lon: float) -> str:
-    """
-    Rough timezone guess based on longitude.
-    For production, use a proper timezone library.
-    
-    Args:
-        lat: Latitude
-        lon: Longitude
-        
-    Returns:
-        Timezone string (rough approximation)
-    """
-    # US timezones (very rough)
-    if 24 <= lat <= 50 and -125 <= lon <= -65:  # Continental US
-        if lon < -120:
-            return "America/Los_Angeles"
-        elif lon < -105:
-            return "America/Denver"
-        elif lon < -90:
-            return "America/Chicago"
-        else:
-            return "America/New_York"
-    
-    # Default to UTC
-    return "UTC"

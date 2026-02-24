@@ -279,6 +279,38 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="find_last_transit",
+            description=(
+                "Find the most recent logged transit where a planet met specific conditions. "
+                "Examples: 'when was Mercury last retrograde?', "
+                "'when was the Moon last in Scorpio?', "
+                "'when was Mars last in my 7th house?'. "
+                "Requires at least one of: sign, retrograde, or house."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "planet": {
+                        "type": "string",
+                        "description": "Planet name, e.g. 'Mercury', 'Mars'"
+                    },
+                    "sign": {
+                        "type": "string",
+                        "description": "Zodiac sign to match, e.g. 'Capricorn' (optional)"
+                    },
+                    "retrograde": {
+                        "type": "boolean",
+                        "description": "If true, find last retrograde; if false, find last direct (optional)"
+                    },
+                    "house": {
+                        "type": "integer",
+                        "description": "Natal house number to match, 1-12 (optional)"
+                    }
+                },
+                "required": ["planet"]
+            }
+        ),
+        Tool(
             name="compare_charts",
             description=(
                 "Calculate aspects between two charts. "
@@ -597,6 +629,77 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                     )
                 response += "\n"
 
+            return [TextContent(type="text", text=response)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
+    elif name == "find_last_transit":
+        try:
+            db = init_db()
+            profile = db.get_current_profile()
+            if not profile:
+                return [TextContent(type="text", text="Error: No profile configured.")]
+
+            planet = arguments.get("planet")
+            if not planet:
+                return [TextContent(type="text", text="Error: 'planet' is required.")]
+
+            sign = arguments.get("sign")
+            retrograde = arguments.get("retrograde")  # None / True / False
+            house = arguments.get("house")
+            if house is not None:
+                house = int(house)
+
+            if sign is None and retrograde is None and house is None:
+                return [TextContent(
+                    type="text",
+                    text="Error: Provide at least one filter: sign, retrograde, or house."
+                )]
+
+            result = db.find_last_transit(
+                profile,
+                planet=planet,
+                sign=sign,
+                retrograde=retrograde,
+                house=house,
+            )
+
+            if result is None:
+                conditions = []
+                if sign:
+                    conditions.append(f"in {sign}")
+                if retrograde is True:
+                    conditions.append("retrograde")
+                elif retrograde is False:
+                    conditions.append("direct")
+                if house:
+                    conditions.append(f"in house {house}")
+                cond_str = " and ".join(conditions)
+                return [TextContent(
+                    type="text",
+                    text=f"No logged transit found for {planet} {cond_str} in {profile.name}'s history."
+                )]
+
+            dt = result["lookup_datetime"].replace("T", " ")[:16]
+            retro_str = " ℞ (retrograde)" if result["is_retrograde"] else ""
+            house_str = f", House {result['house_number']}" if result["house_number"] else ""
+
+            conditions = []
+            if sign:
+                conditions.append(f"in {sign}")
+            if retrograde is True:
+                conditions.append("retrograde")
+            elif retrograde is False:
+                conditions.append("direct")
+            if house:
+                conditions.append(f"in house {house}")
+            cond_str = " and ".join(conditions)
+
+            response = (
+                f"# Last {planet} {cond_str}\n\n"
+                f"**{dt}** — {result['location_label']}\n"
+                f"{planet}: {result['degree']:.1f}° {result['sign']}{retro_str}{house_str}\n"
+            )
             return [TextContent(type="text", text=response)]
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]

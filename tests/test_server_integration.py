@@ -360,3 +360,74 @@ def test_get_transit_history_limit(db_helper, temp_db):
 
     rows = db_helper.get_transit_history(profile, limit=1)
     assert len(rows) == 1
+
+
+def test_find_last_transit_by_sign(db_helper, temp_db):
+    """find_last_transit returns the most recent match for planet+sign."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    result = db_helper.find_last_transit(profile, planet="Mercury", sign="Aquarius")
+    assert result is not None
+    assert result["sign"] == "Aquarius"
+    assert result["planet"] == "Mercury"
+    assert "2026-02" in result["lookup_datetime"]
+
+
+def test_find_last_transit_by_sign_no_match(db_helper, temp_db):
+    """find_last_transit returns None when no match exists."""
+    _db_path, engine = temp_db
+    profile = _make_profile_with_transits(db_helper, engine)
+
+    result = db_helper.find_last_transit(profile, planet="Mercury", sign="Scorpio")
+    assert result is None
+
+
+def test_find_last_transit_by_retrograde(db_helper, temp_db):
+    """find_last_transit matches on retrograde flag."""
+    from datetime import datetime
+    from w8s_astro_mcp.models import TransitLookup, TransitPlanet, Location
+    from w8s_astro_mcp.database import get_session
+
+    _db_path, engine = temp_db
+    profile = db_helper.create_profile_with_location(
+        name="Retro Test",
+        birth_date="1981-05-06",
+        birth_time="00:50",
+        birth_location_name="Richardson, TX",
+        birth_latitude=32.9483,
+        birth_longitude=-96.7299,
+        birth_timezone="America/Chicago",
+    )
+
+    with get_session(engine) as session:
+        loc = session.query(Location).filter_by(profile_id=profile.id).first()
+        lookup = TransitLookup(
+            profile_id=profile.id,
+            location_id=loc.id,
+            house_system_id=1,
+            lookup_datetime=datetime.fromisoformat("2026-01-10T12:00:00"),
+            location_snapshot_label=loc.label,
+            location_snapshot_latitude=loc.latitude,
+            location_snapshot_longitude=loc.longitude,
+            location_snapshot_timezone=loc.timezone,
+        )
+        session.add(lookup)
+        session.flush()
+        session.add(TransitPlanet(
+            transit_lookup_id=lookup.id,
+            planet="Mercury",
+            degree=12, minutes=0, seconds=0.0,
+            sign="Capricorn",
+            absolute_position=282.0,
+            is_retrograde=True,
+            calculation_method="pysweph",
+        ))
+        session.commit()
+
+    result = db_helper.find_last_transit(profile, planet="Mercury", retrograde=True)
+    assert result is not None
+    assert result["is_retrograde"] is True
+
+    result_direct = db_helper.find_last_transit(profile, planet="Mercury", retrograde=False)
+    assert result_direct is None

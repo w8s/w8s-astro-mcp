@@ -271,6 +271,63 @@ class DatabaseHelper:
 
             return results
 
+    def find_last_transit(
+        self,
+        profile: Profile,
+        planet: str,
+        sign: Optional[str] = None,
+        retrograde: Optional[bool] = None,
+        house: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Find the most recent transit lookup where a planet met specific conditions.
+
+        At least one condition (sign, retrograde, or house) must be provided.
+        Multiple conditions are ANDed together.
+
+        Args:
+            profile:    Profile to search history for.
+            planet:     Planet name, e.g. "Mercury".
+            sign:       Zodiac sign to match, e.g. "Capricorn".
+            retrograde: If True, match retrograde; if False, match direct.
+            house:      Natal house number to match (1-12).
+
+        Returns:
+            Dict with lookup_datetime, location_label, and the matching planet's
+            data — or None if no match found.
+        """
+        with get_session(self.engine) as session:
+            query = (
+                session.query(TransitPlanet, TransitLookup)
+                .join(TransitLookup, TransitLookup.id == TransitPlanet.transit_lookup_id)
+                .filter(TransitLookup.profile_id == profile.id)
+                .filter(TransitPlanet.planet == planet)
+            )
+
+            if sign is not None:
+                query = query.filter(TransitPlanet.sign == sign)
+            if retrograde is not None:
+                query = query.filter(TransitPlanet.is_retrograde == retrograde)
+            if house is not None:
+                query = query.filter(TransitPlanet.house_number == house)
+
+            query = query.order_by(TransitLookup.lookup_datetime.desc())
+            row = query.first()
+
+            if row is None:
+                return None
+
+            tp, lookup = row
+            return {
+                "lookup_datetime": lookup.lookup_datetime.isoformat(),
+                "location_label": lookup.location_snapshot_label,
+                "planet": tp.planet,
+                "sign": tp.sign,
+                "degree": round(tp.absolute_position % 30, 2),
+                "is_retrograde": tp.is_retrograde,
+                "house_number": tp.house_number,
+            }
+
     def save_transit_lookup(
         self,
         profile: Profile,

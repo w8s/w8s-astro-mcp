@@ -41,12 +41,9 @@
 - [x] Accurate IANA timezone lookup via `timezonefinder` — replaces US-only longitude estimate; works correctly for historical queries (Bangkok 1995, etc.)
 - [x] Ad-hoc locations used for ephemeris call but not persisted to transit history
 
-## Phase 6: Integration — Not Started
+## Phase 6: Integration — Superseded
 
-- [ ] Combine with tarot workflow
-- [ ] Calendar integration (transit alerts for important meetings)
-- [ ] Obsidian daily note auto-insertion
-- [ ] Custom alert thresholds
+The AI assistant (Claude) already handles cross-tool integration natively — combining tarot and astrology workflows, inserting transit summaries into notes, and setting contextual reminders. No server-side implementation needed.
 
 ## Phase 7: Connections (Relationship Charts) ✅
 

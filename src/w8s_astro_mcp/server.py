@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .utils.ephemeris import EphemerisEngine, EphemerisError
 from .utils.db_helpers import DatabaseHelper
+from .utils.geocoding import geocode_location
 from .tools.analysis_tools import (
     compare_charts,
     find_planets_in_houses,
@@ -225,7 +226,13 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_transits",
-            description="Get current planetary transits for a specific date and location",
+            description=(
+                "Get planetary transits for a specific date and location. "
+                "Location can be a saved label ('home', 'work', 'birth'), "
+                "or any city/place name ('Seattle', 'Bangkok, Thailand', 'Paris') — "
+                "unknown names are geocoded automatically. "
+                "Defaults to current home location if omitted."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -239,7 +246,10 @@ async def list_tools() -> list[Tool]:
                     },
                     "location": {
                         "type": "string",
-                        "description": "Location name (optional, defaults to 'current')"
+                        "description": (
+                            "Saved label ('home', 'work', 'birth') or any city name "
+                            "('Bangkok, Thailand', 'Seattle, WA'). Defaults to 'current'."
+                        )
                     }
                 }
             }
@@ -827,48 +837,86 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             if not profile:
                 return [TextContent(type="text", text="No primary profile found")]
             
-            # Get location
-            if location_arg == "current" or location_arg == "home":
+            # Resolve location
+            #
+            # Priority:
+            #   1. Special keywords: current/home → current home location
+            #   2. 'birth' → birth location
+            #   3. Saved label match (case-insensitive)
+            #   4. Geocode as an arbitrary city/place name (not saved)
+            #
+            # Ad-hoc geocoded locations are used for the ephemeris call but
+            # never persisted — they won't appear in transit history location
+            # labels unless the user explicitly saves them with add_location.
+
+            location = None          # SQLAlchemy Location object (saved)
+            adhoc_location = None    # dict for one-off geocoded locations
+
+            if location_arg in ("current", "home"):
                 location = db.get_current_home_location(profile)
                 if not location:
                     return [TextContent(type="text", text="No current home location set")]
             elif location_arg == "birth":
                 location = db.get_birth_location(profile)
             else:
-                # Try to find by label
+                # Try saved label first
                 location = db.get_location_by_label(location_arg, profile)
                 if not location:
-                    return [TextContent(type="text", text=f"Location '{location_arg}' not found")]
+                    # Fall back to geocoding
+                    geo = geocode_location(location_arg)
+                    if geo:
+                        adhoc_location = geo
+                    else:
+                        return [TextContent(
+                            type="text",
+                            text=(
+                                f"Location '{location_arg}' not found as a saved label "
+                                f"and could not be geocoded. Try a more specific name "
+                                f"(e.g. 'Bangkok, Thailand' or 'Seattle, WA')."
+                            )
+                        )]
+
+            # Resolve lat/lon/label for the ephemeris call
+            if adhoc_location:
+                lat = adhoc_location["latitude"]
+                lon = adhoc_location["longitude"]
+                location_label = adhoc_location["name"].split(",")[0]  # short display name
+            else:
+                lat = location.latitude
+                lon = location.longitude
+                location_label = location.label
             
             # Get transits from ephemeris engine
             result = engine.get_chart(
-                latitude=location.latitude,
-                longitude=location.longitude,
+                latitude=lat,
+                longitude=lon,
                 date_str=date_str,
                 time_str=time_str,
                 house_system_code='P'  # TODO: Get from profile
             )
-            
-            # 🆕 AUTO-LOG: Save this transit lookup to database
+
+            # AUTO-LOG: Save this transit lookup to database (saved locations only)
+            # Ad-hoc geocoded locations are not persisted — log is skipped gracefully.
             try:
-                lookup_datetime = datetime.strptime(
-                    f"{result['metadata']['date']} {result['metadata']['time']}",
-                    "%Y-%m-%d %H:%M:%S"
-                )
-                db.save_transit_lookup(
-                    profile=profile,
-                    location=location,
-                    lookup_datetime=lookup_datetime,
-                    transit_data=result,
-                    house_system_id=profile.preferred_house_system_id
-                )
+                if location:
+                    lookup_datetime = datetime.strptime(
+                        f"{result['metadata']['date']} {result['metadata']['time']}",
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    db.save_transit_lookup(
+                        profile=profile,
+                        location=location,
+                        lookup_datetime=lookup_datetime,
+                        transit_data=result,
+                        house_system_id=profile.preferred_house_system_id
+                    )
             except Exception as log_error:
                 # Don't fail the entire request if logging fails
                 print(f"Warning: Failed to log transit lookup: {log_error}")
-            
+
             # Format response
             response = f"Transits for {result['metadata']['date']} at {result['metadata']['time']}\n"
-            response += f"Location: {location.label} ({result['metadata']['latitude']}, {result['metadata']['longitude']})\n"
+            response += f"Location: {location_label} ({result['metadata']['latitude']}, {result['metadata']['longitude']})\n"
             response += f"House System: {result['metadata']['house_system']}\n\n"
             
             response += "Planets:\n"

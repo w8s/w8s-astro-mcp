@@ -27,6 +27,7 @@ dependencies = [
     "numpy>=1.21.0",
     "sqlalchemy>=2.0.0",
     "pysweph>=2.10.3.3",
+    "timezonefinder>=6.0.0",
 ]
 
 [project.urls]

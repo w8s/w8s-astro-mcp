@@ -129,7 +129,8 @@ See `docs/ARCHITECTURE.md` for data flow diagrams, design decisions, and the ful
 
 **Key design choices:**
 - Natal and transit positions stored as normalized rows (not JSON blobs) — fully queryable
-- Every `get_transits` call auto-logs to history with a denormalized location snapshot
+- Every `get_transits` call auto-logs to history with a denormalized location snapshot (saved locations only — ad-hoc geocoded locations are not persisted)
+- `get_transits` accepts any city name inline — geocoded via Nominatim with accurate IANA timezone lookup via `timezonefinder`
 - Connection charts cached with an `is_valid` flag — invalidated when members change, recalculated on next access
 - Position format normalized at write time via `_normalize_position()` — both composite math output and pysweph decimal-degree output coerced to `degree/minutes/seconds/absolute_position`
 
@@ -148,11 +149,11 @@ pytest tests/test_connection_db_helpers.py    # Integration tests (real SQLite)
 pytest --cov=src/w8s_astro_mcp
 ```
 
-291 tests. See `docs/ARCHITECTURE.md` for the full test command reference.
+302 tests. See `docs/ARCHITECTURE.md` for the full test command reference.
 
 ## Roadmap
 
-See `docs/ROADMAP.md` for planned phases including transit history queries (Phase 4), device location detection (Phase 5), event charts (Phase 8), and database self-healing tools (Phase 9).
+See `docs/ROADMAP.md` for planned phases including event charts (Phase 8) and database self-healing tools (Phase 9).
 
 ## Questions, Bugs, Ideas
 

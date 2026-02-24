@@ -1,7 +1,6 @@
 # Database Schema — w8s-astro-mcp
 
-SQLite database at `~/.w8s-astro-mcp/astro.db`. All tables created by
-SQLAlchemy ORM from models in `src/w8s_astro_mcp/models/`.
+SQLite database at `~/.w8s-astro-mcp/astro.db`. All tables created by SQLAlchemy ORM from models in `src/w8s_astro_mcp/models/`.
 
 ## Design Principles
 
@@ -420,9 +419,7 @@ erDiagram
 
 ## Connection Chart Lifecycle
 
-The `connection_charts.is_valid` flag drives the cache. This state diagram
-shows the full lifecycle of a chart from creation through invalidation and
-recalculation.
+The `connection_charts.is_valid` flag drives the cache. This state diagram shows the full lifecycle of a chart from creation through invalidation and recalculation.
 
 ```mermaid
 stateDiagram-v2
@@ -504,14 +501,11 @@ WHERE cc.is_valid = 0;
 ## Future Expansion
 
 ### `aspects` (not yet implemented)
-Precomputed aspects between planet pairs, enabling queries like
-"show me all Saturn squares to natal Sun."
 
-Fields would include: profile/lookup FK, planet pair, aspect type
-(conjunction/trine/square/etc.), orb, applying/separating flag, and
-aspect category (natal-natal, transit-natal, transit-transit).
+Precomputed aspects between planet pairs, enabling queries like "show me all Saturn squares to natal Sun."
+
+Fields would include: profile/lookup FK, planet pair, aspect type (conjunction/trine/square/etc.), orb, applying/separating flag, and aspect category (natal-natal, transit-natal, transit-transit).
 
 ### `progressions` and `returns` (not yet implemented)
-Secondary progressions, solar arcs, solar returns, lunar returns.
-Would follow the same planet/house/point child-table pattern as
-natal and transit tables.
+
+Secondary progressions, solar arcs, solar returns, lunar returns. Would follow the same planet/house/point child-table pattern as natal and transit tables.

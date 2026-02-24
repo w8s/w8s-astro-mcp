@@ -160,8 +160,7 @@ flowchart TD
 - Preserves location snapshot for historical accuracy
 - Builds queryable history over time
 - Graceful degradation (logging failures don't break the request)
-- Ad-hoc geocoded locations (inline city names) are intentionally not logged — they
-  have no stable profile FK and would pollute history with one-off lookups
+- Ad-hoc geocoded locations (inline city names) are intentionally not logged — they have no stable profile FK and would pollute history with one-off lookups
 
 ### 6. Connection Chart Caching
 - Composite and Davison charts are expensive to compute and deterministic
@@ -178,10 +177,8 @@ flowchart TD
 - Reuses `decimal_to_dms()` and `sign_to_absolute_position()` from `position_utils.py`
 
 ### 8. `position_utils.py` — Shared Conversion Module
-- `decimal_to_dms()` and `sign_to_absolute_position()` were originally defined in
-  `transit_logger.py` but were needed by `db_helpers.py` too
-- Extracted to `utils/position_utils.py` to eliminate cross-module dependency
-  on a persistence module
+- `decimal_to_dms()` and `sign_to_absolute_position()` were originally defined in `transit_logger.py` but were needed by `db_helpers.py` too
+- Extracted to `utils/position_utils.py` to eliminate cross-module dependency on a persistence module
 - `transit_logger.py` now imports from `position_utils` (no behaviour change)
 
 ### 9. DatabaseHelper Test Mode
@@ -234,20 +231,16 @@ Connections — Phase 7 (6):
 ## MCP Tools (26 total)
 
 **Core (9):**
-check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config,
-get_natal_chart, get_transits, compare_charts, find_house_placements,
-visualize_natal_chart
+check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config, get_natal_chart, get_transits, compare_charts, find_house_placements, visualize_natal_chart
 
 **Profile Management (7):**
-list_profiles, create_profile, update_profile, delete_profile,
-set_current_profile, add_location, remove_location
+list_profiles, create_profile, update_profile, delete_profile, set_current_profile, add_location, remove_location
 
 **Transit History & Forecasting — Phase 4 (3):**
 get_transit_history, find_last_transit, get_ingresses
 
 **Connection Management — Phase 7 (6):**
-create_connection, list_connections, add_connection_member,
-remove_connection_member, get_connection_chart, delete_connection
+create_connection, list_connections, add_connection_member, remove_connection_member, get_connection_chart, delete_connection
 
 ## Future Enhancements
 
@@ -276,6 +269,7 @@ When `extended=True`, only outer planets (Jupiter through Pluto) are returned. I
 **Why:** Inner planets move fast. Over a multi-year window the Moon alone produces ~146 sign changes per year, Mercury ~15–20, the Sun ~12. A 10-year extended scan would return 1,500+ Moon events — noise, not signal. The primary use case for extended mode is historical or far-future context where outer planet cycles are what matter ("what were the major alignments during the Renaissance?", "when does Pluto enter Aquarius?", "what was the outer planet weather during the life of Jesus?").
 
 **To change this:** Open an issue. The right solution is one of:
+
 1. A `planets` filter parameter on `get_ingresses`
 2. A separate `get_inner_planet_ingresses` tool designed for high-volume paginated output
 
@@ -291,6 +285,7 @@ The 10-year scan cap in extended mode keeps results manageable (~180 events max 
 ### 10. Inline Location Geocoding (`get_transits`)
 
 `get_transits` resolves the `location` parameter in priority order:
+
 1. Special keywords: `current` / `home` → current home location from DB
 2. `birth` → birth location from DB
 3. Saved label match (profile-owned locations)

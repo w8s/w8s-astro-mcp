@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — Phase 4: Transit History & Forecasting
+
+### Added
+- **`get_transit_history`** — query logged transits by date range, planet, and/or
+  sign. Returns newest-first with retrograde markers. Up to 100 results per call.
+- **`find_last_transit`** — scan logged transit history for the most recent occurrence
+  of a planet matching a sign, retrograde state, and/or natal house. At least one
+  condition required.
+- **`get_ingresses`** — ephemeris-backed sign ingress and station forecast.
+  - `future=True/False` for upcoming or recent events
+  - `days` (1–365) sets the scan window
+  - `offset` shifts the window N days from today (useful for "show me next April")
+  - `extended=True` switches to a 10-year outer-planet-only mode for historical
+    or far-future queries (e.g. "what were the ingresses during the Renaissance?")
+  - Normal mode offset cap: 36,500 days (~100 years); extended mode: uncapped
+
+### Changed
+- 3 new Phase 4 tools bring the total to **26 MCP tools** and **291 tests**.
+- `docs/DESIGN-DECISIONS.md` deleted — content merged into `docs/ARCHITECTURE.md`
+  as a "Design Decisions" section.
+
 ## [0.9.1] — 2026-02-23
 
 ### Fixed

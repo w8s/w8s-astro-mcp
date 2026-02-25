@@ -208,7 +208,7 @@ flowchart TD
 
 See `docs/DATABASE_SCHEMA.md` for full schema documentation.
 
-**17 Models across 3 domains:**
+**21 Models across 4 domains:**
 
 Profiles & Locations (4):
 1. AppSettings — global state (current profile ID)
@@ -228,7 +228,11 @@ Connections — Phase 7 (6):
 14. ConnectionChart — cached chart metadata + Davison midpoint
 15. ConnectionPlanet, 16. ConnectionHouse, 17. ConnectionPoint
 
-## MCP Tools (26 total)
+Event Charts — Phase 8 (4):
+18. Event — chart metadata (date, time, location, optional profile FK)
+19. EventPlanet, 20. EventHouse, 21. EventPoint
+
+## MCP Tools (30 total)
 
 **Core (9):**
 check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config, get_natal_chart, get_transits, compare_charts, find_house_placements, visualize_natal_chart
@@ -241,6 +245,11 @@ get_transit_history, find_last_transit, get_ingresses
 
 **Connection Management — Phase 7 (6):**
 create_connection, list_connections, add_connection_member, remove_connection_member, get_connection_chart, delete_connection
+
+**Event Charts & Electional Astrology — Phase 8 (4):**
+cast_event_chart, list_event_charts, delete_event_chart, find_electional_windows
+
+Note: `compare_charts` also accepts `event:<label>` as a chart source.
 
 ## Future Enhancements
 
@@ -294,6 +303,15 @@ The 10-year scan cap in extended mode keeps results manageable (~180 events max 
 The old `geocoding.py` used a longitude-band estimate for timezones (US-only, UTC elsewhere). This was replaced with `timezonefinder`, which does a full polygon lookup against the IANA timezone database — necessary for correctness on historical queries in non-US locations (e.g. Bangkok 1995 would have returned UTC instead of Asia/Bangkok).
 
 Ad-hoc locations from step 4 are never saved to the profile or logged to transit history. They exist only for the duration of that ephemeris call.
+
+### 11. Optional Persistence for Event Charts — Phase 8
+`cast_event_chart` accepts an optional `label`. Without a label the chart is calculated and returned but never written to the database — frictionless for ad-hoc historical lookups. With a label the chart is saved and becomes addressable by `event:<label>` in `compare_charts` and `list_event_charts`. This mirrors the inline geocoding pattern from Phase 5.
+
+### 12. Void-of-Course Moon Detection — Phase 8
+`find_electional_windows` uses a full applying-aspect check for `moon_not_void`, not a heuristic. The implementation computes the Moon's remaining degrees in its current sign, then for each other planet checks whether any of the 5 major aspect angles (conjunction, sextile, square, trine, opposition) falls within that window with orb ≤ 8°. If any applying aspect exists the Moon is not void. This is geometrically correct and sign-boundary-aware, including the Pisces→Aries wrap.
+
+### 13. `compare_charts` `event:` Resolver — Phase 8
+The `compare_charts` tool accepts `event:<label>` as a value for `chart1_date` or `chart2_date`. The handler resolves the prefix, looks up the saved event chart by label via `db.get_event_chart_by_label()`, and loads positions via `db.get_event_chart_positions()` which returns the same dict shape as `EphemerisEngine.get_chart()`. No changes to the tool's input schema — just an additional resolution branch in the handler.
 
 ## Contributing
 

@@ -57,18 +57,16 @@ The AI assistant (Claude) already handles cross-tool integration natively — co
 - [x] 6 MCP tools: `create_connection`, `list_connections`, `add_connection_member`, `remove_connection_member`, `get_connection_chart`, `delete_connection`
 - [x] 302 tests (model, math, integration)
 
-## Phase 8: Event Charts & Electional Astrology — Not Started
+## Phase 8: Event Charts & Electional Astrology ✅
 
 Charts cast for a moment in time and place — no profile required. Useful for weddings, business launches, historical event analysis, and electional astrology (finding auspicious moments).
 
-See `docs/PHASE-8-PLANNING.md` for full spec.
-
-- [ ] `cast_event_chart` — cast a chart for any date/time/location; optionally save by label
-- [ ] `list_event_charts` — list all saved event charts
-- [ ] `delete_event_chart` — remove a saved event chart
-- [ ] `find_electional_windows` — scan a time window and return candidate moments scored against criteria (Moon not void, planets direct, benefics angular, etc.)
-- [ ] `compare_charts` gains `event:<label>` resolver — compare any saved event chart to natal or transits
-- [ ] Void-of-course Moon detection utility
+- [x] `cast_event_chart` — cast a chart for any date/time/location; optionally save by label
+- [x] `list_event_charts` — list all saved event charts
+- [x] `delete_event_chart` — remove a saved event chart
+- [x] `find_electional_windows` — scan a time window and return candidate moments scored against criteria (Moon not void, planets direct, benefics angular, etc.)
+- [x] `compare_charts` gains `event:<label>` resolver — compare any saved event chart to natal, transits, or another event
+- [x] Void-of-course Moon detection — full applying-aspect check (not a heuristic): computes remaining degrees in sign and checks all 5 major aspects against all planets
 
 ## Phase 9: Database Self-Healing — Not Started
 
@@ -83,5 +81,5 @@ Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with d
 - [ ] Transits to composite/Davison charts (partial Phase 7 item)
 - [ ] Chart wheel visualizer for composite, Davison, and synastry wheels
 - [ ] `visualize_custom_chart(planets, title)` — render any arbitrary positions
-- [ ] Electional astrology helpers (selecting auspicious moments — builds on Phase 8 event charts)
+- [ ] Electional astrology helpers (selecting auspicious moments — Phase 8 ✅)
 - [ ] Voice mode ("What's my transit weather?")

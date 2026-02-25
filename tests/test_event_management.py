@@ -354,12 +354,25 @@ class TestScoreChart:
         return {"planets": planets, "houses": {}, "points": points}
 
     def test_moon_not_void_passes_when_not_near_cusp(self):
-        chart = self._make_chart(moon_deg=15.0)
+        # Moon at 15° Taurus (abs 45°), Sun at 20° Pisces (abs 350°).
+        # Sun+60 = 410%360 = 50°, travel from Moon = 5°, orb = 5° → sextile applies.
+        chart = self._make_chart(moon_deg=15.0, moon_sign="Taurus",
+                                 sun_sign="Pisces", sun_deg=20.0)
+        chart["planets"]["Sun"]["absolute_position"] = 350.0
+        chart["planets"]["Moon"]["absolute_position"] = 45.0
         met, _ = score_chart(chart, ["moon_not_void"])
         assert "moon_not_void" in met
 
     def test_moon_not_void_fails_when_near_cusp(self):
-        chart = self._make_chart(moon_deg=28.5)
+        # Moon at 29° Taurus (abs 59°), 1° from Gemini.
+        # Sun at 10° Aries (abs 10°): no aspect target lands in Moon's 9° window.
+        chart = self._make_chart(moon_deg=29.0, moon_sign="Taurus",
+                                 sun_sign="Aries", sun_deg=10.0)
+        chart["planets"] = {
+            "Sun":  {"degree": 10.0, "sign": "Aries",  "absolute_position": 10.0,  "is_retrograde": False, "house_number": 9},
+            "Moon": {"degree": 29.0, "sign": "Taurus", "absolute_position": 59.0,  "is_retrograde": False, "house_number": 5},
+            "Mercury": {"degree": 1.0, "sign": "Capricorn", "absolute_position": 271.0, "is_retrograde": False, "house_number": 3},
+        }
         met, _ = score_chart(chart, ["moon_not_void"])
         assert "moon_not_void" not in met
 
@@ -414,7 +427,12 @@ class TestScoreChart:
         assert "asc_not_late" not in met
 
     def test_multiple_criteria_partial_pass(self):
-        chart = self._make_chart(mercury_retro=True, moon_deg=15.0)
+        # Mercury retrograde → no_retrograde_inner fails
+        # Moon at 15° Taurus, Sun at 20° Pisces → sextile applies → not void
+        chart = self._make_chart(mercury_retro=True, moon_deg=15.0, moon_sign="Taurus",
+                                 sun_sign="Pisces", sun_deg=20.0)
+        chart["planets"]["Sun"]["absolute_position"] = 350.0
+        chart["planets"]["Moon"]["absolute_position"] = 45.0
         met, details = score_chart(chart, ["moon_not_void", "no_retrograde_inner"])
         assert "moon_not_void" in met
         assert "no_retrograde_inner" not in met
@@ -639,7 +657,8 @@ class TestHandleFindElectionalWindows:
         assert "✓" in text
 
     async def test_no_candidates_message(self, tmp_db):
-        chart = self._make_mock_chart(moon_deg=28.5)
+        # Use a chart where Mercury is retrograde — no_retrograde_inner will always fail
+        chart = self._make_mock_chart(mercury_retro=True)
         import types, sys
         fake_mod = types.ModuleType("w8s_astro_mcp.utils.ephemeris")
         class FakeEphemerisError(Exception): pass
@@ -655,7 +674,7 @@ class TestHandleFindElectionalWindows:
                 "start_date": "2026-03-01", "end_date": "2026-03-02",
                 "latitude": 32.0, "longitude": -96.0,
                 "timezone": "America/Chicago", "location_name": "Dallas",
-                "criteria": ["moon_not_void"],
+                "criteria": ["no_retrograde_inner"],
                 "interval_minutes": 360,
             })
         finally:

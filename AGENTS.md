@@ -43,17 +43,21 @@ Key reference docs live in `docs/` — read these before making significant chan
 
 | File | What's in it |
 |------|-------------|
+| `README.md` | User-facing overview: features, installation, tools table, database examples |
+| `CHANGELOG.md` | Every user-visible change, following Keep a Changelog format |
 | `docs/ARCHITECTURE.md` | Directory structure, data flow diagrams, all design decisions with rationale |
 | `docs/DATABASE_SCHEMA.md` | Full ERD, all 17+ models, constraint rules, example queries |
 | `docs/ROADMAP.md` | Phase history (1–7 complete), Phase 8 status, future ideas |
 | `docs/PHASE-8-PLANNING.md` | Full Phase 8 spec: event charts, electional tools, compare_charts integration |
 | `docs/TESTING_MCP.md` | How to configure Claude Desktop and smoke-test the server |
 
-When adding a phase or significant feature:
-- Update `docs/ROADMAP.md` to mark items complete
-- Update `docs/ARCHITECTURE.md` if you add new modules, change data flow, or make a design decision
-- Update `docs/DATABASE_SCHEMA.md` if you add or change models
-- Add a `docs/PHASE-N-PLANNING.md` before starting the phase
+When adding a phase or significant feature, update **all** of these that apply:
+- `README.md` — add new tools to the tools table and update the Features section
+- `CHANGELOG.md` — add an entry under the new version
+- `docs/ROADMAP.md` — mark completed items, add new planned items
+- `docs/ARCHITECTURE.md` — if you add modules, change data flow, or make a design decision
+- `docs/DATABASE_SCHEMA.md` — if you add or change models
+- `docs/PHASE-N-PLANNING.md` — create this before starting a new phase
 
 ## Branch Strategy
 

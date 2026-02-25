@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] — 2026-02-25
+
+### Fixed
+
+- **CLI entry point not running** — the `w8s-astro-mcp` command produced `<coroutine object main at 0x...>` and a `RuntimeWarning: coroutine 'main' was never awaited`. pip-generated console_scripts wrappers call the target function directly; pointing them at an `async def` returns a coroutine object instead of executing it. Fixed by adding a sync `run()` wrapper that calls `asyncio.run(main())` and updating `pyproject.toml` to use `w8s_astro_mcp.server:run` as the entry point.
+
 ## [0.11.0] — 2026-02-25
 
 ### Added

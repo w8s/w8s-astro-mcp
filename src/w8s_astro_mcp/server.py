@@ -1085,7 +1085,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 async def main():
     """Run the MCP server."""
     from mcp.server.stdio import stdio_server
-    
+
     async with stdio_server() as (read_stream, write_stream):
         await app.run(
             read_stream,
@@ -1094,5 +1094,15 @@ async def main():
         )
 
 
-if __name__ == "__main__":
+def run():
+    """Sync entry point for the [project.scripts] console_scripts wrapper.
+
+    pip-generated entry points call the target function directly, so an
+    async def would return a coroutine object rather than running it.
+    This thin wrapper ensures asyncio.run() is always used.
+    """
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    run()

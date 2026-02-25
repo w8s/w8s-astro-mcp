@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - **CLI entry point not running** — the `w8s-astro-mcp` command produced `<coroutine object main at 0x...>` and a `RuntimeWarning: coroutine 'main' was never awaited`. pip-generated console_scripts wrappers call the target function directly; pointing them at an `async def` returns a coroutine object instead of executing it. Fixed by adding a sync `run()` wrapper that calls `asyncio.run(main())` and updating `pyproject.toml` to use `w8s_astro_mcp.server:run` as the entry point. The bug existed since v0.1.0 but was masked during development because the `if __name__ == "__main__"` guard always called `asyncio.run()` directly, making `python -m w8s_astro_mcp` work while the installed CLI did not.
 
+### Tests Added
+
+- **`tests/test_entrypoint.py`** — four regression tests that replicate the exact failure mode: asserts `run()` is a sync function, asserts `main()` is async, simulates pip calling `run()` directly and verifies no coroutine is returned, and reads installed package metadata to confirm `pyproject.toml` points to `server:run` not `server:main`. Any future accidental revert will fail CI before it ships.
+
 ## [0.11.0] — 2026-02-25
 
 ### Added

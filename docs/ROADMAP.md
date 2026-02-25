@@ -55,7 +55,7 @@ The AI assistant (Claude) already handles cross-tool integration natively — co
 - [x] Normalized schema — planets/houses/points as queryable rows
 - [x] Chart caching with `is_valid` invalidation flag
 - [x] 6 MCP tools: `create_connection`, `list_connections`, `add_connection_member`, `remove_connection_member`, `get_connection_chart`, `delete_connection`
-- [x] 302 tests (model, math, integration)
+- [x] 348 tests (model, math, integration)
 
 ## Phase 8: Event Charts & Electional Astrology ✅
 
@@ -70,7 +70,9 @@ Charts cast for a moment in time and place — no profile required. Useful for w
 
 ## Phase 9: Database Self-Healing — Not Started
 
-Tools for schema diagnosis and repair as the schema evolves across versions. Motivated by a 2026-02-12 incident where `app_settings` was missing from databases created before that migration.
+Tools for schema diagnosis and repair as the schema evolves across versions.
+
+Note: The 0.11.2 bug fix (auto-initialization of database and seed data on first run) addressed an install blocker but is distinct from Phase 9 — that was a runtime fix, not a migration toolset. Phase 9 remains focused on forward-migration tooling for users upgrading from older schema versions.
 
 Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with dry-run mode, backup/rollback, and schema versioning via `AppSettings.schema_version`.
 

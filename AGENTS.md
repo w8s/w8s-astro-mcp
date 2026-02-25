@@ -23,7 +23,7 @@ CHANGELOG.md         # Keep a Changelog format
 Every release requires **all of the following** — missing any one will cause a broken
 release or a failed MCP Registry publish.
 
-- [ ] Feature complete and tests passing (`venv/bin/python -m pytest`)
+- [ ] Feature complete and tests passing (`.venv/bin/python -m pytest`)
 - [ ] `pyproject.toml` — bump `version`
 - [ ] `server.json` — bump **both** `version` and `packages[0].version` to match
 - [ ] `CHANGELOG.md` — add entry under new version
@@ -82,7 +82,8 @@ Always import them after input validation so validation tests don't require swis
 ### Test Fixtures
 - All test DB fixtures must import all models before `DatabaseHelper()` so
   `Base.metadata` is complete when `create_tables()` runs.
-- Seed `HOUSE_SYSTEM_SEED_DATA` into every test DB — many FK constraints depend on it.
+- `initialize_database()` automatically seeds `HOUSE_SYSTEM_SEED_DATA` — do not
+  add manual house system seeding in fixtures; it will cause UNIQUE constraint errors.
 - Use `db_helper.create_profile_with_location()` to create profiles in tests;
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
@@ -91,11 +92,21 @@ Always import them after input validation so validation tests don't require swis
 ## Common Commands
 
 ```bash
-# Run all tests
-venv/bin/python -m pytest
+# Run full test suite (macOS/Linux)
+.venv/bin/python -m pytest
+
+# Windows
+.venv\Scripts\python -m pytest
 
 # Run one test file
-venv/bin/python -m pytest tests/test_event_management.py -v
+.venv/bin/python -m pytest tests/test_event_management.py -v
+
+# Run by domain
+.venv/bin/python -m pytest tests/models/
+.venv/bin/python -m pytest tests/test_connection_calculator.py
+
+# With coverage
+.venv/bin/python -m pytest --cov=src/w8s_astro_mcp
 
 # Publish to MCP Registry (must be on main, PyPI publish must be complete)
 /opt/homebrew/bin/mcp-publisher publish

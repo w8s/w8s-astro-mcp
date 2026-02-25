@@ -166,19 +166,25 @@ def initialize_database(db_path: Path | None = None, echo: bool = False) -> Engi
         with get_session(engine) as session:
             profiles = session.query(Profile).all()
     """
-    from w8s_astro_mcp.models import AppSettings
-    
+    from w8s_astro_mcp.models import AppSettings, HouseSystem
+    from w8s_astro_mcp.models.house_system import HOUSE_SYSTEM_SEED_DATA
+
     engine = create_db_engine(db_path, echo)
     create_tables(engine)
-    
-    # Seed AppSettings table (single row, id=1)
+
     with get_session(engine) as session:
+        # Seed AppSettings table (single row, id=1)
         settings = session.query(AppSettings).filter_by(id=1).first()
         if not settings:
-            settings = AppSettings(id=1, current_profile_id=None)
-            session.add(settings)
-            session.commit()
-    
+            session.add(AppSettings(id=1, current_profile_id=None))
+
+        # Seed HouseSystem lookup table (idempotent — skip existing rows)
+        for row in HOUSE_SYSTEM_SEED_DATA:
+            if not session.query(HouseSystem).filter_by(code=row["code"]).first():
+                session.add(HouseSystem(**row))
+
+        session.commit()
+
     return engine
 
 

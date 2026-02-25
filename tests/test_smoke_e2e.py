@@ -34,20 +34,9 @@ def temp_db():
     with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
         db_path = Path(f.name)
     
-    # Initialize with schema
+    # Initialize with schema + seed data (house systems are seeded automatically)
     engine = initialize_database(db_path, echo=False)
-    
-    # Seed house systems (reference data)
-    with get_session(engine) as session:
-        house_systems = [
-            HouseSystem(code='P', name='Placidus', description='Placidus house system'),
-            HouseSystem(code='K', name='Koch', description='Koch house system'),
-            HouseSystem(code='E', name='Equal', description='Equal house system'),
-        ]
-        for hs in house_systems:
-            session.add(hs)
-        session.commit()
-    
+
     yield db_path, engine
     
     # Cleanup

@@ -31,12 +31,7 @@ def temp_db(tmp_path):
     """Create a temporary database with seeded reference data."""
     db_path = tmp_path / "test_astro.db"
     engine = initialize_database(db_path, echo=False)
-
-    with get_session(engine) as session:
-        for code, name in [("P", "Placidus"), ("K", "Koch"), ("E", "Equal")]:
-            session.add(HouseSystem(code=code, name=name, description=f"{name} house system"))
-        session.commit()
-
+    # House systems are seeded automatically by initialize_database()
     yield db_path, engine
 
 

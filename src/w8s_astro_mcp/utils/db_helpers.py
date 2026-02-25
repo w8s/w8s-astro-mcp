@@ -26,8 +26,8 @@ class DatabaseHelper:
             db_path: Optional path to a SQLite database file.
                      When provided (e.g. in tests), the file is created if it
                      doesn't exist and all tables are initialised automatically.
-                     When omitted, uses the standard production path and raises
-                     FileNotFoundError if the database hasn't been migrated yet.
+                     When omitted, uses the standard production path and creates
+                     the database automatically if it doesn't exist yet.
         """
         from ..database import create_tables
         if db_path is not None:
@@ -35,13 +35,8 @@ class DatabaseHelper:
             self.engine = create_db_engine(resolved)
             create_tables(self.engine)
         else:
-            resolved = get_database_path()
-            if not resolved.exists():
-                raise FileNotFoundError(
-                    f"Database not found at {resolved}. "
-                    "Run migration script first: python scripts/migrate_config_to_sqlite.py"
-                )
-            self.engine = create_db_engine(resolved)
+            from ..database import initialize_database
+            self.engine = initialize_database()
     
     def get_current_profile(self) -> Optional[Profile]:
         """

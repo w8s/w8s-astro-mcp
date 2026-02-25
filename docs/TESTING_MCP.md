@@ -67,5 +67,5 @@ What are my transits for today?
 
 **Python/import errors:**
 
-- Re-install: `pip install -e ".[dev]"` from the repo root
-- Confirm you're using the right Python environment
+- Re-install: `.venv/bin/python -m pip install -e ".[dev]"` from the repo root
+- Confirm you're using `.venv` (the canonical environment — `venv/` no longer exists)

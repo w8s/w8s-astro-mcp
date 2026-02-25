@@ -46,8 +46,8 @@ Key reference docs live in `docs/` — read these before making significant chan
 | `README.md` | User-facing overview: features, installation, tools table, database examples |
 | `CHANGELOG.md` | Every user-visible change, following Keep a Changelog format |
 | `docs/ARCHITECTURE.md` | Directory structure, data flow diagrams, all design decisions with rationale |
-| `docs/DATABASE_SCHEMA.md` | Full ERD, all 17+ models, constraint rules, example queries |
-| `docs/ROADMAP.md` | Phase history (1–7 complete), Phase 8 status, future ideas |
+| `docs/DATABASE_SCHEMA.md` | Full ERD, all 21 models, constraint rules, example queries |
+| `docs/ROADMAP.md` | Phase history (1–8 complete), Phase 9 status, future ideas |
 | `docs/PHASE-8-PLANNING.md` | Full Phase 8 spec: event charts, electional tools, compare_charts integration |
 | `docs/TESTING_MCP.md` | How to configure Claude Desktop and smoke-test the server |
 
@@ -66,7 +66,11 @@ When adding a phase or significant feature, update **all** of these that apply:
 
 ## Key Conventions
 
-### Session Management
+### Entry Points Must Be Sync
+`[project.scripts]` entry points in `pyproject.toml` are called directly by pip-generated
+wrappers — no `await`, no `asyncio.run()`. Never point an entry point at an `async def`.
+Always use a sync wrapper that calls `asyncio.run(the_async_fn())`. See `server.run()`
+and `tests/test_entrypoint.py` for the pattern and regression tests.
 Never mix `DatabaseHelper` methods with raw `get_session` calls in the same scope —
 they create separate sessions and cause transaction conflicts.
 

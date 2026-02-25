@@ -6,12 +6,12 @@
     "url": "https://github.com/w8s/w8s-astro-mcp",
     "source": "github"
   },
-  "version": "0.10.0",
+  "version": "0.10.2",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "w8s-astro-mcp",
-      "version": "0.10.0",
+      "version": "0.10.2",
       "transport": {
         "type": "stdio"
       }

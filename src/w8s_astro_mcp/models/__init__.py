@@ -8,6 +8,7 @@ This package contains all database models:
 - Natal* models: Cached natal chart data
 - Transit* models: History of transit calculations
 - Connection* models: Relationship charts (composite, Davison) — Phase 7
+- Event* models: Charts cast for a moment in time and place — Phase 8
 
 Example usage:
     from w8s_astro_mcp.models import Profile, Location, AppSettings
@@ -58,6 +59,10 @@ from w8s_astro_mcp.models.connection_chart import ConnectionChart
 from w8s_astro_mcp.models.connection_planet import ConnectionPlanet
 from w8s_astro_mcp.models.connection_house import ConnectionHouse
 from w8s_astro_mcp.models.connection_point import ConnectionPoint
+from w8s_astro_mcp.models.event import Event
+from w8s_astro_mcp.models.event_planet import EventPlanet
+from w8s_astro_mcp.models.event_house import EventHouse
+from w8s_astro_mcp.models.event_point import EventPoint
 
 __all__ = [
     "AppSettings",
@@ -78,4 +83,8 @@ __all__ = [
     "ConnectionPlanet",
     "ConnectionHouse",
     "ConnectionPoint",
+    "Event",
+    "EventPlanet",
+    "EventHouse",
+    "EventPoint",
 ]

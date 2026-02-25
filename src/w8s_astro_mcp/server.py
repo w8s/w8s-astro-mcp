@@ -34,6 +34,11 @@ from .tools.connection_management import (
     handle_connection_tool,
     CONNECTION_TOOL_NAMES,
 )
+from .tools.event_management import (
+    get_event_tools,
+    handle_event_tool,
+    EVENT_TOOL_NAMES,
+)
 
 
 # Initialize MCP server
@@ -372,8 +377,8 @@ async def list_tools() -> list[Tool]:
             name="compare_charts",
             description=(
                 "Calculate aspects between two charts. "
-                "Use for synastry (comparing two natal charts) or "
-                "transits (comparing natal chart with current positions). "
+                "Use for synastry (comparing two natal charts), transits (comparing natal chart with current positions), "
+                "or event chart analysis. "
                 "Finds conjunctions, oppositions, trines, squares, sextiles, and minor aspects."
             ),
             inputSchema={
@@ -381,7 +386,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "chart1_date": {
                         "type": "string",
-                        "description": "Date for first chart (YYYY-MM-DD), use 'natal' for configured birth chart"
+                        "description": "Date for first chart (YYYY-MM-DD), use 'natal' for configured birth chart, or 'event:<label>' for a saved event chart"
                     },
                     "chart1_time": {
                         "type": "string",
@@ -389,7 +394,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "chart2_date": {
                         "type": "string",
-                        "description": "Date for second chart (YYYY-MM-DD), use 'natal' for birth chart or 'today' for current"
+                        "description": "Date for second chart (YYYY-MM-DD), use 'natal' for birth chart, 'today' for current, or 'event:<label>' for a saved event chart"
                     },
                     "chart2_time": {
                         "type": "string",
@@ -450,7 +455,10 @@ async def list_tools() -> list[Tool]:
     # Add connection management tools (Phase 7)
     connection_tools = get_connection_tools()
 
-    return core_tools + profile_tools + connection_tools
+    # Add event chart tools (Phase 8)
+    event_tools = get_event_tools()
+
+    return core_tools + profile_tools + connection_tools + event_tools
 
 
 
@@ -952,6 +960,12 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 chart1 = get_natal_chart_data()
             elif chart1_date == "today":
                 chart1 = get_chart_for_date(None, chart1_time)
+            elif chart1_date.startswith("event:"):
+                label = chart1_date[len("event:"):]
+                ev = db.get_event_chart_by_label(label)
+                if not ev:
+                    return [TextContent(type="text", text=f"Error: no saved event chart with label '{label}'")]
+                chart1 = db.get_event_chart_positions(ev.id)
             else:
                 chart1 = get_chart_for_date(chart1_date, chart1_time)
             
@@ -963,6 +977,12 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 chart2 = get_natal_chart_data()
             elif chart2_date == "today":
                 chart2 = get_chart_for_date(None, chart2_time)
+            elif chart2_date.startswith("event:"):
+                label = chart2_date[len("event:"):]
+                ev = db.get_event_chart_by_label(label)
+                if not ev:
+                    return [TextContent(type="text", text=f"Error: no saved event chart with label '{label}'")]
+                chart2 = db.get_event_chart_positions(ev.id)
             else:
                 chart2 = get_chart_for_date(chart2_date, chart2_time)
             
@@ -1052,6 +1072,11 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         db = init_db()
         engine = init_ephemeris()
         return await handle_connection_tool(name, arguments, db, engine)
+
+    # Event chart tools (Phase 8)
+    elif name in EVENT_TOOL_NAMES:
+        db = init_db()
+        return await handle_event_tool(name, arguments, db)
 
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]

@@ -14,11 +14,13 @@ Personal astrological MCP server using the Swiss Ephemeris via pysweph. Provides
 - **Transit calculations** — current sky positions auto-logged to history
 - **Transit history** — query logged transits by date, planet, or sign
 - **Ingress forecasting** — upcoming or past sign ingresses and stations; supports far-future and historical windows
-- **Aspect analysis** — compare any two charts (natal vs natal, natal vs transits)
+- **Aspect analysis** — compare any two charts (natal vs natal, natal vs transits, natal vs event)
 - **House placements** — determine which house each planet occupies
 - **Chart visualization** — render natal chart wheels as PNG
 - **Multi-profile** — manage charts for multiple people
 - **Relationship charts** — composite and Davison charts for any group of 2+ people
+- **Event charts** — cast charts for any moment and place; optionally save and compare
+- **Electional astrology** — scan a time window for auspicious moments against configurable criteria
 
 ## Installation
 
@@ -106,6 +108,17 @@ Claude will use `create_profile` to set up your birth data and set you as the ac
 | `get_connection_chart` | Calculate or retrieve composite/Davison chart |
 | `delete_connection` | Remove a connection and all its charts |
 
+### Event Charts & Electional Astrology — Phase 8 (4)
+
+| Tool | Description |
+|------|-------------|
+| `cast_event_chart` | Cast a chart for any date/time/location; optionally save by label for later reference |
+| `list_event_charts` | List all saved event charts; filter by associated profile |
+| `delete_event_chart` | Remove a saved event chart and all its positions |
+| `find_electional_windows` | Scan a time window (up to 90 days) and return candidate moments scored against criteria: Moon not void, planets direct, benefics angular, Moon waxing/waning, ASC not late degree |
+
+`compare_charts` also accepts `event:<label>` as a chart source, enabling comparisons like `compare_charts(chart1_date="natal", chart2_date="event:wedding-2026")`.
+
 ## Database
 
 All data lives in `~/.w8s-astro-mcp/astro.db` — a standard SQLite file you can query directly.
@@ -153,7 +166,7 @@ pytest --cov=src/w8s_astro_mcp
 
 ## Roadmap
 
-See `docs/ROADMAP.md` for planned phases including event charts (Phase 8) and database self-healing tools (Phase 9).
+See `docs/ROADMAP.md` for planned phases including database self-healing tools (Phase 9).
 
 ## Questions, Bugs, Ideas
 

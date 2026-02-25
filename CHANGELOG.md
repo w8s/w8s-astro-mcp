@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-02-25
+
+### Added
+
+- **`cast_event_chart`** — cast a chart for any date, time, and location. Optionally save with a unique label for later reference; unlabelled calls calculate and return without writing to the database.
+- **`list_event_charts`** — list all saved event charts, with optional profile filter.
+- **`delete_event_chart`** — permanently remove a saved event chart and all its stored positions.
+- **`find_electional_windows`** — scan a time window (max 90 days) at a configurable interval and return candidate moments scored against electional criteria: `moon_not_void`, `no_retrograde_inner`, `no_retrograde_outer`, `no_retrograde_all`, `moon_waxing`, `moon_waning`, `benefic_angular`, `asc_not_late`. Results are ranked by score then by tightness.
+- **`compare_charts` gains `event:<label>` resolver** — either chart may now be specified as `event:<label>` to compare against a saved event chart. Example: `chart2_date="event:wedding-2026"`.
+- **Full void-of-course Moon detection** — `moon_not_void` criterion uses a geometrically correct applying-aspect check: computes the Moon's remaining degrees in its current sign and verifies whether any of the 5 major aspects (conjunction, sextile, square, trine, opposition) to any other planet falls within that window at ≤8° orb. Replaces the previous near-sign-boundary heuristic.
+- **Database models** — `Event`, `EventPlanet`, `EventHouse`, `EventPoint` (4 new models, total 21).
+- **AGENTS.md** — release checklist with explicit `server.json` + `pyproject.toml` sync requirement; documentation reference table.
+
 ## [0.10.2] — 2026-02-24
 
 ### Fixed

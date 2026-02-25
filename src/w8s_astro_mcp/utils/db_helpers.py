@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-from ..database import get_database_path, create_db_engine, get_session
+from ..database import get_database_path, create_db_engine, get_session, get_session_factory
 from ..models import (
     AppSettings, Profile, Location, HouseSystem,
     NatalPlanet, NatalHouse, NatalPoint,
@@ -1032,3 +1032,194 @@ class DatabaseHelper:
             return session.query(ConnectionPoint).filter_by(
                 connection_chart_id=connection_chart_id
             ).order_by(ConnectionPoint.point_type).all()
+
+    # =========================================================================
+    # Phase 8 — Event Chart Methods
+    # =========================================================================
+
+    def save_event_chart(
+        self,
+        label: str,
+        event_date: str,
+        event_time: str,
+        latitude: float,
+        longitude: float,
+        timezone: str,
+        location_name: str,
+        chart: dict,
+        description: str = None,
+        profile_id: int = None,
+        calculation_method: str = "pysweph",
+    ):
+        """Save a calculated event chart to the database.
+
+        Args:
+            label: Unique human-readable name for this event.
+            event_date: Date in YYYY-MM-DD format.
+            event_time: Time in HH:MM format.
+            latitude: Geographic latitude.
+            longitude: Geographic longitude.
+            timezone: IANA timezone string.
+            location_name: Human-readable location name.
+            chart: Dict with keys 'planets', 'houses', 'points', 'metadata'
+                   as returned by EphemerisEngine.get_chart().
+            description: Optional notes.
+            profile_id: Optional associated profile ID.
+            calculation_method: Ephemeris method used.
+
+        Raises:
+            ValueError: If an event with this label already exists.
+        """
+        from ..models import Event, EventPlanet, EventHouse, EventPoint, HouseSystem
+        from sqlalchemy.orm import Session as _Session
+
+        # Check for duplicate label before opening write session.
+        # We use a raw session (no context manager) so ValueError is not
+        # swallowed by get_session's DatabaseError wrapper.
+        _SessionFactory = get_session_factory(self.engine)
+        _s = _SessionFactory()
+        try:
+            existing = _s.query(Event).filter_by(label=label).first()
+        finally:
+            _s.close()
+        if existing:
+            raise ValueError(f"An event chart with label '{label}' already exists")
+
+        with get_session(self.engine) as session:
+
+            hs = session.query(HouseSystem).filter_by(code="P").first()
+            house_system_id = hs.id if hs else 1
+
+            event = Event(
+                label=label,
+                event_date=event_date,
+                event_time=event_time,
+                latitude=latitude,
+                longitude=longitude,
+                timezone=timezone,
+                location_name=location_name,
+                description=description,
+                profile_id=profile_id,
+                house_system_id=house_system_id,
+                calculation_method=calculation_method,
+            )
+            session.add(event)
+            session.flush()
+
+            for planet_name, pos_data in chart.get("planets", {}).items():
+                norm = self._normalize_position(pos_data)
+                session.add(EventPlanet(
+                    event_id=event.id,
+                    planet=planet_name,
+                    degree=norm["degree"],
+                    minutes=norm["minutes"],
+                    seconds=norm["seconds"],
+                    sign=norm["sign"],
+                    absolute_position=norm["absolute_position"],
+                    house_number=pos_data.get("house_number"),
+                    is_retrograde=bool(pos_data.get("is_retrograde", False)),
+                ))
+
+            for house_num, pos_data in chart.get("houses", {}).items():
+                norm = self._normalize_position(pos_data)
+                session.add(EventHouse(
+                    event_id=event.id,
+                    house_number=int(house_num),
+                    degree=norm["degree"],
+                    minutes=norm["minutes"],
+                    seconds=norm["seconds"],
+                    sign=norm["sign"],
+                    absolute_position=norm["absolute_position"],
+                ))
+
+            for point_type, pos_data in chart.get("points", {}).items():
+                norm = self._normalize_position(pos_data)
+                session.add(EventPoint(
+                    event_id=event.id,
+                    point_type=point_type,
+                    degree=norm["degree"],
+                    minutes=norm["minutes"],
+                    seconds=norm["seconds"],
+                    sign=norm["sign"],
+                    absolute_position=norm["absolute_position"],
+                ))
+
+            session.commit()
+
+    def list_event_charts(self, profile_id: int = None) -> list:
+        """Return all saved event charts, optionally filtered by profile_id."""
+        from ..models import Event
+
+        with get_session(self.engine) as session:
+            q = session.query(Event)
+            if profile_id is not None:
+                q = q.filter_by(profile_id=profile_id)
+            events = q.order_by(Event.event_date, Event.event_time).all()
+            for ev in events:
+                session.expunge(ev)
+            return events
+
+    def get_event_chart_by_label(self, label: str):
+        """Return an Event by label, or None if not found."""
+        from ..models import Event
+
+        with get_session(self.engine) as session:
+            ev = session.query(Event).filter_by(label=label).first()
+            if ev:
+                session.expunge(ev)
+            return ev
+
+    def get_event_chart_positions(self, event_id: int) -> dict:
+        """Return planet/house/point positions for an event as a chart dict.
+
+        Returns the same structure as EphemerisEngine.get_chart():
+            {'planets': {...}, 'houses': {...}, 'points': {...}}
+        """
+        from ..models import EventPlanet, EventHouse, EventPoint
+
+        with get_session(self.engine) as session:
+            planets = {}
+            for ep in session.query(EventPlanet).filter_by(event_id=event_id).all():
+                planets[ep.planet] = {
+                    "degree": ep.degree,
+                    "minutes": ep.minutes,
+                    "seconds": ep.seconds,
+                    "sign": ep.sign,
+                    "absolute_position": ep.absolute_position,
+                    "house_number": ep.house_number,
+                    "is_retrograde": ep.is_retrograde,
+                }
+
+            houses = {}
+            for eh in session.query(EventHouse).filter_by(event_id=event_id).all():
+                houses[str(eh.house_number)] = {
+                    "degree": eh.degree,
+                    "minutes": eh.minutes,
+                    "seconds": eh.seconds,
+                    "sign": eh.sign,
+                    "absolute_position": eh.absolute_position,
+                }
+
+            points = {}
+            for epoint in session.query(EventPoint).filter_by(event_id=event_id).all():
+                points[epoint.point_type] = {
+                    "degree": epoint.degree,
+                    "minutes": epoint.minutes,
+                    "seconds": epoint.seconds,
+                    "sign": epoint.sign,
+                    "absolute_position": epoint.absolute_position,
+                }
+
+            return {"planets": planets, "houses": houses, "points": points}
+
+    def delete_event_chart(self, label: str) -> bool:
+        """Delete a saved event chart by label. Returns True if found and deleted."""
+        from ..models import Event
+
+        with get_session(self.engine) as session:
+            ev = session.query(Event).filter_by(label=label).first()
+            if not ev:
+                return False
+            session.delete(ev)
+            session.commit()
+            return True

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] — 2026-02-25
+
+### Fixed
+
+- **Install blocker: database not auto-initialized on first run** — `DatabaseHelper` raised `FileNotFoundError` when no database existed at the production path, causing all write operations (e.g. `create_profile`) to fail on a fresh install. Fixed by calling `initialize_database()` instead of raising. `initialize_database()` also now seeds the `HouseSystem` lookup table automatically, resolving a secondary failure where FK constraints blocked profile creation even after the DB was created manually.
+
+### Changed
+
+- **README rewritten** — user-facing only; replaced tools tables with Use Cases section showing sample prompts; cross-platform paths for Windows and macOS/Linux; dev/contributor content moved to AGENTS.md
+- **Removed `docs/PHASE-8-PLANNING.md`** — phase complete; content preserved in ARCHITECTURE.md
+- **Consolidated to single `.venv/`** — removed duplicate `venv/` directory; added `.venv/` to `.gitignore`; updated all doc references
+
 ## [0.11.1] — 2026-02-25
 
 ### Fixed

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] — 2026-02-24
+
+### Fixed
+
+- **Installation failure on macOS without CMake** — capped `timezonefinder` to `<8.0.0` to prevent it from pulling in `h3`, which requires CMake ≥3.15 to build from source. Closes [#3](https://github.com/w8s/w8s-astro-mcp/issues/3).
+
 ## [0.10.0] — 2026-02-23
 
 ### Added

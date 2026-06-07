@@ -37,7 +37,8 @@ src/w8s_astro_mcp/
 │       ├── analysis_tools.py    # Aspects, house placements
 │       ├── visualization.py     # Chart drawing (matplotlib)
 │       ├── profile_management.py # Profile/location CRUD tools
-│       └── connection_management.py # Connection/composite/Davison tools
+│       ├── connection_management.py # Connection/composite/Davison tools
+│       └── event_management.py  # Event charts and electional tools
 │
 ├── Ephemeris & Utilities
 │   └── utils/
@@ -201,7 +202,7 @@ flowchart TD
 - timezonefinder (offline IANA timezone lookup from coordinates)
 
 **Dev:**
-- pytest (302 tests)
+- pytest (356 tests)
 - git (version control)
 
 ## Database Schema
@@ -249,7 +250,10 @@ create_connection, list_connections, add_connection_member, remove_connection_me
 **Event Charts & Electional Astrology — Phase 8 (4):**
 cast_event_chart, list_event_charts, delete_event_chart, find_electional_windows
 
-Note: `compare_charts` also accepts `event:<label>` as a chart source.
+Notes:
+- `get_natal_chart`, `get_transits`, `get_transit_history`, `find_last_transit`, and `visualize_natal_chart` all accept an optional `profile_id` — defaults to owner, supply any profile ID to query about someone else.
+- `compare_charts` accepts `chart1_profile_id` and `chart2_profile_id` separately for synastry, and `event:<label>` as a chart source.
+- `find_house_placements` accepts either `profile_id` (natal house reference frame) or `connection_id` + `chart_type` (composite/Davison house reference frame); the two are mutually exclusive.
 
 ## Future Enhancements
 
@@ -313,6 +317,16 @@ Ad-hoc locations from step 4 are never saved to the profile or logged to transit
 ### 13. `compare_charts` `event:` Resolver — Phase 8
 The `compare_charts` tool accepts `event:<label>` as a value for `chart1_date` or `chart2_date`. The handler resolves the prefix, looks up the saved event chart by label via `db.get_event_chart_by_label()`, and loads positions via `db.get_event_chart_positions()` which returns the same dict shape as `EphemerisEngine.get_chart()`. No changes to the tool's input schema — just an additional resolution branch in the handler.
 
+### 14. Handler Extraction for Testability — v0.12.0
+Complex tool handlers that benefit from direct testing are extracted into standalone
+`async def handle_*()` functions above the `@app.call_tool()` dispatcher. The dispatcher
+delegates with a single `await handle_*(arguments)`. Tests import and call `handle_*()`
+directly without needing to pierce the MCP decorator.
+
+See `handle_find_house_placements()` in `server.py` and `tests/test_find_house_placements.py`
+for the reference implementation. Apply this pattern to any new handler whose logic
+branches enough to warrant standalone test coverage.
+
 ## Contributing
 
 When adding features:
@@ -346,16 +360,21 @@ pytest tests/models/test_connections.py
 
 ## Migration Guide
 
-**For existing users:**
+**v0.8 → v0.9 (JSON to SQLite):**
 1. Run: `python scripts/migrate_config_to_sqlite.py`
 2. Database created at: `~/.w8s-astro-mcp/astro.db`
 3. Server automatically uses new database
 4. Keep config.json as backup
 
+**v0.11 → v0.12 (owner profile rename):**
+1. Run: `python scripts/migrate_owner_profile.py`
+2. Renames `current_profile_id` → `owner_profile_id` in `app_settings` table
+3. Idempotent — safe to run multiple times
+4. After migrating, use `setup_owner` to confirm your profile is set
+
 **For new users:**
 - No migration needed
-- Server expects database to exist at `~/.w8s-astro-mcp/astro.db`
-- Use migration script to create initial profile
+- Server initializes the database automatically on first run
 
 ## License
 

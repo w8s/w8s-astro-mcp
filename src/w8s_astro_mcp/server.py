@@ -146,6 +146,98 @@ def get_chart_for_date(date_str, time_str="12:00", location=None, profile_id: Op
     )
 
 
+async def handle_find_house_placements(arguments: dict) -> list[TextContent]:
+    """Handle find_house_placements tool call. Extracted for testability."""
+    try:
+        date = arguments["date"]
+        time = arguments.get("time", "12:00")
+        profile_id = arguments.get("profile_id")
+        connection_id = arguments.get("connection_id")
+        chart_type = arguments.get("chart_type")
+        db = init_db()
+
+        # connection_id and profile_id are mutually exclusive
+        if connection_id is not None and profile_id is not None:
+            return [TextContent(
+                type="text",
+                text="Error: connection_id and profile_id are mutually exclusive. "
+                     "Supply one or the other, not both."
+            )]
+
+        if connection_id is not None:
+            # --- Connection chart as house reference frame ---
+            if not chart_type:
+                return [TextContent(
+                    type="text",
+                    text="Error: chart_type ('composite' or 'davison') is required when connection_id is supplied."
+                )]
+
+            connection = db.get_connection_by_id(connection_id)
+            if not connection:
+                return [TextContent(type="text", text=f"Error: connection {connection_id} not found.")]
+
+            cached = db.get_connection_chart(connection_id, chart_type)
+            if not cached or not cached.is_valid:
+                return [TextContent(
+                    type="text",
+                    text=f"Error: no valid {chart_type} chart for connection {connection_id}. "
+                         "Run get_connection_chart first."
+                )]
+
+            raw_houses = db.get_connection_houses(cached.id)
+            if not raw_houses:
+                return [TextContent(type="text", text=f"Error: no house data for {chart_type} chart.")]
+
+            houses = {
+                str(h.house_number): {
+                    "degree": h.degree + (h.minutes or 0) / 60.0,
+                    "sign": h.sign,
+                }
+                for h in raw_houses
+            }
+            reference_label = f"{connection.label} ({chart_type.title()})"
+
+            if date == "natal":
+                return [TextContent(
+                    type="text",
+                    text="Error: 'natal' date is ambiguous with a connection_id. "
+                         "Supply a specific date or 'today'."
+                )]
+            transit_chart = get_chart_for_date(None if date == "today" else date, time)
+            planets = transit_chart["planets"]
+
+        else:
+            # --- Natal chart as house reference frame ---
+            if date == "natal":
+                # Natal planets in natal houses
+                chart = get_natal_chart_data(profile_id=profile_id)
+                planets = chart["planets"]
+                houses = chart["houses"]
+            else:
+                # Transit planets placed against the profile's natal houses
+                transit_chart = get_chart_for_date(None if date == "today" else date, time)
+                natal = get_natal_chart_data(profile_id=profile_id)
+                planets = transit_chart["planets"]
+                houses = natal["houses"]
+            reference_label = None
+
+        result = find_planets_in_houses(planets, houses)
+        report = format_house_report(result)
+        if reference_label:
+            report = report.replace(
+                "# House Placements",
+                f"# House Placements \u2014 {reference_label}"
+            )
+        return [TextContent(type="text", text=report)]
+
+    except AnalysisError as e:
+        return [TextContent(type="text", text=f"Analysis error: {e}")]
+    except EphemerisError as e:
+        return [TextContent(type="text", text=f"Ephemeris error: {e}")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     """List available MCP tools."""
@@ -454,13 +546,18 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="find_house_placements",
-            description="Determine which house each planet occupies in a chart. Shows both which planets are in each house and which house each planet is in.",
+            description=(
+                "Determine which house each planet occupies in a chart. "
+                "Can use a natal chart (via profile_id or owner default) or a connection chart "
+                "(composite/Davison via connection_id + chart_type) as the house reference frame. "
+                "Shows both which planets are in each house and which house each planet is in."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "date": {
                         "type": "string",
-                        "description": "Date for chart (YYYY-MM-DD), use 'natal' for configured birth chart or 'today' for current"
+                        "description": "Date for the planets to place (YYYY-MM-DD), 'natal' for birth chart planets, or 'today' for current sky"
                     },
                     "time": {
                         "type": "string",
@@ -468,7 +565,16 @@ async def list_tools() -> list[Tool]:
                     },
                     "profile_id": {
                         "type": "integer",
-                        "description": "Profile ID to use when date is 'natal' (from list_profiles). Defaults to owner profile."
+                        "description": "Profile ID whose natal houses to use as the reference frame (from list_profiles). Defaults to owner profile. Mutually exclusive with connection_id."
+                    },
+                    "connection_id": {
+                        "type": "integer",
+                        "description": "Connection ID whose composite/Davison houses to use as the reference frame (from list_connections). Requires chart_type. Mutually exclusive with profile_id."
+                    },
+                    "chart_type": {
+                        "type": "string",
+                        "enum": ["composite", "davison"],
+                        "description": "Which connection chart to use as the house reference frame. Required when connection_id is supplied."
                     }
                 },
                 "required": ["date"]
@@ -1076,35 +1182,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return [TextContent(type="text", text=f"Error: {e}")]
     
     elif name == "find_house_placements":
-        try:
-            # Get chart
-            date = arguments["date"]
-            time = arguments.get("time", "12:00")
-            
-            profile_id = arguments.get("profile_id")
-            if date == "natal":
-                chart = get_natal_chart_data(profile_id=profile_id)
-            elif date == "today":
-                chart = get_chart_for_date(None, time)
-            else:
-                chart = get_chart_for_date(date, time)
-            
-            # Analyze house placements
-            result = find_planets_in_houses(
-                chart["planets"],
-                chart["houses"]
-            )
-            
-            # Format and return
-            report = format_house_report(result)
-            return [TextContent(type="text", text=report)]
-            
-        except AnalysisError as e:
-            return [TextContent(type="text", text=f"Analysis error: {e}")]
-        except EphemerisError as e:
-            return [TextContent(type="text", text=f"Ephemeris error: {e}")]
-        except Exception as e:
-            return [TextContent(type="text", text=f"Error: {e}")]
+        return await handle_find_house_placements(arguments)
     
     elif name == "visualize_natal_chart":
         try:

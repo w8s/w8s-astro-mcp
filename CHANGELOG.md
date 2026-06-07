@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] — 2026-06-06
+
+### Changed
+
+- **`set_current_profile` replaced by `setup_owner`** — the concept of a "current profile" (a mutable session pointer) has been replaced with a stable "owner profile": the identity of the human operating the server. `setup_owner` is a one-time configuration step, not a session operation. The old model conflated the operator's identity with the subject of a query; other profiles are now objects to query *about*, never personas to switch into.
+- **`AppSettings.current_profile_id` → `owner_profile_id`** — database column renamed. Existing databases must run `python scripts/migrate_owner_profile.py` once to upgrade (idempotent, SQLite 3.25-safe).
+
+### Added
+
+- **`profile_id` override on all single-profile tools** — `get_natal_chart`, `get_transits`, `get_transit_history`, `find_last_transit`, and `visualize_natal_chart` now accept an optional `profile_id`. Omit it to use the owner profile; supply it to query any profile without changing global state.
+- **`compare_charts` gains `chart1_profile_id` and `chart2_profile_id`** — replaces the single ambiguous `profile_id`. Enables true synastry: `chart1_date=natal, chart1_profile_id=1, chart2_date=natal, chart2_profile_id=3` with no session switching.
+- **`find_house_placements` supports connection charts** — new `connection_id` + `chart_type` (composite|davison) params use a cached connection chart's house cusps as the reference frame. `connection_id` and `profile_id` are mutually exclusive; supplying both returns a clear error.
+- **`scripts/migrate_owner_profile.py`** — one-time migration script for databases created before v0.12.0. Idempotent, detects if already applied, uses SQLite table-rebuild for compatibility back to SQLite 3.25.
+
+### Fixed
+
+- **`find_house_placements` natal house fix** — `date=today` with a `profile_id` previously returned identical results for all profiles (always used the owner's natal house system). Now places transit planets against the specified profile's natal houses.
+- **`compare_charts` handler missing `db = init_db()`** — caused a crash when either chart was an `event:<label>` reference.
+- **Davison chart formatter dropped sign names** — `EphemerisEngine` returns `formatted` as `"9°46'"` (no sign); new `_fmt_with_sign()` helper appends the sign name when absent. Composite charts were unaffected.
+- **Stale `current_profile_id` references** in `database.py` seed, `models/__init__.py` docstring, and `tools/profile_management.py` description — all updated.
+
+### Tests
+
+- **13 new tests** for `handle_find_house_placements` — natal path (owner default, explicit profile), transit path (natal houses, owner default, specific date), connection path (composite, davison, label in header), and all error paths (mutually exclusive params, missing chart_type, connection not found, no cached chart, natal date with connection_id).
+- Handler extracted into standalone `handle_find_house_placements()` for direct testability without piercing the MCP decorator. This pattern is now the standard for complex handlers.
+- **356 tests total** (up from 302 at v0.11.0).
+
 ## [0.11.2] — 2026-02-25
 
 ### Fixed

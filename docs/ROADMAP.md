@@ -55,7 +55,7 @@ The AI assistant (Claude) already handles cross-tool integration natively — co
 - [x] Normalized schema — planets/houses/points as queryable rows
 - [x] Chart caching with `is_valid` invalidation flag
 - [x] 6 MCP tools: `create_connection`, `list_connections`, `add_connection_member`, `remove_connection_member`, `get_connection_chart`, `delete_connection`
-- [x] 348 tests (model, math, integration)
+- [x] 356 tests (model, math, integration)
 
 ## Phase 8: Event Charts & Electional Astrology ✅
 
@@ -68,11 +68,25 @@ Charts cast for a moment in time and place — no profile required. Useful for w
 - [x] `compare_charts` gains `event:<label>` resolver — compare any saved event chart to natal, transits, or another event
 - [x] Void-of-course Moon detection — full applying-aspect check (not a heuristic): computes remaining degrees in sign and checks all 5 major aspects against all planets
 
-## Phase 9: Database Self-Healing — Not Started
+## v0.12.0: AI UX — Multi-Profile Querying ✅
+
+Cross-cutting improvements to how an AI assistant queries profiles. The key insight: the AI user is always the *operator* — other profiles are objects to query *about*, not personas to switch into.
+
+- [x] `set_current_profile` replaced by `setup_owner` — stable one-time identity, not a session switch
+- [x] `AppSettings.current_profile_id` → `owner_profile_id` with migration script
+- [x] Optional `profile_id` on all single-profile tools — defaults to owner, enables querying anyone without global state changes
+- [x] `compare_charts` gains `chart1_profile_id` / `chart2_profile_id` — unambiguous synastry without profile switching
+- [x] `find_house_placements` accepts `connection_id` + `chart_type` — place today's sky in composite or Davison house systems
+- [x] `find_house_placements` natal house fix — transit placement now uses the target profile's houses, not always the owner's
+- [x] Davison chart formatter fix — sign names were dropped from output
+- [x] Handler extraction pattern established — complex handlers live in standalone `handle_*()` functions for direct testability
+- [x] 13 new tests for `find_house_placements`; 356 total
+
+## Phase 9: Database Self-Healing — In Progress
 
 Tools for schema diagnosis and repair as the schema evolves across versions.
 
-Note: The 0.11.2 bug fix (auto-initialization of database and seed data on first run) addressed an install blocker but is distinct from Phase 9 — that was a runtime fix, not a migration toolset. Phase 9 remains focused on forward-migration tooling for users upgrading from older schema versions.
+Note: `scripts/migrate_owner_profile.py` (v0.12.0) is the first concrete migration script in this direction — idempotent, SQLite-safe column rename with clear output. Phase 9 will generalize this into a full toolset.
 
 Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with dry-run mode, backup/rollback, and schema versioning via `AppSettings.schema_version`.
 

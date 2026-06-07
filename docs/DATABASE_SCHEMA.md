@@ -233,7 +233,7 @@ erDiagram
         int preferred_house_system_id FK
     }
 
-    app_settings ||--o| profiles : "tracks active user"
+    app_settings ||--o| profiles : "owner identity"
     profiles ||--|| locations : "birth location"
     profiles ||--|| house_systems : "preferred system"
     locations }o--|| profiles : "owned by"

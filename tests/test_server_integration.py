@@ -67,8 +67,8 @@ def test_setup_astro_config_workflow(db_helper, temp_db):
         assert birth_loc.latitude == 32.9483
 
 
-def test_database_helper_get_primary_profile(db_helper, temp_db):
-    """DatabaseHelper.get_current_profile() returns the profile after it is set as current."""
+def test_database_helper_get_owner_profile(db_helper, temp_db):
+    """DatabaseHelper.get_owner_profile() returns the profile after it is set as owner."""
     _db_path, engine = temp_db
 
     profile = db_helper.create_profile_with_location(
@@ -81,11 +81,11 @@ def test_database_helper_get_primary_profile(db_helper, temp_db):
         birth_timezone="America/Chicago"
     )
 
-    db_helper.set_current_profile(profile.id)
+    db_helper.set_owner_profile(profile.id)
 
-    current = db_helper.get_current_profile()
-    assert current is not None
-    assert current.name == "Primary User"
+    owner = db_helper.get_owner_profile()
+    assert owner is not None
+    assert owner.name == "Primary User"
 
 
 def test_get_natal_chart_with_cached_data(db_helper, temp_db):

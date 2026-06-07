@@ -176,7 +176,7 @@ def initialize_database(db_path: Path | None = None, echo: bool = False) -> Engi
         # Seed AppSettings table (single row, id=1)
         settings = session.query(AppSettings).filter_by(id=1).first()
         if not settings:
-            session.add(AppSettings(id=1, current_profile_id=None))
+            session.add(AppSettings(id=1, owner_profile_id=None))
 
         # Seed HouseSystem lookup table (idempotent — skip existing rows)
         for row in HOUSE_SYSTEM_SEED_DATA:

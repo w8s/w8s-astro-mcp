@@ -36,9 +36,9 @@ Example usage:
         session.add(profile)
         session.flush()
         
-        # Set as current user
+        # Set as owner
         settings = session.query(AppSettings).first()
-        settings.current_profile_id = profile.id
+        settings.owner_profile_id = profile.id
         session.commit()
 """
 

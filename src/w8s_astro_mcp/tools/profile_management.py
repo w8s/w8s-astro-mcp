@@ -108,7 +108,7 @@ def get_profile_management_tools() -> list[Tool]:
                 "Delete a profile from the database. "
                 "WARNING: This is permanent and cannot be undone. "
                 "Deletes the profile and all associated natal chart data. "
-                "If this is the current profile, current_profile_id will be set to NULL."
+                "If this is the owner profile, owner_profile_id will be set to NULL."
             ),
             inputSchema={
                 "type": "object",

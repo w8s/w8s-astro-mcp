@@ -29,7 +29,7 @@ release or a failed MCP Registry publish.
 - [ ] `CHANGELOG.md` — add entry under new version
 - [ ] Merge feature branch to `main` with `--no-ff`
 - [ ] `git tag -a <version> -m "..."` and `git push origin main && git push origin <tag>`
-- [ ] Wait for PyPI publish GitHub Action to complete
+- [ ] Wait for PyPI publish GitHub Action to complete (also auto-creates GitHub Release from CHANGELOG.md)
 - [ ] `/opt/homebrew/bin/mcp-publisher publish` from repo root on `main`
 
 > ⚠️ **server.json and pyproject.toml must always be updated together.**

@@ -469,7 +469,7 @@ def _format_chart_result(connection, chart, positions, members, chart_label, mid
     if planets:
         response += "## Planets\n"
         for name, data in planets.items():
-            pos = data.get("formatted") or _fmt(data)
+            pos = _fmt_with_sign(data)
             response += f"- **{name}**: {pos}\n"
         response += "\n"
 
@@ -478,7 +478,7 @@ def _format_chart_result(connection, chart, positions, members, chart_label, mid
         response += "## Houses\n"
         for num in sorted(houses.keys(), key=lambda x: int(x)):
             data = houses[num]
-            pos = data.get("formatted") or _fmt(data)
+            pos = _fmt_with_sign(data)
             response += f"- House {num}: {pos}\n"
         response += "\n"
 
@@ -486,7 +486,7 @@ def _format_chart_result(connection, chart, positions, members, chart_label, mid
     if points:
         response += "## Angles\n"
         for name, data in points.items():
-            pos = data.get("formatted") or _fmt(data)
+            pos = _fmt_with_sign(data)
             response += f"- **{name}**: {pos}\n"
 
     return [TextContent(type="text", text=response)]
@@ -526,10 +526,30 @@ def _format_cached_chart(connection, cached_chart, db_helper):
 def _fmt(data: dict) -> str:
     """Fallback formatter for position data lacking a 'formatted' key."""
     if "sign" in data and "degree" in data:
-        return f"{data['degree']}° {data.get('minutes', 0):02d}' {data['sign']}"
+        return f"{data['degree']}\u00b0 {data.get('minutes', 0):02d}' {data['sign']}"
     if "absolute_position" in data:
-        return f"{data['absolute_position']:.2f}°"
+        return f"{data['absolute_position']:.2f}\u00b0"
     return str(data)
+
+
+def _fmt_with_sign(data: dict) -> str:
+    """Format a position dict, always including the sign name.
+
+    EphemerisEngine.get_chart() returns 'formatted' as "9°46'" (no sign).
+    Composite positions include sign in their 'formatted' string already.
+    This function ensures sign is always present regardless of source.
+    """
+    formatted = data.get("formatted", "")
+    sign = data.get("sign", "")
+
+    if formatted and sign and sign not in formatted:
+        # EphemerisEngine raw output — append the sign
+        return f"{formatted} {sign}"
+    if formatted:
+        # Composite or cached — sign already included
+        return formatted
+    # Final fallback
+    return _fmt(data)
 
 
 # ============================================================================

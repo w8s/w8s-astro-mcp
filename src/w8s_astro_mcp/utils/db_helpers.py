@@ -38,22 +38,25 @@ class DatabaseHelper:
             from ..database import initialize_database
             self.engine = initialize_database()
     
-    def get_current_profile(self) -> Optional[Profile]:
+    def get_owner_profile(self) -> Optional[Profile]:
         """
-        Get the current user's profile (from AppSettings).
-        
-        Returns None if no profile is set as current.
+        Get the owner's profile (from AppSettings.owner_profile_id).
+
+        The owner is the stable identity of the human operating this server —
+        set once via setup_owner, not changed during normal use.
+
+        Returns None if owner has not been configured yet.
         """
         with get_session(self.engine) as session:
             settings = session.query(AppSettings).filter_by(id=1).first()
-            if not settings or not settings.current_profile_id:
+            if not settings or not settings.owner_profile_id:
                 return None
-            return session.query(Profile).filter_by(id=settings.current_profile_id).first()
-    
-    def set_current_profile(self, profile_id: int) -> bool:
+            return session.query(Profile).filter_by(id=settings.owner_profile_id).first()
+
+    def set_owner_profile(self, profile_id: int) -> bool:
         """
-        Set the current user's profile.
-        
+        Set the owner profile (one-time setup, not a session operation).
+
         Returns True if successful, False if profile doesn't exist.
         """
         with get_session(self.engine) as session:
@@ -61,15 +64,15 @@ class DatabaseHelper:
             profile = session.query(Profile).filter_by(id=profile_id).first()
             if not profile:
                 return False
-            
+
             # Update or create settings
             settings = session.query(AppSettings).filter_by(id=1).first()
             if not settings:
-                settings = AppSettings(id=1, current_profile_id=profile_id)
+                settings = AppSettings(id=1, owner_profile_id=profile_id)
                 session.add(settings)
             else:
-                settings.current_profile_id = profile_id
-            
+                settings.owner_profile_id = profile_id
+
             session.commit()
             return True
     
@@ -748,7 +751,7 @@ class DatabaseHelper:
         - locations (FK: profile_id ON DELETE CASCADE)
         - transit_lookups (FK: profile_id ON DELETE CASCADE)
         
-        If this profile is the current_profile, AppSettings.current_profile_id
+        If this profile is the owner profile, AppSettings.owner_profile_id
         will be set to NULL automatically (ON DELETE SET NULL).
         
         Args:

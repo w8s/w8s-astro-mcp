@@ -67,9 +67,12 @@ def init_ephemeris() -> EphemerisEngine:
     return ephemeris
 
 
-def get_natal_chart_data():
+def get_natal_chart_data(profile_id: Optional[int] = None):
     """
-    Get natal chart for the current profile, calculating and caching on demand.
+    Get natal chart for a profile, calculating and caching on demand.
+
+    If profile_id is supplied, uses that profile. Otherwise falls back to
+    the owner profile. Raises if neither is configured.
 
     If the profile has no cached natal data (e.g. newly created profiles or
     existing profiles migrated from v0.8), the chart is calculated via
@@ -77,9 +80,14 @@ def get_natal_chart_data():
     """
     db = init_db()
 
-    profile = db.get_current_profile()
-    if not profile:
-        raise EphemerisError("No primary profile found. Run migration script first.")
+    if profile_id is not None:
+        profile = db.get_profile_by_id(profile_id)
+        if not profile:
+            raise EphemerisError(f"Profile {profile_id} not found.")
+    else:
+        profile = db.get_owner_profile()
+        if not profile:
+            raise EphemerisError("Owner profile not configured. Run setup_owner first.")
 
     chart = db.get_natal_chart_data(profile)
 
@@ -110,14 +118,21 @@ def get_natal_chart_data():
     return chart
 
 
-def get_chart_for_date(date_str, time_str="12:00", location=None):
+def get_chart_for_date(date_str, time_str="12:00", location=None, profile_id: Optional[int] = None):
     """Get chart for specific date at a location."""
     engine = init_ephemeris()
     db = init_db()
 
     # Get location
     if location is None:
-        profile = db.get_current_profile()
+        if profile_id is not None:
+            profile = db.get_profile_by_id(profile_id)
+            if not profile:
+                raise EphemerisError(f"Profile {profile_id} not found.")
+        else:
+            profile = db.get_owner_profile()
+            if not profile:
+                raise EphemerisError("Owner profile not configured. Run setup_owner first.")
         location = db.get_current_home_location(profile)
         if not location:
             raise EphemerisError("No current home location found")
@@ -223,10 +238,15 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_natal_chart",
-            description="Get the natal chart (birth chart) planetary positions for the configured birth data",
+            description="Get the natal chart (birth chart) planetary positions for a profile. Defaults to the owner profile if no profile_id is supplied.",
             inputSchema={
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
+                    }
+                }
             }
         ),
         Tool(
@@ -255,6 +275,10 @@ async def list_tools() -> list[Tool]:
                             "Saved label ('home', 'work', 'birth') or any city name "
                             "('Bangkok, Thailand', 'Seattle, WA'). Defaults to 'current'."
                         )
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
                     }
                 }
             }
@@ -262,7 +286,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_transit_history",
             description=(
-                "Query historical transit lookups stored in the database for the current profile. "
+                "Query historical transit lookups stored in the database for a profile. Defaults to the owner profile. "
                 "Supports filtering by date range, planet, and sign. "
                 "Examples: 'show me last month\\'s transits', "
                 "'when was Mercury in Capricorn?', 'what sign was Jupiter in last year?'"
@@ -289,6 +313,10 @@ async def list_tools() -> list[Tool]:
                     "limit": {
                         "type": "integer",
                         "description": "Max number of results to return (default 20, max 100)"
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
                     }
                 }
             }
@@ -320,6 +348,10 @@ async def list_tools() -> list[Tool]:
                     "house": {
                         "type": "integer",
                         "description": "Natal house number to match, 1-12 (optional)"
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
                     }
                 },
                 "required": ["planet"]
@@ -386,19 +418,27 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "chart1_date": {
                         "type": "string",
-                        "description": "Date for first chart (YYYY-MM-DD), use 'natal' for configured birth chart, or 'event:<label>' for a saved event chart"
+                        "description": "Date for first chart (YYYY-MM-DD), use 'natal' for a natal chart, or 'event:<label>' for a saved event chart"
                     },
                     "chart1_time": {
                         "type": "string",
                         "description": "Time for first chart in HH:MM format (optional, defaults to 12:00)"
                     },
+                    "chart1_profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID for chart1 when chart1_date is 'natal' (from list_profiles). Defaults to owner profile."
+                    },
                     "chart2_date": {
                         "type": "string",
-                        "description": "Date for second chart (YYYY-MM-DD), use 'natal' for birth chart, 'today' for current, or 'event:<label>' for a saved event chart"
+                        "description": "Date for second chart (YYYY-MM-DD), use 'natal' for a natal chart, 'today' for current, or 'event:<label>' for a saved event chart"
                     },
                     "chart2_time": {
                         "type": "string",
                         "description": "Time for second chart in HH:MM format (optional, defaults to 12:00)"
+                    },
+                    "chart2_profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID for chart2 when chart2_date is 'natal' (from list_profiles). Defaults to owner profile."
                     },
                     "orb_multiplier": {
                         "type": "number",
@@ -425,6 +465,10 @@ async def list_tools() -> list[Tool]:
                     "time": {
                         "type": "string",
                         "description": "Time in HH:MM format (optional, defaults to 12:00)"
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to use when date is 'natal' (from list_profiles). Defaults to owner profile."
                     }
                 },
                 "required": ["date"]
@@ -443,6 +487,10 @@ async def list_tools() -> list[Tool]:
                     "title": {
                         "type": "string",
                         "description": "Custom title for the chart (optional, defaults to 'Natal Chart')"
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to visualize (from list_profiles). Defaults to owner profile."
                     }
                 }
             }
@@ -562,8 +610,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             
             response = "# Current Configuration\n\n"
             
-            # Primary profile
-            profile = db.get_current_profile()
+            # Owner profile
+            profile = db.get_owner_profile()
             if profile:
                 birth_loc = db.get_birth_location(profile)
                 response += "## Primary Profile\n"
@@ -576,7 +624,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                     response += f"Timezone: {birth_loc.timezone}\n"
                 response += "\n"
             else:
-                response += "## Primary Profile\nNot configured.\n\n"
+                response += "## Owner Profile\nNot configured. Run setup_owner to set.\n\n"
             
             # Locations
             if profile:
@@ -596,8 +644,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     
     elif name == "get_natal_chart":
         try:
-            # Get natal chart data from database
-            result = get_natal_chart_data()
+            profile_id = arguments.get("profile_id")
+            result = get_natal_chart_data(profile_id=profile_id)
             
             # Format response
             response = f"# Natal Chart for {result['metadata']['date']} at {result['metadata']['time']}\n"
@@ -625,9 +673,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     elif name == "get_transit_history":
         try:
             db = init_db()
-            profile = db.get_current_profile()
-            if not profile:
-                return [TextContent(type="text", text="Error: No profile configured.")]
+            profile_id = arguments.get("profile_id")
+            if profile_id is not None:
+                profile = db.get_profile_by_id(profile_id)
+                if not profile:
+                    return [TextContent(type="text", text=f"Error: Profile {profile_id} not found.")]
+            else:
+                profile = db.get_owner_profile()
+                if not profile:
+                    return [TextContent(type="text", text="Error: Owner profile not configured. Run setup_owner first.")]
 
             after = arguments.get("after")
             before = arguments.get("before")
@@ -702,9 +756,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     elif name == "find_last_transit":
         try:
             db = init_db()
-            profile = db.get_current_profile()
-            if not profile:
-                return [TextContent(type="text", text="Error: No profile configured.")]
+            profile_id = arguments.get("profile_id")
+            if profile_id is not None:
+                profile = db.get_profile_by_id(profile_id)
+                if not profile:
+                    return [TextContent(type="text", text=f"Error: Profile {profile_id} not found.")]
+            else:
+                profile = db.get_owner_profile()
+                if not profile:
+                    return [TextContent(type="text", text="Error: Owner profile not configured. Run setup_owner first.")]
 
             planet = arguments.get("planet")
             if not planet:
@@ -774,9 +834,9 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         try:
             ephem_engine = init_ephemeris()
             db = init_db()
-            profile = db.get_current_profile()
+            profile = db.get_owner_profile()
             if not profile:
-                return [TextContent(type="text", text="Error: No profile configured.")]
+                return [TextContent(type="text", text="Error: Owner profile not configured. Run setup_owner first.")]
 
             extended = bool(arguments.get("extended", False))
             days = int(arguments.get("days", 30))
@@ -840,10 +900,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             time_str = arguments.get("time", "12:00")
             location_arg = arguments.get("location", "current")
             
-            # Get profile
-            profile = db.get_current_profile()
-            if not profile:
-                return [TextContent(type="text", text="No primary profile found")]
+            profile_id = arguments.get("profile_id")
+
+            # Get profile — supplied or owner
+            if profile_id is not None:
+                profile = db.get_profile_by_id(profile_id)
+                if not profile:
+                    return [TextContent(type="text", text=f"Error: Profile {profile_id} not found.")]
+            else:
+                profile = db.get_owner_profile()
+                if not profile:
+                    return [TextContent(type="text", text="No owner profile configured. Run setup_owner first.")]
             
             # Resolve location
             #
@@ -951,13 +1018,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     elif name == "compare_charts":
         try:
             # chart retrieval goes through get_chart_for_date which calls init_ephemeris()
-            
+            db = init_db()
+
             # Get chart1
             chart1_date = arguments["chart1_date"]
             chart1_time = arguments.get("chart1_time", "12:00")
-            
+            chart1_profile_id = arguments.get("chart1_profile_id")
+
             if chart1_date == "natal":
-                chart1 = get_natal_chart_data()
+                chart1 = get_natal_chart_data(profile_id=chart1_profile_id)
             elif chart1_date == "today":
                 chart1 = get_chart_for_date(None, chart1_time)
             elif chart1_date.startswith("event:"):
@@ -972,9 +1041,10 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             # Get chart2
             chart2_date = arguments["chart2_date"]
             chart2_time = arguments.get("chart2_time", "12:00")
-            
+            chart2_profile_id = arguments.get("chart2_profile_id")
+
             if chart2_date == "natal":
-                chart2 = get_natal_chart_data()
+                chart2 = get_natal_chart_data(profile_id=chart2_profile_id)
             elif chart2_date == "today":
                 chart2 = get_chart_for_date(None, chart2_time)
             elif chart2_date.startswith("event:"):
@@ -1011,8 +1081,9 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             date = arguments["date"]
             time = arguments.get("time", "12:00")
             
+            profile_id = arguments.get("profile_id")
             if date == "natal":
-                chart = get_natal_chart_data()
+                chart = get_natal_chart_data(profile_id=profile_id)
             elif date == "today":
                 chart = get_chart_for_date(None, time)
             else:
@@ -1037,8 +1108,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     
     elif name == "visualize_natal_chart":
         try:
-            # Get natal chart data from database
-            natal_chart = get_natal_chart_data()
+            profile_id = arguments.get("profile_id")
+            natal_chart = get_natal_chart_data(profile_id=profile_id)
             
             # Get output path
             output_path = arguments.get("output_path", "natal_chart.png")

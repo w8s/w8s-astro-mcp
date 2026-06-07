@@ -6,7 +6,7 @@ from unittest.mock import Mock, MagicMock, patch
 
 from w8s_astro_mcp.tools.profile_management import (
     handle_list_profiles,
-    handle_set_current_profile,
+    handle_setup_owner,
     handle_create_profile,
     handle_add_location,
     handle_update_profile,
@@ -102,7 +102,7 @@ async def test_list_profiles_empty_database(mock_db_helper):
     """Test list_profiles with no profiles in database."""
     # Setup
     mock_db_helper.list_all_profiles.return_value = []
-    mock_db_helper.get_current_profile.return_value = None
+    mock_db_helper.get_owner_profile.return_value = None
     
     # Execute
     result = await handle_list_profiles(mock_db_helper)
@@ -119,7 +119,7 @@ async def test_list_profiles_single_profile(mock_db_helper, sample_profile_1, sa
     """Test list_profiles with one profile."""
     # Setup
     mock_db_helper.list_all_profiles.return_value = [sample_profile_1]
-    mock_db_helper.get_current_profile.return_value = sample_profile_1
+    mock_db_helper.get_owner_profile.return_value = sample_profile_1
     mock_db_helper.get_birth_location.return_value = sample_location_1
     
     # Execute
@@ -139,7 +139,7 @@ async def test_list_profiles_single_profile(mock_db_helper, sample_profile_1, sa
     
     # Check current profile indicator
     assert "* " in text or "*" in text  # Current profile marker
-    assert "current active profile" in text.lower()
+    assert "owner" in text.lower()
 
 
 @pytest.mark.asyncio
@@ -153,7 +153,7 @@ async def test_list_profiles_multiple_profiles(
     """Test list_profiles with multiple profiles."""
     # Setup
     mock_db_helper.list_all_profiles.return_value = [sample_profile_1, sample_profile_2]
-    mock_db_helper.get_current_profile.return_value = sample_profile_1  # Todd is current
+    mock_db_helper.get_owner_profile.return_value = sample_profile_1  # Todd is owner
     
     # Mock birth location calls
     def get_birth_location_side_effect(profile):
@@ -195,7 +195,7 @@ async def test_list_profiles_no_current_profile(mock_db_helper, sample_profile_1
     """Test list_profiles when no current profile is set."""
     # Setup
     mock_db_helper.list_all_profiles.return_value = [sample_profile_1]
-    mock_db_helper.get_current_profile.return_value = None
+    mock_db_helper.get_owner_profile.return_value = None
     mock_db_helper.get_birth_location.return_value = None
     
     # Execute
@@ -206,7 +206,7 @@ async def test_list_profiles_no_current_profile(mock_db_helper, sample_profile_1
     text = result[0].text
     
     assert "Todd Waits" in text
-    assert "No current profile set" in text or "set_current_profile" in text
+    assert "No owner profile set" in text or "setup_owner" in text
 
 
 @pytest.mark.asyncio
@@ -225,102 +225,101 @@ async def test_list_profiles_error_handling(mock_db_helper):
 
 
 # ============================================================================
-# Tests for set_current_profile
+# Tests for setup_owner
 # ============================================================================
 
 @pytest.mark.asyncio
-async def test_set_current_profile_success(mock_db_helper, sample_profile_1):
-    """Test set_current_profile with valid profile ID."""
+async def test_setup_owner_success(mock_db_helper, sample_profile_1):
+    """Test setup_owner with valid profile ID."""
     # Setup
-    mock_db_helper.set_current_profile.return_value = True
+    mock_db_helper.set_owner_profile.return_value = True
     mock_db_helper.get_profile_by_id.return_value = sample_profile_1
-    
+
     # Execute
-    result = await handle_set_current_profile(mock_db_helper, {"profile_id": 1})
-    
+    result = await handle_setup_owner(mock_db_helper, {"profile_id": 1})
+
     # Assert
     assert len(result) == 1
     text = result[0].text
-    
+
     assert "✓" in text or "success" in text.lower()
     assert "Todd Waits" in text
     assert "ID: 1" in text
     assert "1981-05-06" in text
-    assert "get_natal_chart" in text  # Should mention what this affects
-    
+    assert "you" in text.lower()  # Should frame as identity, not just a switch
+
     # Verify method called correctly
-    mock_db_helper.set_current_profile.assert_called_once_with(1)
+    mock_db_helper.set_owner_profile.assert_called_once_with(1)
     mock_db_helper.get_profile_by_id.assert_called_once_with(1)
 
 
 @pytest.mark.asyncio
-async def test_set_current_profile_invalid_id(mock_db_helper):
-    """Test set_current_profile with non-existent profile ID."""
+async def test_setup_owner_invalid_id(mock_db_helper):
+    """Test setup_owner with non-existent profile ID."""
     # Setup
-    mock_db_helper.set_current_profile.return_value = False
-    
+    mock_db_helper.set_owner_profile.return_value = False
+
     # Execute
-    result = await handle_set_current_profile(mock_db_helper, {"profile_id": 999})
-    
+    result = await handle_setup_owner(mock_db_helper, {"profile_id": 999})
+
     # Assert
     assert len(result) == 1
     text = result[0].text
-    
+
     assert "Error" in text or "not found" in text.lower()
     assert "999" in text
-    assert "list_profiles" in text  # Should suggest using list_profiles
-    
+    assert "list_profiles" in text
+
     # Verify method called
-    mock_db_helper.set_current_profile.assert_called_once_with(999)
-    # Should NOT call get_profile_by_id since it failed
+    mock_db_helper.set_owner_profile.assert_called_once_with(999)
     mock_db_helper.get_profile_by_id.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_set_current_profile_missing_parameter(mock_db_helper):
-    """Test set_current_profile with missing profile_id parameter."""
+async def test_setup_owner_missing_parameter(mock_db_helper):
+    """Test setup_owner with missing profile_id parameter."""
     # Execute
-    result = await handle_set_current_profile(mock_db_helper, {})
-    
+    result = await handle_setup_owner(mock_db_helper, {})
+
     # Assert
     assert len(result) == 1
     text = result[0].text
-    
+
     assert "Error" in text
     assert "profile_id is required" in text
-    
+
     # Should not call database
-    mock_db_helper.set_current_profile.assert_not_called()
+    mock_db_helper.set_owner_profile.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_set_current_profile_none_parameter(mock_db_helper):
-    """Test set_current_profile with None as profile_id."""
+async def test_setup_owner_none_parameter(mock_db_helper):
+    """Test setup_owner with None as profile_id."""
     # Execute
-    result = await handle_set_current_profile(mock_db_helper, {"profile_id": None})
-    
+    result = await handle_setup_owner(mock_db_helper, {"profile_id": None})
+
     # Assert
     assert len(result) == 1
     text = result[0].text
-    
+
     assert "Error" in text
     assert "profile_id is required" in text
 
 
 @pytest.mark.asyncio
-async def test_set_current_profile_error_handling(mock_db_helper):
-    """Test set_current_profile handles database errors gracefully."""
+async def test_setup_owner_error_handling(mock_db_helper):
+    """Test setup_owner handles database errors gracefully."""
     # Setup - simulate database error
-    mock_db_helper.set_current_profile.side_effect = Exception("Database error")
-    
+    mock_db_helper.set_owner_profile.side_effect = Exception("Database error")
+
     # Execute
-    result = await handle_set_current_profile(mock_db_helper, {"profile_id": 1})
-    
+    result = await handle_setup_owner(mock_db_helper, {"profile_id": 1})
+
     # Assert
     assert len(result) == 1
     text = result[0].text
-    
-    assert "Error setting current profile" in text
+
+    assert "Error setting owner profile" in text
     assert "Database error" in text
 
 
@@ -339,7 +338,7 @@ async def test_workflow_list_then_set(
     """Test realistic workflow: list profiles, then set one as current."""
     # Setup for list_profiles
     mock_db_helper.list_all_profiles.return_value = [sample_profile_1, sample_profile_2]
-    mock_db_helper.get_current_profile.return_value = sample_profile_1
+    mock_db_helper.get_owner_profile.return_value = sample_profile_1
     
     def get_birth_location_side_effect(profile):
         if profile.id == 1:
@@ -355,16 +354,16 @@ async def test_workflow_list_then_set(
     assert "Todd Waits" in list_result[0].text
     assert "Sarah Johnson" in list_result[0].text
     
-    # Setup for set_current_profile
-    mock_db_helper.set_current_profile.return_value = True
+    # Setup for setup_owner
+    mock_db_helper.set_owner_profile.return_value = True
     mock_db_helper.get_profile_by_id.return_value = sample_profile_2
-    
-    # Step 2: Set Sarah as current
-    set_result = await handle_set_current_profile(mock_db_helper, {"profile_id": 2})
+
+    # Step 2: Set Sarah as owner
+    set_result = await handle_setup_owner(mock_db_helper, {"profile_id": 2})
     assert "Sarah Johnson" in set_result[0].text
-    
-    # Verify the switch happened
-    mock_db_helper.set_current_profile.assert_called_with(2)
+
+    # Verify the call happened
+    mock_db_helper.set_owner_profile.assert_called_with(2)
 
 
 # ============================================================================
@@ -405,8 +404,8 @@ async def test_create_profile_success(mock_db_helper, sample_profile_2):
     assert "-74.006" in text
     assert "America/New_York" in text
     
-    # Should prompt about setting as current
-    assert "set_current_profile" in text.lower() or "current profile" in text.lower()
+    # Should prompt about setting as owner
+    assert "setup_owner" in text.lower() or "owner" in text.lower()
     
     # Verify database method called correctly
     mock_db_helper.create_profile_with_location.assert_called_once_with(
@@ -582,20 +581,20 @@ async def test_workflow_create_then_list(mock_db_helper, sample_profile_1, sampl
     
     # Step 2: List profiles - should show both profiles now
     mock_db_helper.list_all_profiles.return_value = [sample_profile_1, sample_profile_2]
-    mock_db_helper.get_current_profile.return_value = sample_profile_1
-    
+    mock_db_helper.get_owner_profile.return_value = sample_profile_1
+
     def get_birth_location_side_effect(profile):
         if profile.id == 1:
             return sample_location_1
         elif profile.id == 2:
             return sample_location_2
         return None
-    
+
     mock_db_helper.get_birth_location.side_effect = get_birth_location_side_effect
-    
+
     list_result = await handle_list_profiles(mock_db_helper)
     text = list_result[0].text
-    
+
     # Both profiles should appear
     assert "Todd Waits" in text
     assert "Sarah Johnson" in text
@@ -1235,7 +1234,7 @@ async def test_workflow_create_update_list(mock_db_helper, sample_profile_2, sam
     )
     
     mock_db_helper.list_all_profiles.return_value = [sample_profile_1_for_list, updated_profile]
-    mock_db_helper.get_current_profile.return_value = sample_profile_1_for_list
+    mock_db_helper.get_owner_profile.return_value = sample_profile_1_for_list
     
     def get_birth_location_side_effect(profile):
         if profile.id == 1:
@@ -1490,7 +1489,7 @@ async def test_delete_profile_success(mock_db_helper, sample_profile_2):
     assert "deleted permanently" in text.lower()
     assert "natal chart" in text.lower()
     assert "locations" in text.lower()
-    assert "set_current_profile" in text
+    assert "setup_owner" in text or "owner profile" in text.lower()
     
     # Verify database methods called correctly
     mock_db_helper.get_profile_by_id.assert_called_once_with(2)

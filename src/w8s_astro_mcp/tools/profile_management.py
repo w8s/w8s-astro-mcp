@@ -126,19 +126,20 @@ def get_profile_management_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="set_current_profile",
+            name="setup_owner",
             description=(
-                "Switch the active profile (whose chart is 'yours'). "
-                "This determines which profile is used for get_natal_chart, "
-                "get_transits, and other operations. "
-                "Use after creating a new profile or to switch between profiles."
+                "Set who you are — the human operating this server. "
+                "This is a one-time setup step, not a session operation. "
+                "The owner profile is the stable identity used as the default for "
+                "get_natal_chart, get_transits, and all other tools when no profile_id is supplied. "
+                "Use list_profiles to find your profile_id."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "profile_id": {
                         "type": "integer",
-                        "description": "Profile ID to set as current (get from list_profiles)"
+                        "description": "Profile ID to set as owner (get from list_profiles)"
                     }
                 },
                 "required": ["profile_id"]
@@ -210,10 +211,10 @@ async def handle_list_profiles(db_helper) -> list[TextContent]:
     try:
         # Get all profiles
         profiles = db_helper.list_all_profiles()
-        
-        # Get current profile ID
-        current_profile = db_helper.get_current_profile()
-        current_id = current_profile.id if current_profile else None
+
+        # Get owner profile ID
+        owner_profile = db_helper.get_owner_profile()
+        current_id = owner_profile.id if owner_profile else None
         
         # Handle empty case
         if not profiles:
@@ -243,9 +244,9 @@ async def handle_list_profiles(db_helper) -> list[TextContent]:
         
         # Add legend
         if current_id:
-            response += "*Current active profile\n"
+            response += "* Owner (you)\n"
         else:
-            response += "No current profile set. Use set_current_profile to activate one.\n"
+            response += "No owner profile set. Use setup_owner to configure.\n"
         
         return [TextContent(type="text", text=response)]
         
@@ -295,8 +296,8 @@ async def handle_create_profile(db_helper, arguments: dict) -> list[TextContent]
         response += f"Location: {birth_location_name}\n"
         response += f"Coordinates: {birth_latitude}, {birth_longitude}\n"
         response += f"Timezone: {birth_timezone}\n\n"
-        response += "Would you like to set this as your current profile?\n"
-        response += f"Use: set_current_profile with profile_id={profile.id}"
+        response += "Would you like to set this as your owner profile (i.e., 'you')?\n"
+        response += f"Use: setup_owner with profile_id={profile.id}"
         
         return [TextContent(type="text", text=response)]
         
@@ -405,7 +406,7 @@ async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]
         response += f"- Natal chart data (planets, houses, points)\n"
         response += f"- Locations\n"
         response += f"- Transit lookups\n\n"
-        response += f"If this was your current profile, you'll need to use `set_current_profile` to select a new one."
+        response += f"If this was your owner profile, use `setup_owner` to set a new one."
         
         return [TextContent(type="text", text=response)]
         
@@ -416,45 +417,40 @@ async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]
         )]
 
 
-async def handle_set_current_profile(db_helper, arguments: dict) -> list[TextContent]:
-    """Set the current active profile."""
+async def handle_setup_owner(db_helper, arguments: dict) -> list[TextContent]:
+    """Set the owner profile (one-time setup)."""
     try:
         profile_id = arguments.get("profile_id")
-        
-        # Validate profile_id provided
+
         if profile_id is None:
             return [TextContent(
                 type="text",
                 text="Error: profile_id is required"
             )]
-        
-        # Use existing db_helper method (validates profile exists)
-        success = db_helper.set_current_profile(profile_id)
-        
+
+        success = db_helper.set_owner_profile(profile_id)
+
         if not success:
             return [TextContent(
                 type="text",
                 text=f"Error: Profile with ID {profile_id} not found.\n\n"
                      "Use list_profiles to see available profiles."
             )]
-        
-        # Get the profile to show confirmation
+
         profile = db_helper.get_profile_by_id(profile_id)
-        
+
         return [TextContent(
             type="text",
-            text=f"✓ Current profile set to: **{profile.name}** (ID: {profile_id})\n\n"
+            text=f"✓ Owner profile set: **{profile.name}** (ID: {profile_id})\n\n"
                  f"Born: {profile.birth_date} at {profile.birth_time}\n\n"
-                 "This profile will now be used for:\n"
-                 "- get_natal_chart\n"
-                 "- get_transits (default location)\n"
-                 "- compare_charts (when using 'natal')"
+                 "This profile is now 'you' — the default for all tools unless "
+                 "a specific profile_id is supplied."
         )]
-        
+
     except Exception as e:
         return [TextContent(
             type="text",
-            text=f"Error setting current profile: {e}"
+            text=f"Error setting owner profile: {e}"
         )]
 
 
@@ -584,16 +580,15 @@ async def handle_profile_tool(name: str, arguments: Any, db_helper) -> list[Text
         "create_profile": handle_create_profile,
         "update_profile": handle_update_profile,
         "delete_profile": handle_delete_profile,
-        "set_current_profile": handle_set_current_profile,
+        "setup_owner": handle_setup_owner,
         "add_location": handle_add_location,
         "remove_location": handle_remove_location,
     }
-    
+
     handler = handlers.get(name)
     if not handler:
         return [TextContent(type="text", text=f"Unknown profile tool: {name}")]
-    
-    # Call handler (some take arguments, some don't)
+
     if name == "list_profiles":
         return await handler(db_helper)
     else:

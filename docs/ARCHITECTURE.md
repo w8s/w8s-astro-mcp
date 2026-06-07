@@ -13,7 +13,7 @@ src/w8s_astro_mcp/
 │   ├── database.py              # SQLAlchemy engine, session management
 │   └── models/                  # SQLAlchemy ORM models (17 models)
 │       ├── __init__.py
-│       ├── app_settings.py      # Global settings (current profile ID)
+│       ├── app_settings.py      # Global settings (owner profile ID)
 │       ├── house_system.py      # 7 house systems (Placidus, Koch, etc.)
 │       ├── location.py          # Birth/home/saved locations (profile-owned)
 │       ├── profile.py           # People's natal charts
@@ -137,10 +137,10 @@ flowchart TD
 - **New:** SQLite with normalized schema
 - **Why:** Enables multi-profile, transit history, proper queries
 
-### 2. AppSettings Table for Global State
+### 2. AppSettings Table for Owner Identity
 - **Old:** Profile.is_primary boolean flag
-- **New:** AppSettings.current_profile_id foreign key
-- **Why:** Cleaner architecture, ON DELETE SET NULL cascade, more extensible
+- **New:** AppSettings.owner_profile_id foreign key
+- **Why:** Stable identity for the human operating the server — set once, not switched during sessions. All tools default to the owner unless a specific profile_id is supplied. ON DELETE SET NULL cascade, more extensible.
 
 ### 3. Profile-Owned Locations
 - **Decision:** All locations require profile_id (no shared/global locations)
@@ -211,7 +211,7 @@ See `docs/DATABASE_SCHEMA.md` for full schema documentation.
 **21 Models across 4 domains:**
 
 Profiles & Locations (4):
-1. AppSettings — global state (current profile ID)
+1. AppSettings — owner identity (owner profile ID)
 2. HouseSystem — reference data (7 house systems)
 3. Location — profile-owned locations
 4. Profile — people's natal charts
@@ -238,7 +238,7 @@ Event Charts — Phase 8 (4):
 check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config, get_natal_chart, get_transits, compare_charts, find_house_placements, visualize_natal_chart
 
 **Profile Management (7):**
-list_profiles, create_profile, update_profile, delete_profile, set_current_profile, add_location, remove_location
+list_profiles, create_profile, update_profile, delete_profile, setup_owner, add_location, remove_location
 
 **Transit History & Forecasting — Phase 4 (3):**
 get_transit_history, find_last_transit, get_ingresses

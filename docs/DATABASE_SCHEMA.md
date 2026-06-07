@@ -19,7 +19,7 @@ SQLite database at `~/.w8s-astro-mcp/astro.db`. All tables created by SQLAlchemy
 erDiagram
     app_settings {
         int id PK
-        int current_profile_id FK
+        int owner_profile_id FK
     }
     house_systems {
         int id PK
@@ -173,7 +173,7 @@ erDiagram
         float absolute_position
     }
 
-    app_settings ||--o| profiles : "current_profile_id (SET NULL)"
+    app_settings ||--o| profiles : "owner_profile_id (SET NULL)"
     profiles ||--|| locations : "birth_location_id (RESTRICT)"
     profiles ||--|| house_systems : "preferred_house_system_id (RESTRICT)"
     locations }o--|| profiles : "profile_id (CASCADE)"
@@ -206,7 +206,7 @@ erDiagram
 erDiagram
     app_settings {
         int id PK "always 1 — single row"
-        int current_profile_id FK "nullable — SET NULL on delete"
+        int owner_profile_id FK "nullable — SET NULL on delete"
     }
     house_systems {
         int id PK

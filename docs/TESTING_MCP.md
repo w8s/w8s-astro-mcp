@@ -24,7 +24,7 @@ Close and reopen Claude Desktop completely.
 
 ## 3. Verify the Tools
 
-You should see 26 tools available. Quick smoke test:
+You should see 30 tools available. Quick smoke test:
 
 ```
 Can you check the ephemeris mode using check_ephemeris?
@@ -39,7 +39,13 @@ Create an astro profile for me — my name is [Name], born [YYYY-MM-DD]
 at [HH:MM] in [City, State].
 ```
 
-Then verify it worked:
+Then set yourself as the owner — this tells all tools who you are:
+
+```
+Set me as the owner profile.
+```
+
+Verify it worked:
 
 ```
 Show me my natal chart.

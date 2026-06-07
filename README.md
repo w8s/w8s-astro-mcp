@@ -13,7 +13,7 @@ Personal astrological MCP server — natal charts, transits, forecasting, and re
 - 🔭 **Swiss Ephemeris precision** — planetary positions via [pysweph](https://pypi.org/project/pysweph/); optional high-precision file download
 - 🗂️ **Multi-profile** — manage charts for yourself, family, and friends
 - 📜 **Persistent history** — every transit lookup auto-logged to SQLite; query by date, planet, or sign
-- 🔗 **Relationship charts** — composite and Davison charts for any group of 2+ people
+- 🔗 **Relationship charts** — composite and Davison charts for any group of 2+ people; place today's sky in any chart's house system
 - 🗓️ **Event & electional tools** — cast charts for any moment; scan windows for auspicious times
 
 ## Quick Start
@@ -40,7 +40,11 @@ Personal astrological MCP server — natal charts, transits, forecasting, and re
 
 > "Create an astro profile for me — my name is [Name], born [YYYY-MM-DD] at [HH:MM] in [City, State]."
 
-That's it. Everything is stored in `~/.w8s-astro-mcp/astro.db` (macOS/Linux) or `%USERPROFILE%\.w8s-astro-mcp\astro.db` (Windows).
+**4. Set yourself as the owner:**
+
+> "Set me as the owner profile."
+
+This tells the server who you are. All tools default to your chart unless you ask about someone else. Everything is stored in `~/.w8s-astro-mcp/astro.db` (macOS/Linux) or `%USERPROFILE%\.w8s-astro-mcp\astro.db` (Windows).
 
 ## Installation
 
@@ -55,6 +59,16 @@ pip install w8s-astro-mcp
 ```
 
 Then use `"command": "w8s-astro-mcp"` (no `args`) in your Claude Desktop config.
+
+### Upgrading from an earlier version
+
+If you have an existing database from before v0.12, run the migration script once:
+
+```bash
+python scripts/migrate_owner_profile.py
+```
+
+This renames the internal `current_profile_id` column to `owner_profile_id`. Safe to run multiple times.
 
 ### Requirements
 
@@ -75,6 +89,18 @@ Then use `"command": "w8s-astro-mcp"` (no `args`) in your Claude Desktop config.
 > "When was Mercury last retrograde?"
 
 > "What major transits are coming up in the next 90 days?"
+
+**Other profiles:**
+> "Show me Liz's natal chart."
+
+> "What are her transits today?"
+
+> "Compare my chart with Liz's." *(synastry)*
+
+**House placements:**
+> "Where are today's planets in my natal houses?"
+
+> "Where does today's sky fall in our composite chart?"
 
 **Relationships:**
 > "Create a profile for my partner, born [YYYY-MM-DD] at [HH:MM] in [City, State]."

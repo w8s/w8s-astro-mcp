@@ -1,6 +1,6 @@
 """Recalculate stored natal charts (and, optionally, saved event charts) with correct time handling.
 
-Before v0.13.1 the birth time (or event time) was passed to the ephemeris as if it were already UT,
+Before v0.14.0 the birth time (or event time) was passed to the ephemeris as if it were already UT,
 even though it is a local time with a timezone. Every chart calculated that way has the wrong
 Ascendant, MC, houses and Moon. This tool recalculates charts from the stored local data.
 
@@ -23,13 +23,12 @@ from typing import Any, Dict, List, Optional, Sequence
 from .database import get_database_path, get_session
 from .models import ConnectionMember, Event, Profile
 from .tools.analysis_tools import find_planets_in_houses
+from .utils.chart_health import charts_match, fresh_natal_chart
 from .utils.db_helpers import DatabaseHelper
 from .utils.ephemeris import EphemerisEngine, EphemerisError
-from .utils.position_utils import sign_to_absolute_position
 from .utils.timezones import TimezoneError, utc_engine_args
 
 PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
-TOLERANCE_DEGREES = 0.001
 PLACEHOLDER_TIMES = {"12:00", "12:00:00"}
 
 
@@ -39,28 +38,6 @@ def _dms(degree: float) -> str:
     if minutes == 60:
         whole, minutes = whole + 1, 0
     return f"{whole}°{minutes:02d}'"
-
-
-def _absolute(position: Dict[str, Any]) -> float:
-    if "absolute_position" in position:
-        return float(position["absolute_position"])
-    return sign_to_absolute_position(position["sign"], position["degree"])
-
-
-def _same_positions(stored: Dict[str, Dict[str, Any]], fresh: Dict[str, Dict[str, Any]]) -> bool:
-    """True if two {name: position} maps hold the same places (within a tiny tolerance)."""
-    if set(stored) != set(fresh):
-        return False
-    for name, position in fresh.items():
-        if stored[name]["sign"] != position["sign"]:
-            return False
-        if abs(_absolute(stored[name]) - _absolute(position)) > TOLERANCE_DEGREES:
-            return False
-    return True
-
-
-def _chart_matches(stored: Dict[str, Any], fresh: Dict[str, Any]) -> bool:
-    return all(_same_positions(stored[part], fresh[part]) for part in ("planets", "houses", "points"))
 
 
 def _profile_report(profile, ut_date: str, ut_time: str, tz: str, stored: Dict, fresh: Dict) -> List[str]:
@@ -149,20 +126,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     for pid in profile_ids:
         profile = db.get_profile_by_id(pid)
         try:
-            location = db.get_location_by_id(profile.birth_location_id)
-            ut_date, ut_time = utc_engine_args(profile.birth_date, profile.birth_time, location.timezone)
-            fresh = engine.get_chart(location.latitude, location.longitude, ut_date, ut_time, "P")
+            fresh, ut_date, ut_time, tz = fresh_natal_chart(db, engine, profile)
         except (TimezoneError, EphemerisError, AttributeError) as exc:
             errors += 1
             print(f"{profile.name} (id {profile.id}): cannot recalculate: {exc}\n")
             continue
         stored = db.get_natal_chart_data(profile)
-        for line in _profile_report(profile, ut_date, ut_time, location.timezone, stored, fresh):
+        for line in _profile_report(profile, ut_date, ut_time, tz, stored, fresh):
             print(line)
         if not stored["planets"]:
             print()
             continue
-        if _chart_matches(stored, fresh):
+        if charts_match(stored, fresh):
             print("    already correct\n")
         else:
             print(f"    {'recalculated' if args.apply else 'would change'}\n")
@@ -183,7 +158,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 print(f"event '{label}': cannot recalculate: {exc}\n")
                 continue
             print(f"event '{label}': {date} {time} {tz} -> {ut_date} {ut_time} UT")
-            if _chart_matches(db.get_event_chart_positions(event_id), fresh):
+            if charts_match(db.get_event_chart_positions(event_id), fresh):
                 print("    already correct\n")
             else:
                 print(f"    {'recalculated' if args.apply else 'would change'}\n")

@@ -1,6 +1,6 @@
 """Natal charts are calculated from the birth time converted from local time to UT.
 
-Before v0.13.1 the stored birth time was handed to the ephemeris as if it were already UT, so every
+Before v0.14.0 the stored birth time was handed to the ephemeris as if it were already UT, so every
 chart was off by the birth location's UTC offset (wrong Ascendant, MC, houses and Moon).
 """
 

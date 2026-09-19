@@ -21,6 +21,12 @@ erDiagram
         int id PK
         int owner_profile_id FK
     }
+    dismissed_notices {
+        int id PK
+        string notice_key UK
+        string detail "JSON list"
+        datetime dismissed_at
+    }
     house_systems {
         int id PK
         string code
@@ -207,6 +213,12 @@ erDiagram
     app_settings {
         int id PK "always 1 — single row"
         int owner_profile_id FK "nullable — SET NULL on delete"
+    }
+    dismissed_notices {
+        int id PK
+        string notice_key UK "e.g. natal-utc-fix"
+        string detail "JSON list of what the user had seen"
+        datetime dismissed_at
     }
     house_systems {
         int id PK
@@ -444,6 +456,7 @@ stateDiagram-v2
 - One composite and one Davison chart per connection — `UNIQUE(connection_id, chart_type)`
 - One membership per person per connection — `UNIQUE(connection_id, profile_id)`
 - One location label per profile — `UNIQUE(profile_id, label)`
+- One dismissal per notice — `UNIQUE(notice_key)`; no foreign keys, `detail` holds profile IDs as plain integers
 - One transit lookup per profile/datetime/location/house system combination
 
 **Cascade behavior:**
@@ -458,7 +471,7 @@ stateDiagram-v2
 
 **Position format:** All positions stored as `degree` (int, 0-29), `minutes` (int, 0-59), `seconds` (float, 0-59.999) within sign, plus `absolute_position` (float, 0-359.999°) for aspect math. The `_normalize_position()` method in `DatabaseHelper` coerces EphemerisEngine decimal-degree output into this format before any write.
 
-**Times are local; positions come from UT:** `profiles.birth_time` and `events.event_time` are local wall-clock times at the birth or event location, interpreted with that location's IANA `timezone` (historical daylight-saving rules apply). Stored planet, house and point positions are calculated from the UT equivalent. Before v0.13.1 the local time was handed to the ephemeris as if it were UT, so charts stored by earlier versions are off by the location's UTC offset; `w8s-astro-recalculate` recalculates them from the stored local data. There is no schema change.
+**Times are local; positions come from UT:** `profiles.birth_time` and `events.event_time` are local wall-clock times at the birth or event location, interpreted with that location's IANA `timezone` (historical daylight-saving rules apply). Stored planet, house and point positions are calculated from the UT equivalent. Before v0.14.0 the local time was handed to the ephemeris as if it were UT, so charts stored by earlier versions are off by the location's UTC offset; `w8s-astro-recalculate` recalculates them from the stored local data. That change needs no schema change; the one addition in v0.14.0 is the small `dismissed_notices` table, created automatically on existing databases.
 
 ---
 

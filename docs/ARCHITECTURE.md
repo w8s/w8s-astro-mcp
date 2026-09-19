@@ -49,6 +49,7 @@ src/w8s_astro_mcp/
 │       ├── connection_calculator.py # Composite & Davison math
 │       ├── position_utils.py    # Shared position conversion functions
 │       ├── timezones.py         # Local wall-clock time -> UT (zoneinfo), used before every chart calculation
+│       ├── chart_health.py      # Are stored natal charts correct? Data notice, caching, rate limit
 │       ├── transit_logger.py    # Save transit data to database
 │       └── geocoding.py         # Nominatim geocoding + IANA timezone lookup (timezonefinder)
 │
@@ -227,14 +228,14 @@ flowchart TD
 - tzdata (timezone database for `zoneinfo` on Windows and minimal containers)
 
 **Dev:**
-- pytest (498 tests)
+- pytest (540 tests)
 - git (version control)
 
 ## Database Schema
 
 See `docs/DATABASE_SCHEMA.md` for full schema documentation.
 
-**21 Models across 4 domains:**
+**22 Models across 5 domains:**
 
 Profiles & Locations (4):
 1. AppSettings — owner identity (owner profile ID)
@@ -258,10 +259,13 @@ Event Charts — Phase 8 (4):
 18. Event — chart metadata (date, time, location, optional profile FK)
 19. EventPlanet, 20. EventHouse, 21. EventPoint
 
+App State — v0.14.0 (1):
+22. DismissedNotice — notices the user chose to stop seeing (one row per notice key)
+
 ## MCP Tools (30 total)
 
-**Core (9):**
-check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config, get_natal_chart, get_transits, compare_charts, find_house_placements, visualize_natal_chart
+**Core (10):**
+dismiss_data_notice, check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config, get_natal_chart, get_transits, compare_charts, find_house_placements, visualize_natal_chart
 
 **Profile Management (7):**
 list_profiles, create_profile, update_profile, delete_profile, setup_owner, add_location, remove_location
@@ -385,8 +389,8 @@ local time. Birth, event and electional times are local and are converted (decis
 Known limits: transit-chart angles use the owner's current home location (no location argument on
 `compare_charts`); saved event charts carry no speed, so they report `applying: null`.
 
-### 16. Local Times Are Converted to UT — v0.13.1
-Swiss Ephemeris takes UT. Before v0.13.1, three tools collected a *local* time plus an IANA timezone
+### 16. Local Times Are Converted to UT — v0.14.0
+Swiss Ephemeris takes UT. Before v0.14.0, three tools collected a *local* time plus an IANA timezone
 and passed the local time to the ephemeris unchanged: natal chart calculation (`get_natal_chart_data`,
 the only place natal charts are calculated, lazily), `cast_event_chart` and `find_electional_windows`.
 The timezone was recorded or displayed but never applied, so every chart was off by the location's UTC
@@ -397,7 +401,7 @@ offset — wrong Ascendant, MC, houses and Moon.
   occurrence; a nonexistent spring-forward time shifts forward. Bad input raises `TimezoneError`, which
   handlers turn into a clear message.
 - **Stored data stays local.** `profiles.birth_time` and `events.event_time` keep meaning what a
-  record says; only the value handed to the ephemeris is converted. No schema change.
+  record says; only the value handed to the ephemeris is converted. No existing table or column changes.
 - **Electional scans step in UT** (real elapsed minutes, safe across DST changes) and print local times.
 - **Transit tools are unchanged.** `get_transits`, `find_house_placements`, `get_ingresses` and
   `compare_charts` take UT by design and have no timezone input; their descriptions say so.
@@ -408,8 +412,26 @@ offset — wrong Ascendant, MC, houses and Moon.
   `scripts/` so `uvx` and `pip` users can run it.
 - **Davison charts** already converted correctly (`connection_calculator`).
 
-Deliberately not done: automatic detection or silent recalculation of stale charts (users opt in), and a
-timezone argument for the transit tools.
+**Telling users.** Two channels reach the AI without stored state:
+- **Server `instructions`** (`SERVER_INSTRUCTIONS`, sent in the MCP initialize response): durable rules — which times
+  are local and which UT, and how to treat a data notice.
+- **A condition-based data notice** (`utils/chart_health.py`): on the natal-dependent tools, the server recomputes
+  each stored natal chart from the profile's local birth data and compares it with what is stored. If any differ, a
+  separate content block starting `Data notice:` is appended (at most once per 30 minutes; the health result is
+  cached for 10). For `compare_charts` JSON the notice goes into a `notices` list so the JSON stays parseable. It
+  names no one, states facts and options, and asks the assistant to get the user's consent before running anything.
+  The original output is never altered, a failing check never breaks a tool call, and the notice disappears once the
+  charts are recalculated. It is condition-based rather than "first call after upgrade" on purpose: a one-time
+  message can be missed and never repeat while the data stays wrong. No "last seen version" state.
+- **Dismissal.** `dismiss_data_notice` (`undo=true` reverses it) records the stale profile IDs the user has seen in a
+  new `dismissed_notices` table (`DismissedNotice`, unique `notice_key`, JSON `detail`). The notice stays hidden
+  while the stale profiles are a subset of those, so fixing some does not bring it back but a different stale chart
+  does. It lives in SQLite rather than a config file because the project moved from `config.json` to SQLite in
+  v0.9 and the stored IDs only make sense next to this database. It is a **new table only**: `create_all` adds it
+  to an existing database on the next start, so there is no migration.
+
+Deliberately not done: silent recalculation of stale charts (users opt in), and a timezone argument for the transit
+tools.
 
 ## Contributing
 
@@ -462,10 +484,10 @@ pytest tests/models/test_connections.py
 3. Idempotent — safe to run multiple times
 4. After migrating, use `setup_owner` to confirm your profile is set
 
-**v0.13 → v0.13.1 (local times converted to UT):**
+**v0.13 → v0.14.0 (local times converted to UT):**
 1. Run `w8s-astro-recalculate --all` to see what would change, then `w8s-astro-recalculate --all --apply` (a database backup is written first)
 2. Add `--events` to include saved event charts; review those first — a chart saved for a birth clock time labelled with a different timezone is not a relocation chart
-3. Stored profiles keep their local birth times; no schema change
+3. Stored profiles keep their local birth times. One new small table (`dismissed_notices`) is added to your database automatically on the next start; there is nothing to migrate
 
 **v0.12 → v0.13 (transit direction, chart labels, JSON output):**
 1. No migration — there is no schema change and nothing to run

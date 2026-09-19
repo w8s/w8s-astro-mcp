@@ -86,6 +86,48 @@ class DatabaseHelper:
         with get_session(self.engine) as session:
             return session.query(Location).filter_by(id=profile.birth_location_id).first()
     
+    # ------------------------------------------------------------------
+    # Dismissed notices
+    # ------------------------------------------------------------------
+
+    def get_dismissed_notice(self, notice_key: str) -> Optional[list]:
+        """What the user had seen when they dismissed this notice, or None if it is not dismissed."""
+        from ..models import DismissedNotice
+
+        with get_session(self.engine) as session:
+            row = session.query(DismissedNotice).filter_by(notice_key=notice_key).first()
+            return row.detail_list() if row else None
+
+    def dismiss_notice(self, notice_key: str, detail: list) -> None:
+        """Record that the user dismissed a notice, replacing any earlier record.
+
+        ``detail`` is a list of integers (for the natal-chart notice: the stale profile IDs the user
+        was told about). It is stored sorted and de-duplicated.
+        """
+        import json
+        from datetime import timezone as _tz
+        from ..models import DismissedNotice
+
+        payload = json.dumps(sorted({int(item) for item in detail}))
+        with get_session(self.engine) as session:
+            row = session.query(DismissedNotice).filter_by(notice_key=notice_key).first()
+            if row is None:
+                session.add(DismissedNotice(notice_key=notice_key, detail=payload))
+            else:
+                row.detail = payload
+                row.dismissed_at = datetime.now(_tz.utc)
+
+    def restore_notice(self, notice_key: str) -> bool:
+        """Remove a dismissal so the notice shows again. Returns False if it was not dismissed."""
+        from ..models import DismissedNotice
+
+        with get_session(self.engine) as session:
+            row = session.query(DismissedNotice).filter_by(notice_key=notice_key).first()
+            if row is None:
+                return False
+            session.delete(row)
+            return True
+
     def get_current_home_location(self, profile: Profile) -> Optional[Location]:
         """Get current home location for a profile.
         

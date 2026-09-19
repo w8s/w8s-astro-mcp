@@ -1,4 +1,4 @@
-# v0.13.1 Planning — Convert Local Times to UT
+# v0.14.0 Planning — Convert Local Times to UT
 
 **Status:** spec approved 2026-09-19; implementation on `fix/local-time-to-ut`, stacked on
 `feature/transit-direction-json` (v0.13.0, unreleased at the time of writing).
@@ -43,7 +43,7 @@ correctly. Transit tools (`get_transits`, `find_house_placements`, `get_ingresse
 
 ## Defaults confirmed
 
-- Separate patch release (0.13.1), stacked on the v0.13.0 branch.
+- Separate patch release (0.14.0), stacked on the v0.13.0 branch.
 - Old stored charts are fixed by the recalculation tool only (no automatic recalculation).
 - Saved event charts are opt-in (`--events`); the four "*-vegas-march2026" charts hold birth clock
   times labelled as LA time, so recalculating them would not make them relocation charts.
@@ -65,3 +65,27 @@ untouched, events opt-in).
 ## Out of scope
 
 Timezone argument for transit tools; automatic detection of stale charts; relocation-chart tooling.
+
+## Addendum — telling users (agreed after the first implementation)
+
+The bug is a breaking change of sorts: results change and users must act. So:
+
+- **Version:** 0.14.0, not 0.13.1 (SemVer, pre-1.0). Release order: 0.13.0 (additive), then 0.14.0.
+- **In the product:** server `instructions` (durable local-vs-UT rules) and a condition-based data notice
+  (`utils/chart_health.py`) — repeats until the charts are recalculated, needs no stored state.
+- **CHANGELOG is the announcement:** the GitHub Release body is built from the version's CHANGELOG section,
+  so the plain-language headline, a Breaking section and the fix come first. README gets a banner.
+- **After release, with approval:** a warning line on the GitHub release pages of affected older versions.
+- **Not included:** an MCP tool to run the recalculation (roadmap), an opt-out for the notice.
+
+## Addendum — dismissing the notice
+
+The user must be able to say "stop reminding me". Decision: a small **new table** (`dismissed_notices`) and a
+`dismiss_data_notice` tool (`undo=true` reverses it), not a config file.
+
+- **Why the database:** the project moved from `config.json` to SQLite in v0.9; the stored value is a list of
+  profile IDs that only makes sense next to this database; and `create_all` adds a new table to an existing database
+  on the next start, so there is no migration (a new column on `app_settings` would have needed one).
+- **What is remembered:** the stale profile IDs the user had seen. The notice stays hidden while the stale profiles are
+  a subset of those (fixing some does not bring it back); a different stale chart does.
+- **What it does not do:** fix anything. The tool says so, and how to recalculate.

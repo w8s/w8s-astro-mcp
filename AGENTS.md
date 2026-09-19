@@ -46,7 +46,7 @@ Key reference docs live in `docs/` — read these before making significant chan
 | `README.md` | User-facing overview: features, installation, tools table, database examples |
 | `CHANGELOG.md` | Every user-visible change, following Keep a Changelog format |
 | `docs/ARCHITECTURE.md` | Directory structure, data flow diagrams, all design decisions with rationale |
-| `docs/DATABASE_SCHEMA.md` | Full ERD, all 21 models, constraint rules, example queries |
+| `docs/DATABASE_SCHEMA.md` | Full ERD, all 22 models, constraint rules, example queries |
 | `docs/ROADMAP.md` | Phase history (1–8 complete), Phase 9 status, future ideas |
 | `docs/TESTING_MCP.md` | How to configure Claude Desktop and smoke-test the server |
 
@@ -123,7 +123,7 @@ Always import them after input validation so validation tests don't require swis
 - **Transit tools take UT.** The `time` argument of `get_transits`, `find_house_placements` and
   `compare_charts` is UT (`"09:00"` is 04:00 in US Central daylight time), and anything derived from a
   snapshot (for example `compare_charts`' `exact_utc`) is UT too. Say so in tool descriptions and docs.
-- Before v0.13.1 the local inputs were passed through unconverted; `w8s-astro-recalculate` repairs
+- Before v0.14.0 the local inputs were passed through unconverted; `w8s-astro-recalculate` repairs
   charts stored that way (see ARCHITECTURE.md decision #16).
 
 ### Tool Output Is a Public Surface
@@ -138,6 +138,21 @@ choosing to upgrade. Treat default tool output as an interface:
 - Presentation (glyphs, wikilinks, which results are worth showing) belongs to the caller; the
   server returns data.
 
+### Telling the AI and the User
+- **Durable rules** go in `SERVER_INSTRUCTIONS` (sent when the AI connects). Keep it short.
+- **Facts about the user's data** go in tool results as a `Data notice:` (see `utils/chart_health.py`),
+  never in the instructions. A notice is factual, names no one, offers options and asks the assistant to
+  get the user's consent before acting. It is a **separate content block** (the original output stays
+  byte-identical) and, for JSON output, a `notices` list. It is rate-limited, and a failure to compute
+  it must never break the tool call.
+- **Let the user dismiss it.** Store the dismissal in the database (a small new table, which `create_all` adds
+  to existing databases — no migration), keyed to what the user has seen so a *different* problem brings the
+  notice back. Expose it as a tool (`dismiss_data_notice`, `undo=true` to reverse), not a config file.
+- Prefer a **condition** ("stored charts differ from a correct calculation") over an event ("first call
+  after upgrade"): it repeats until the problem is fixed and needs no stored state.
+- A release that changes results or requires user action is a **minor** bump pre-1.0. Put the plain-language
+  headline and the fix at the top of the CHANGELOG entry — the GitHub Release body is built from it.
+
 ### Test Fixtures
 - All test DB fixtures must import all models before `DatabaseHelper()` so
   `Base.metadata` is complete when `create_tables()` runs.
@@ -147,7 +162,7 @@ choosing to upgrade. Treat default tool output as an interface:
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 498 tests total as of v0.13.1 (440 at v0.13.0, 361 at v0.12.0).
+- 540 tests total as of v0.14.0 (440 at v0.13.0, 361 at v0.12.0).
 
 ## Common Commands
 

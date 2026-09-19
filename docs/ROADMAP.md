@@ -95,7 +95,7 @@ Makes `compare_charts` usable for day-to-day transit reading. Presentation (arro
 - [x] First real test coverage for `compare_charts` (the old analysis "tests" were print scripts); 440 total
 - [ ] Release: version bump, merge, tag, PyPI, MCP Registry
 
-## v0.13.1: Local Times Converted to UT (in progress)
+## v0.14.0: Local Times Converted to UT (in progress)
 
 Fixes a bug found while building v0.13.0: local birth, event and electional times were handed to the ephemeris as if they were UT.
 
@@ -103,7 +103,9 @@ Fixes a bug found while building v0.13.0: local birth, event and electional time
 - [x] Natal chart calculation, `cast_event_chart` and `find_electional_windows` convert before calculating
 - [x] `w8s-astro-recalculate` — dry-run-first recalculation of stored natal and (opt-in) event charts, with backup
 - [x] `tzdata` dependency; tool descriptions say which times are local and which are UT
-- [ ] Release: version bump, merge, tag, PyPI, MCP Registry; tell existing users to run the recalculation tool
+- [x] Server `instructions` (local vs UT times, how to treat a data notice) and a condition-based data notice when stored natal charts predate the fix
+- [x] `dismiss_data_notice` tool and a `dismissed_notices` table: the user can dismiss the notice; a different stale chart brings it back
+- [ ] Release: version bump, merge, tag, PyPI, MCP Registry; add a warning line to the GitHub release pages of affected older versions (external edit, needs approval)
 
 ## Phase 9: Database Self-Healing — In Progress
 
@@ -125,6 +127,6 @@ Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with d
 - [ ] Persist planet speed for saved event charts, so event-vs-natal comparisons can report applying/separating
 - [ ] Native MCP structured output for `format: json` (would raise the `mcp` SDK floor)
 - [ ] A `timezone` argument for the transit tools (`get_transits`, `find_house_placements`, `compare_charts`), so callers can pass local times
-- [ ] Detect stored charts calculated before v0.13.1 and warn (today users opt in by running `w8s-astro-recalculate`)
+- [ ] Optional MCP tool `recalculate_natal_charts` (dry run by default, `confirm: true` to apply) so an assistant can run the fix for users who never find the console command
 - [ ] Relocation-chart tool (a birth chart cast for a different place at the birth moment)
 - [ ] Turn `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` from print scripts into real tests

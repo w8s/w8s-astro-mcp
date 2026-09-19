@@ -8,6 +8,8 @@ Personal astrological MCP server — natal charts, transits, forecasting, and re
 [![Python versions](https://img.shields.io/pypi/pyversions/w8s-astro-mcp)](https://pypi.org/project/w8s-astro-mcp/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
+> **⚠ Upgrading from v0.13 or earlier? Your stored charts were calculated with the wrong time zone.** Birth, event and electional times were treated as UT instead of local time, so the Ascendant, MC, houses and Moon were off. Planet signs almost always stay the same. Run `w8s-astro-recalculate --all` to see what changes, then add `--apply`. [Details](https://github.com/w8s/w8s-astro-mcp/blob/main/CHANGELOG.md)
+
 ## Features
 
 - 🔭 **Swiss Ephemeris precision** — planetary positions via [pysweph](https://pypi.org/project/pysweph/); optional high-precision file download
@@ -73,7 +75,7 @@ This renames the internal `current_profile_id` column to `owner_profile_id`. Saf
 
 Upgrading to v0.13 needs no migration. `compare_charts` keeps its existing output and adds one line per aspect (which chart each body is from, and whether the aspect is applying or separating); see the [CHANGELOG](CHANGELOG.md) if you parse that text.
 
-**Upgrading to v0.13.1 — recalculate your stored charts.** Earlier versions used the local birth time as if it were UT, so every stored natal chart has the wrong Ascendant, MC, houses and Moon. Fix it once after upgrading:
+**Upgrading to v0.14.0 — recalculate your stored charts.** Earlier versions used the local birth time as if it were UT, so every stored natal chart has the wrong Ascendant, MC, houses and Moon. Fix it once after upgrading:
 
 ```bash
 w8s-astro-recalculate --all            # dry run: shows exactly what would change
@@ -81,7 +83,7 @@ w8s-astro-recalculate --all --apply    # backs up the database first, then recal
 # with uvx: uvx --from w8s-astro-mcp w8s-astro-recalculate --all
 ```
 
-Add `--events` to include saved event charts. It is safe to run more than once. A note on times: birth time, event time and electional dates are **local** times (converted using the location's timezone); the `time` you pass to `get_transits`, `find_house_placements` and `compare_charts` is **UT**.
+Add `--events` to include saved event charts. It is safe to run more than once, and your AI assistant will mention it after you upgrade if any stored chart still needs recalculating. If you would rather not be reminded, ask it to dismiss the notice. A note on times: birth time, event time and electional dates are **local** times (converted using the location's timezone); the `time` you pass to `get_transits`, `find_house_placements` and `compare_charts` is **UT**.
 
 ### Requirements
 

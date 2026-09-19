@@ -1,6 +1,6 @@
 """Tests for the recalculation tool (w8s-astro-recalculate / w8s_astro_mcp.recalculate_natal).
 
-Charts stored by versions before 0.13.1 were calculated with the local birth time taken as UT.
+Charts stored by versions before 0.14.0 were calculated with the local birth time taken as UT.
 The tool recalculates them from the stored local birth data. It is dry-run by default, needs an
 explicit selection, backs up the database before writing, and is idempotent.
 """
@@ -36,7 +36,7 @@ def env(tmp_path):
 
 
 def _add(db, wrongly_stored=True, **person):
-    """Create a profile and store the chart the way versions before 0.13.1 did (local time as UT)."""
+    """Create a profile and store the chart the way versions before 0.14.0 did (local time as UT)."""
     profile = db.create_profile_with_location(**person)
     if wrongly_stored:
         chart = ENGINE.get_chart(

@@ -2,6 +2,7 @@
 
 This package contains all database models:
 - AppSettings: Application-level configuration (current profile, etc.)
+- DismissedNotice: Notices the user has chosen to stop seeing
 - Profile: Birth data and cached natal charts
 - Location: Saved locations (birth, home, custom)
 - HouseSystem: Reference data for house systems
@@ -63,6 +64,7 @@ from w8s_astro_mcp.models.event import Event
 from w8s_astro_mcp.models.event_planet import EventPlanet
 from w8s_astro_mcp.models.event_house import EventHouse
 from w8s_astro_mcp.models.event_point import EventPoint
+from w8s_astro_mcp.models.dismissed_notice import DismissedNotice
 
 __all__ = [
     "AppSettings",
@@ -87,4 +89,5 @@ __all__ = [
     "EventPlanet",
     "EventHouse",
     "EventPoint",
+    "DismissedNotice",
 ]

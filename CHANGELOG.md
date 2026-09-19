@@ -6,7 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-> **Upgrade note — recalculate your stored charts.** Every chart calculated by earlier versions has the wrong Ascendant, MC, houses and Moon, because the local birth time was used as if it were UT. After upgrading, run `w8s-astro-recalculate --all` (a dry run that shows exactly what would change), then `w8s-astro-recalculate --all --apply`. With uvx: `uvx --from w8s-astro-mcp w8s-astro-recalculate --all`. It backs up the database first and is safe to run more than once. Add `--events` to include saved event charts.
+> **⚠ Charts from earlier versions used the wrong time zone.** Birth, event and electional times were treated as UT instead of local time, so the Ascendant, MC, houses and Moon were off by your location's UTC offset. Planet signs almost always stay the same. Run `w8s-astro-recalculate --all` to see what changes, then add `--apply`. A backup is made first, and nothing is lost.
+>
+> With uvx: `uvx --from w8s-astro-mcp w8s-astro-recalculate --all`. Add `--events` to include saved event charts. It is safe to run more than once. After you upgrade, your AI assistant will also mention this if any stored chart still needs recalculating.
+
+### Breaking
+
+- **Results change.** Natal charts, saved event charts and electional searches calculated by earlier versions were wrong, and recalculated values differ: the Ascendant, MC, houses and Moon, and slightly Mercury, Venus and Mars. Your stored data is not corrected until you run the recalculation tool.
+- **`find_electional_windows` dates are now local** in the given `timezone`, and results are local times (they were UT times shown as if local).
+- This is 0.14.0 rather than a 0.13.x patch because results and stored data change and you need to act (SemVer, pre-1.0).
 
 ### Fixed
 
@@ -19,6 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 - **`w8s-astro-recalculate`** — recalculates stored natal charts (and, with `--events`, saved event charts) from the stored local birth/event data. Dry run by default, needs `--all` or `--profile-id`, backs up the database before writing, invalidates cached connection charts, reports before/after, and flags 12:00 birth times that are probably a placeholder for "unknown". Also available as `python -m w8s_astro_mcp.recalculate_natal`.
+- **A data notice tells your AI assistant when stored charts need recalculating.** On the tools that use stored natal charts (`get_natal_chart`, `find_house_placements`, `compare_charts`, `visualize_natal_chart`, `get_connection_chart`), if any stored chart differs from a correct calculation, a separate block starting `Data notice:` is added to the result, at most once every 30 minutes. In `compare_charts` JSON output the notice is a `notices` list instead, so the JSON stays parseable. It names no one, states the facts and asks the assistant to get your consent before running anything. The original output is never altered, and it goes away by itself once the charts are recalculated. It stores no version-tracking state.
+- **You can dismiss the notice.** Ask your assistant to dismiss it and it calls the new `dismiss_data_notice` tool (`undo=true` brings it back). The dismissal is remembered for the stale charts you have seen, so fixing some does not bring it back, but a *different* chart becoming stale does. It does not fix anything. It is stored in one small new table, `dismissed_notices`, which existing databases get automatically the next time the server starts (no migration to run).
+- **Server instructions** are now sent to the AI when it connects: which times are local and which are UT, and how to treat a data notice.
 - `tzdata` dependency (Windows and minimal containers have no system timezone database, which `zoneinfo` needs).
 - `cast_event_chart` output gains one line, `**UT:**`, after the existing lines; `find_electional_windows` output gains a `**Timezone:**` line.
 
@@ -29,8 +40,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Tests
 
-- New `tests/test_timezones.py`, `tests/test_natal_local_time.py`, `tests/test_event_time_conversion.py` and `tests/test_recalculate_natal.py`: conversion cases (three real zones and dates, date rollover both ways, DST gap and fold, half-hour zones, bad input), the natal calculation end to end against a reference chart cross-checked with an independent chart site, event and electional handlers, and the recalculation tool.
-- **498 tests total** (up from 440).
+- New `tests/test_timezones.py`, `tests/test_natal_local_time.py`, `tests/test_event_time_conversion.py`, `tests/test_recalculate_natal.py`, `tests/test_chart_health.py`, `tests/test_notice_dismissal.py` and `tests/test_server_instructions.py`: conversion cases (three real zones and dates, date rollover both ways, DST gap and fold, half-hour zones, bad input), the natal calculation end to end against a reference chart cross-checked with an independent chart site, event and electional handlers, the recalculation tool, the data notice and its dismissal (including through the MCP dispatcher, and the new table appearing on an existing database) and the server instructions.
+- **540 tests total** (up from 440).
 
 ## [0.13.0] — unreleased
 

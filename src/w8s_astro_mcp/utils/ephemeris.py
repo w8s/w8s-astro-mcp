@@ -154,6 +154,9 @@ class EphemerisEngine:
 
             info = self._longitude_to_sign_info(longitude)
             info["is_retrograde"] = self._is_retrograde(speed)
+            # Signed degrees/day (negative = retrograde). Lets callers tell whether an
+            # aspect is applying or separating; not persisted to the database.
+            info["speed"] = float(speed)
             result[planet_name] = info
 
         return result

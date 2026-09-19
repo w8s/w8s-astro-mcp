@@ -20,8 +20,10 @@ from .utils.geocoding import geocode_location
 from .tools.analysis_tools import (
     compare_charts,
     find_planets_in_houses,
+    format_aspect_json,
     format_aspect_report,
     format_house_report,
+    INCLUDE_ANGLES_MODES,
     AnalysisError
 )
 from .tools.visualization import create_natal_chart
@@ -230,6 +232,90 @@ async def handle_find_house_placements(arguments: dict) -> list[TextContent]:
             )
         return [TextContent(type="text", text=report)]
 
+    except AnalysisError as e:
+        return [TextContent(type="text", text=f"Analysis error: {e}")]
+    except EphemerisError as e:
+        return [TextContent(type="text", text=f"Ephemeris error: {e}")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
+class _ChartNotFound(Exception):
+    """A referenced chart (e.g. a saved event chart) does not exist."""
+
+
+def _profile_name(db, profile_id: Optional[int]) -> Optional[str]:
+    """Best-effort profile name for chart labels (owner profile when no id is given)."""
+    try:
+        profile = db.get_profile_by_id(profile_id) if profile_id is not None else db.get_owner_profile()
+    except Exception:  # labels are cosmetic; never fail a comparison over one
+        return None
+    name = getattr(profile, "name", None)
+    return name if isinstance(name, str) else None
+
+
+async def handle_compare_charts(arguments: dict) -> list[TextContent]:
+    """Handle compare_charts tool call. Extracted for testability."""
+    try:
+        output_format = arguments.get("format", "text")
+        if output_format not in ("text", "json"):
+            return [TextContent(type="text", text="Error: format must be 'text' or 'json'.")]
+
+        include_angles = arguments.get("include_angles")
+        if include_angles is not None and include_angles not in INCLUDE_ANGLES_MODES:
+            return [TextContent(
+                type="text",
+                text="Error: include_angles must be one of: " + ", ".join(INCLUDE_ANGLES_MODES) + ".",
+            )]
+
+        # chart retrieval goes through get_chart_for_date which calls init_ephemeris()
+        db = init_db()
+
+        def resolve_chart(prefix: str):
+            """Return (chart, meta) for chart1 / chart2. meta feeds labels and include_angles."""
+            date = arguments[f"{prefix}_date"]
+            time = arguments.get(f"{prefix}_time", "12:00")
+            profile_id = arguments.get(f"{prefix}_profile_id")
+
+            if date == "natal":
+                return (
+                    get_natal_chart_data(profile_id=profile_id),
+                    {"kind": "natal", "profile_id": profile_id},
+                )
+            if date == "today":
+                return get_chart_for_date(None, time), {"kind": "transit"}
+            if date.startswith("event:"):
+                label = date[len("event:"):]
+                ev = db.get_event_chart_by_label(label)
+                if not ev:
+                    raise _ChartNotFound(f"no saved event chart with label '{label}'")
+                return db.get_event_chart_positions(ev.id), {"kind": f"event:{label}"}
+            return get_chart_for_date(date, time), {"kind": "transit"}
+
+        chart1, meta1 = resolve_chart("chart1")
+        chart2, meta2 = resolve_chart("chart2")
+
+        # Profile names only matter when both charts are natal (synastry) and would
+        # otherwise carry identical labels.
+        if meta1["kind"] == "natal" and meta2["kind"] == "natal":
+            meta1["name"] = _profile_name(db, meta1.get("profile_id"))
+            meta2["name"] = _profile_name(db, meta2.get("profile_id"))
+
+        result = compare_charts(
+            chart1,
+            chart2,
+            orb_multiplier=arguments.get("orb_multiplier", 1.0),
+            planets_only=arguments.get("planets_only", True),
+            include_angles=include_angles,
+            chart1_meta=meta1,
+            chart2_meta=meta2,
+        )
+
+        report = format_aspect_json(result) if output_format == "json" else format_aspect_report(result)
+        return [TextContent(type="text", text=report)]
+
+    except _ChartNotFound as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
     except AnalysisError as e:
         return [TextContent(type="text", text=f"Analysis error: {e}")]
     except EphemerisError as e:
@@ -503,7 +589,11 @@ async def list_tools() -> list[Tool]:
                 "Calculate aspects between two charts. "
                 "Use for synastry (comparing two natal charts), transits (comparing natal chart with current positions), "
                 "or event chart analysis. "
-                "Finds conjunctions, oppositions, trines, squares, sextiles, and minor aspects."
+                "Finds conjunctions, oppositions, trines, squares, sextiles, and minor aspects. "
+                "Each aspect names the chart each body belongs to (natal, transit, event) and, "
+                "when a chart carries planet speeds (transit charts), whether the aspect is applying "
+                "or separating with an estimated time of exactness. "
+                "Times are UT. Transit-chart angles use the owner's current home location."
             ),
             inputSchema={
                 "type": "object",
@@ -514,7 +604,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "chart1_time": {
                         "type": "string",
-                        "description": "Time for first chart in HH:MM format (optional, defaults to 12:00)"
+                        "description": "Time for first chart in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
                     },
                     "chart1_profile_id": {
                         "type": "integer",
@@ -526,7 +616,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "chart2_time": {
                         "type": "string",
-                        "description": "Time for second chart in HH:MM format (optional, defaults to 12:00)"
+                        "description": "Time for second chart in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
                     },
                     "chart2_profile_id": {
                         "type": "integer",
@@ -538,7 +628,27 @@ async def list_tools() -> list[Tool]:
                     },
                     "planets_only": {
                         "type": "boolean",
-                        "description": "If true, only compare planets, not angles/points (optional, default true)"
+                        "description": (
+                            "Legacy switch, kept for compatibility: true (default) compares planets only; "
+                            "false also compares the angles of both charts. Prefer include_angles, which overrides this."
+                        )
+                    },
+                    "include_angles": {
+                        "type": "string",
+                        "enum": ["none", "natal", "transit", "both"],
+                        "description": (
+                            "Which charts contribute their angles (Ascendant, MC, etc.). 'natal' uses only the natal "
+                            "chart's angles - the usual choice for transits, since the transit sky's own angles change "
+                            "every few minutes and add noise. Overrides planets_only. Default: none."
+                        )
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["text", "json"],
+                        "description": (
+                            "Output format. 'text' (default) is human-readable. 'json' returns structured data "
+                            "with numeric orb, applying, days_to_exact and exact_utc fields."
+                        )
                     }
                 },
                 "required": ["chart1_date", "chart2_date"]
@@ -1122,65 +1232,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return [TextContent(type="text", text=f"Error: {e}")]
     
     elif name == "compare_charts":
-        try:
-            # chart retrieval goes through get_chart_for_date which calls init_ephemeris()
-            db = init_db()
+        return await handle_compare_charts(arguments)
 
-            # Get chart1
-            chart1_date = arguments["chart1_date"]
-            chart1_time = arguments.get("chart1_time", "12:00")
-            chart1_profile_id = arguments.get("chart1_profile_id")
-
-            if chart1_date == "natal":
-                chart1 = get_natal_chart_data(profile_id=chart1_profile_id)
-            elif chart1_date == "today":
-                chart1 = get_chart_for_date(None, chart1_time)
-            elif chart1_date.startswith("event:"):
-                label = chart1_date[len("event:"):]
-                ev = db.get_event_chart_by_label(label)
-                if not ev:
-                    return [TextContent(type="text", text=f"Error: no saved event chart with label '{label}'")]
-                chart1 = db.get_event_chart_positions(ev.id)
-            else:
-                chart1 = get_chart_for_date(chart1_date, chart1_time)
-            
-            # Get chart2
-            chart2_date = arguments["chart2_date"]
-            chart2_time = arguments.get("chart2_time", "12:00")
-            chart2_profile_id = arguments.get("chart2_profile_id")
-
-            if chart2_date == "natal":
-                chart2 = get_natal_chart_data(profile_id=chart2_profile_id)
-            elif chart2_date == "today":
-                chart2 = get_chart_for_date(None, chart2_time)
-            elif chart2_date.startswith("event:"):
-                label = chart2_date[len("event:"):]
-                ev = db.get_event_chart_by_label(label)
-                if not ev:
-                    return [TextContent(type="text", text=f"Error: no saved event chart with label '{label}'")]
-                chart2 = db.get_event_chart_positions(ev.id)
-            else:
-                chart2 = get_chart_for_date(chart2_date, chart2_time)
-            
-            # Compare charts
-            result = compare_charts(
-                chart1,
-                chart2,
-                orb_multiplier=arguments.get("orb_multiplier", 1.0),
-                planets_only=arguments.get("planets_only", True)
-            )
-            
-            # Format and return
-            report = format_aspect_report(result)
-            return [TextContent(type="text", text=report)]
-            
-        except AnalysisError as e:
-            return [TextContent(type="text", text=f"Analysis error: {e}")]
-        except EphemerisError as e:
-            return [TextContent(type="text", text=f"Ephemeris error: {e}")]
-        except Exception as e:
-            return [TextContent(type="text", text=f"Error: {e}")]
-    
     elif name == "find_house_placements":
         return await handle_find_house_placements(arguments)
     

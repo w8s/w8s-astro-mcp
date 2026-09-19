@@ -506,6 +506,8 @@ Precomputed aspects between planet pairs, enabling queries like "show me all Sat
 
 Fields would include: profile/lookup FK, planet pair, aspect type (conjunction/trine/square/etc.), orb, applying/separating flag, and aspect category (natal-natal, transit-natal, transit-transit).
 
+> **Note (v0.13.0):** `compare_charts` already computes aspects, including applying/separating, on the fly. Applying/separating comes from planet speeds returned by the ephemeris. Speeds are **not stored** in any table (only `is_retrograde` is), so charts loaded from the database — natal and saved event charts — carry no speed and report no direction. A future `aspects` table would need to store the flag or the speeds it was derived from.
+
 ### `progressions` and `returns` (not yet implemented)
 
 Secondary progressions, solar arcs, solar returns, lunar returns. Would follow the same planet/house/point child-table pattern as natal and transit tables.

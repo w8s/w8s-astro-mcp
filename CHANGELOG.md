@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`compare_charts` reports aspect direction** — each aspect now carries `applying` (true while tightening, false once separating, null when unknown), a signed `days_to_exact` (negative = already exact) and `exact_utc` (ISO-8601, UT). Available when a chart carries planet speeds, which transit charts now do; natal and saved event charts have no speed, so a natal-vs-natal or natal-vs-event comparison reports null. The estimate is linear and unreliable for the Moon and near stations.
+- **`compare_charts` labels which chart each body belongs to** — `natal`, `transit` or `event:<label>`; for two charts of the same kind (synastry) the profile names are used, falling back to "chart 1" / "chart 2".
+- **`include_angles` option on `compare_charts`** — `none` (default), `natal`, `transit` or `both`. `natal` compares only the natal chart's angles, which is what you want for transits: the transit sky's own Ascendant/MC change every few minutes and otherwise show up as noise. `planets_only` still works as an alias (`true` = `none`, `false` = `both`); `include_angles` wins if both are given.
+- **`format` option on `compare_charts`** — `text` (default) or `json`. JSON has numeric fields and no display strings.
+- **Planet `speed`** (signed degrees/day) in ephemeris chart output, alongside `is_retrograde`. Not stored in the database.
+
+### Changed
+
+- **`compare_charts` text output gains one line per aspect.** The four existing lines are byte-for-byte unchanged; a fifth line follows, for example:
+  `  Neptune = natal · Mars = transit · separating · exact ~0.6 days ago (≈ 2026-09-18 19:40 UT)`
+  Parsers that read the existing lines are unaffected; a parser that assumes exactly four lines per aspect block will see the extra line.
+- **`compare_charts` handler extracted** to `handle_compare_charts()` (same pattern as `handle_find_house_placements`). Invalid `format` / `include_angles` values now return a clear error.
+- **Tool descriptions state that `time` is UT.** It always was: the value is passed to Swiss Ephemeris without timezone conversion.
+
+### Tests
+
+- New `tests/test_compare_charts.py`: motion helper (both directions, retrograde, wraparound, missing/near-zero speeds), regression fixtures frozen from real 2026-09-19 data, labels, `include_angles` matrix and `planets_only` alias, text and JSON formatters, and the extracted handler. `tests/test_ephemeris.py` covers `speed`.
+- The older `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` contain no test functions (print scripts) and are unchanged.
+- **440 tests total** (up from 361).
+
 ## [0.12.0] — 2026-06-06
 
 ### Changed

@@ -98,7 +98,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 ```
 
 Tests import and call `handle_*()` directly — no need to pierce the MCP decorator.
-See `tests/test_find_house_placements.py` for the pattern.
+See `tests/test_find_house_placements.py` and `tests/test_compare_charts.py` for the pattern.
 
 ### Entry Points Must Be Sync
 `[project.scripts]` entry points in `pyproject.toml` are called directly by pip-generated
@@ -113,6 +113,29 @@ they create separate sessions and cause transaction conflicts.
 (not at module top) because `swisseph` may not be installed in test environments.
 Always import them after input validation so validation tests don't require swisseph.
 
+### Time Arguments Are UT
+Every `time` argument (`get_transits`, `find_house_placements`, `compare_charts`,
+`cast_event_chart`), each stored `birth_time`, and the window times scanned by
+`find_electional_windows` are passed to Swiss Ephemeris as **UT** — no timezone conversion.
+The only place a timezone is applied is the Davison midpoint (`connection_calculator`).
+Arguments named `timezone` (`create_profile`, `cast_event_chart`, `find_electional_windows`)
+are recorded or displayed; they do not shift the time. So `"09:00"` means 09:00 UT, which is
+04:00 in US Central daylight time, and anything derived from a snapshot (for example
+`compare_charts`' `exact_utc`) is UT too. Do not assume "local" in tool descriptions, docs or
+examples, and convert to UT before calling if you mean a local time.
+
+### Tool Output Is a Public Surface
+The server is published to PyPI and the MCP Registry, and `uvx` users pick up releases without
+choosing to upgrade. Treat default tool output as an interface:
+- Change it **additively**: keep existing lines byte-for-byte and append new information, or put
+  it behind an opt-in parameter (see `compare_charts`: original four lines per aspect, one line
+  appended, `include_angles` / `format` opt-in).
+- Keep old parameters working as aliases rather than renaming them (`planets_only`).
+- Add a regression test that pins the unchanged lines, and list the change under **Changed** in
+  the CHANGELOG with a before/after example.
+- Presentation (glyphs, wikilinks, which results are worth showing) belongs to the caller; the
+  server returns data.
+
 ### Test Fixtures
 - All test DB fixtures must import all models before `DatabaseHelper()` so
   `Base.metadata` is complete when `create_tables()` runs.
@@ -122,7 +145,7 @@ Always import them after input validation so validation tests don't require swis
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 356 tests total as of v0.12.0.
+- 440 tests total as of v0.13.0 (361 at v0.12.0).
 
 ## Common Commands
 

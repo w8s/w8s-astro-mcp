@@ -13,6 +13,7 @@ Personal astrological MCP server — natal charts, transits, forecasting, and re
 - 🔭 **Swiss Ephemeris precision** — planetary positions via [pysweph](https://pypi.org/project/pysweph/); optional high-precision file download
 - 🗂️ **Multi-profile** — manage charts for yourself, family, and friends
 - 📜 **Persistent history** — every transit lookup auto-logged to SQLite; query by date, planet, or sign
+- 🧭 **Transit reading** — compare today's sky to your natal chart with applying/separating direction and an estimated time of exactness; opt-in JSON output
 - 🔗 **Relationship charts** — composite and Davison charts for any group of 2+ people; place today's sky in any chart's house system
 - 🗓️ **Event & electional tools** — cast charts for any moment; scan windows for auspicious times
 
@@ -70,6 +71,8 @@ python scripts/migrate_owner_profile.py
 
 This renames the internal `current_profile_id` column to `owner_profile_id`. Safe to run multiple times.
 
+Upgrading to v0.13 needs no migration. `compare_charts` keeps its existing output and adds one line per aspect (which chart each body is from, and whether the aspect is applying or separating); see the [CHANGELOG](CHANGELOG.md) if you parse that text.
+
 ### Requirements
 
 - Python 3.10+
@@ -89,6 +92,8 @@ This renames the internal `current_profile_id` column to `owner_profile_id`. Saf
 > "When was Mercury last retrograde?"
 
 > "What major transits are coming up in the next 90 days?"
+
+> "Which of today's transits to my chart are building and which are fading?"
 
 **Other profiles:**
 > "Show me Liz's natal chart."

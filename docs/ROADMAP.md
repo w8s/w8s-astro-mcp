@@ -92,7 +92,7 @@ Makes `compare_charts` usable for day-to-day transit reading. Presentation (arro
 - [x] `include_angles` (none | natal | transit | both) alongside the all-or-nothing `planets_only` (kept as an alias)
 - [x] `format: json` option; `text` stays the default, original lines unchanged, one line appended per aspect
 - [x] `handle_compare_charts()` extracted for testability
-- [x] First real test coverage for `compare_charts` (the old analysis "tests" were print scripts); 440 total
+- [x] First real test coverage for `compare_charts` (the old analysis "tests" were print scripts); 79 new tests
 - [ ] Release: version bump, merge, tag, PyPI, MCP Registry
 
 ## Phase 9: Database Self-Healing — In Progress
@@ -116,3 +116,4 @@ Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with d
 - [ ] Native MCP structured output for `format: json` (would raise the `mcp` SDK floor)
 - [ ] State that `time` is UT in the `get_transits` and `find_house_placements` tool descriptions (done for `compare_charts` in v0.13.0)
 - [ ] Turn `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` from print scripts into real tests
+- [ ] Migrate the server to the MCP Python SDK 2.x API (`mcp` is held below 2 until then)

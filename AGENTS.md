@@ -29,7 +29,7 @@ release or a failed MCP Registry publish.
 - [ ] `CHANGELOG.md` — add entry under new version
 - [ ] Merge feature branch to `main` with `--no-ff`
 - [ ] `git tag -a <version> -m "..."` and `git push origin main && git push origin <tag>`
-- [ ] Wait for PyPI publish GitHub Action to complete (also auto-creates GitHub Release from CHANGELOG.md)
+- [ ] Wait for PyPI publish GitHub Action to complete (also auto-creates GitHub Release from CHANGELOG.md; preview the notes first with `python scripts/release_notes.py <version>`)
 - [ ] `/opt/homebrew/bin/mcp-publisher publish` from repo root on `main`
 
 > ⚠️ **server.json and pyproject.toml must always be updated together.**
@@ -136,6 +136,13 @@ choosing to upgrade. Treat default tool output as an interface:
 - Presentation (glyphs, wikilinks, which results are worth showing) belongs to the caller; the
   server returns data.
 
+### Dependency Bounds
+`mcp` is bounded `<2`: SDK 2.x removed the `Server.list_tools()` / `call_tool()` decorators the server is
+built on, and an unbounded `mcp>=1.0.0` broke every fresh install at import. Bound the major version of any
+dependency the server is built on. `tests/test_dependency_pins.py` guards the `mcp` bound. Look at Dependabot
+proposals that loosen a bound before merging them (`timezonefinder` is held below 8 because 8.x pulls in a
+compiled dependency that breaks installs without CMake; see the 0.11.2 changelog).
+
 ### Test Fixtures
 - All test DB fixtures must import all models before `DatabaseHelper()` so
   `Base.metadata` is complete when `create_tables()` runs.
@@ -145,7 +152,7 @@ choosing to upgrade. Treat default tool output as an interface:
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 440 tests total as of v0.13.0 (361 at v0.12.0).
+- 466 tests total as of v0.13.0 (364 at v0.12.1, 361 at v0.12.0).
 
 ## Common Commands
 

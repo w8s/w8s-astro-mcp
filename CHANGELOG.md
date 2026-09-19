@@ -22,11 +22,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **`compare_charts` handler extracted** to `handle_compare_charts()` (same pattern as `handle_find_house_placements`). Invalid `format` / `include_angles` values now return a clear error.
 - **Tool descriptions state that `time` is UT.** It always was: the value is passed to Swiss Ephemeris without timezone conversion.
 
+### Fixed
+
+- **GitHub Release notes were published empty.** The publish workflow's extraction (an awk range whose start line also matched its end pattern) returned nothing for every version, so the 0.12.1 release had blank notes. The extraction is now `scripts/release_notes.py`, which is tested against every version in this CHANGELOG, and the workflow fails loudly if a version has no section or an empty one. Preview a release's notes with `python scripts/release_notes.py <version>`.
+
 ### Tests
 
 - New `tests/test_compare_charts.py`: motion helper (both directions, retrograde, wraparound, missing/near-zero speeds), regression fixtures frozen from real 2026-09-19 data, labels, `include_angles` matrix and `planets_only` alias, text and JSON formatters, and the extracted handler. `tests/test_ephemeris.py` covers `speed`.
 - The older `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` contain no test functions (print scripts) and are unchanged.
-- **440 tests total** (up from 361).
+- **466 tests total** (up from 387 on `main`; 79 of the new ones are for `compare_charts` and planet speed).
+
+## [0.12.1] — 2026-09-19
+
+### Fixed
+
+- **Fresh installs failed to start.** The dependency was `mcp>=1.0.0` with no upper bound, so once the MCP Python SDK 2.0 was published every new install (`uvx w8s-astro-mcp`, `pip install w8s-astro-mcp`) resolved to it, and the server failed at import with `AttributeError: 'Server' object has no attribute 'list_tools'`. Version 0.12.0 and earlier are affected. The dependency is now `mcp>=1.28.1,<2`. Installs that already had an older SDK kept working, which is why this went unnoticed. **If you hit this error, upgrade** (`uvx --refresh w8s-astro-mcp`, or `pip install -U w8s-astro-mcp`).
+- The lower bound also excludes SDK releases with published security advisories (HTTP and WebSocket transports, experimental task handlers). This server only uses stdio, so we believe they did not apply, but a new install should not resolve to a flagged version.
+
+### Changed
+
+- `uv.lock`: `mcp` 1.26.0 → 1.30.0.
+
+### Tests
+
+- New `tests/test_dependency_pins.py`: the `mcp` requirement stays bounded below 2.x with a lower bound that excludes flagged releases, and the installed SDK still has the `list_tools` / `call_tool` decorators the server is built on.
+- **364 tests total** (up from 361).
 
 ## [0.12.0] — 2026-06-06
 

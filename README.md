@@ -73,6 +73,8 @@ This renames the internal `current_profile_id` column to `owner_profile_id`. Saf
 
 Upgrading to v0.13 needs no migration. `compare_charts` keeps its existing output and adds one line per aspect (which chart each body is from, and whether the aspect is applying or separating); see the [CHANGELOG](CHANGELOG.md) if you parse that text.
 
+**If a new install fails with `AttributeError: 'Server' object has no attribute 'list_tools'`:** upgrade to v0.12.1 or later (`uvx --refresh w8s-astro-mcp`, or `pip install -U w8s-astro-mcp`). Earlier versions did not limit which MCP SDK version they accept, so a new install picked up SDK 2.x, which this server does not support yet.
+
 ### Requirements
 
 - Python 3.10+

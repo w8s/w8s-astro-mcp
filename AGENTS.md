@@ -25,12 +25,16 @@ release or a failed MCP Registry publish.
 
 - [ ] Feature complete and tests passing (`.venv/bin/python -m pytest`)
 - [ ] `pyproject.toml` — bump `version`
-- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match
+- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match (`scripts/bump_version.py <version>` does all three plus the CHANGELOG heading)
 - [ ] `CHANGELOG.md` — add entry under new version
-- [ ] Merge feature branch to `main` with `--no-ff`
-- [ ] `git tag -a <version> -m "..."` and `git push origin main && git push origin <tag>`
-- [ ] Wait for PyPI publish GitHub Action to complete (also auto-creates GitHub Release from CHANGELOG.md)
-- [ ] `/opt/homebrew/bin/mcp-publisher publish` from repo root on `main`
+- [ ] Merge to `main` with a merge commit, not a squash (`gh pr merge --merge`, or `--no-ff` locally)
+- [ ] `git tag -a <version> <merge-commit> -m "..."` and `git push origin <version>` (the tag triggers the PyPI publish)
+- [ ] Wait for PyPI publish GitHub Action to complete (also auto-creates GitHub Release from CHANGELOG.md; preview the notes first with `python scripts/release_notes.py <version>`)
+- [ ] **Update the main clone** (`/Users/w8s/Documents/_git/w8s-astro-mcp`): `git pull --ff-only` on `main`, then check that `server.json` carries the released version in both places. `mcp-publisher` publishes the `server.json` in the directory it runs from, so a stale clone re-submits the old version and fails as a duplicate. If you edited `server.json` by hand there, discard it first (`git checkout -- server.json`); the pull brings the same change
+- [ ] `/opt/homebrew/bin/mcp-publisher publish` from that repo root on `main`
+
+> The main clone is also what Claude Desktop runs, so this pull updates the live server's working tree.
+> `git diff --stat HEAD origin/main -- src` (before pulling) shows whether any runtime code changes.
 
 > ⚠️ **server.json and pyproject.toml must always be updated together.**
 > The MCP Registry validates the version against the live PyPI package — a mismatch
@@ -153,6 +157,13 @@ choosing to upgrade. Treat default tool output as an interface:
 - A release that changes results or requires user action is a **minor** bump pre-1.0. Put the plain-language
   headline and the fix at the top of the CHANGELOG entry — the GitHub Release body is built from it.
 
+### Dependency Bounds
+`mcp` is bounded `<2`: SDK 2.x removed the `Server.list_tools()` / `call_tool()` decorators the server is
+built on, and an unbounded `mcp>=1.0.0` broke every fresh install at import. Bound the major version of any
+dependency the server is built on. `tests/test_dependency_pins.py` guards the `mcp` bound. Look at Dependabot
+proposals that loosen a bound before merging them (`timezonefinder` is held below 8 because 8.x pulls in a
+compiled dependency that breaks installs without CMake; see the 0.11.2 changelog).
+
 ### Test Fixtures
 - All test DB fixtures must import all models before `DatabaseHelper()` so
   `Base.metadata` is complete when `create_tables()` runs.
@@ -162,7 +173,7 @@ choosing to upgrade. Treat default tool output as an interface:
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 540 tests total as of v0.14.0 (440 at v0.13.0, 361 at v0.12.0).
+- 566 tests total as of v0.14.0 (364 at v0.12.1, 361 at v0.12.0).
 
 ## Common Commands
 

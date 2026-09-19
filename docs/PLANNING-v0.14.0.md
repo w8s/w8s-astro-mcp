@@ -89,3 +89,10 @@ The user must be able to say "stop reminding me". Decision: a small **new table*
 - **What is remembered:** the stale profile IDs the user had seen. The notice stays hidden while the stale profiles are
   a subset of those (fixing some does not bring it back); a different stale chart does.
 - **What it does not do:** fix anything. The tool says so, and how to recalculate.
+
+## Addendum — one release
+
+Decided after the 0.13.0 branch was ready: there is **no separate 0.13.0 release**. The `compare_charts` work
+(previously planned as 0.13.0) ships inside 0.14.0 with the local-time fix, so nobody receives it without the fix,
+the data notice and the recalculation tool, and there is one release cycle instead of two. The CHANGELOG folds the
+0.13.0 entries into the 0.14.0 entry; both planning docs are deleted in the release commit.

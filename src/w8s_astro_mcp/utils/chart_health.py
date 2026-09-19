@@ -165,7 +165,7 @@ def data_notice(health: ChartHealth) -> Optional[str]:
     verb = "was" if health.stale == 1 else "were"
     return (
         f"Data notice: {health.stale} of {health.checked} stored natal {noun} {verb} calculated by "
-        "w8s-astro-mcp 0.13 or earlier, which read birth times as UT instead of local time. For "
+        "a version of w8s-astro-mcp before 0.14.0, which read birth times as UT instead of local time. For "
         "those charts the Ascendant, MC, houses and Moon are off by the birth location's UTC offset; "
         "planet signs are almost always unchanged.\n"
         "Fix (the user's choice): `w8s-astro-recalculate --all` shows exactly what would change; adding "

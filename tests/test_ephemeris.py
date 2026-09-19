@@ -302,7 +302,7 @@ class TestEphemerisMode:
 
 
 # ---------------------------------------------------------------------------
-# Planet speed (v0.13.0) — signed degrees/day, kept alongside is_retrograde
+# Planet speed (v0.14.0) — signed degrees/day, kept alongside is_retrograde
 # ---------------------------------------------------------------------------
 
 class TestPlanetSpeed:

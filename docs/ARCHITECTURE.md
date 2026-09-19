@@ -87,7 +87,7 @@ flowchart TD
     R --> U
 ```
 
-### Chart Comparison (`compare_charts`) — v0.13.0
+### Chart Comparison (`compare_charts`) — v0.14.0
 
 ```mermaid
 flowchart TD
@@ -200,7 +200,7 @@ flowchart TD
   - **EphemerisEngine output:** `degree` (decimal float within sign), no `minutes`/`seconds`/`absolute_position`
 - `DatabaseHelper._normalize_position()` coerces either format before any DB write
 - Reuses `decimal_to_dms()` and `sign_to_absolute_position()` from `position_utils.py`
-- `EphemerisEngine` planet dicts also carry `is_retrograde` and, since v0.13.0, `speed` (signed degrees/day). `_normalize_position()` passes extra keys through and every persistence site (`NatalPlanet`, `TransitPlanet`, `EventPlanet`, `ConnectionPlanet`) reads named fields, so `speed` is never written to the database. Charts loaded from the database therefore carry no speed (see decision #15).
+- `EphemerisEngine` planet dicts also carry `is_retrograde` and, since v0.14.0, `speed` (signed degrees/day). `_normalize_position()` passes extra keys through and every persistence site (`NatalPlanet`, `TransitPlanet`, `EventPlanet`, `ConnectionPlanet`) reads named fields, so `speed` is never written to the database. Charts loaded from the database therefore carry no speed (see decision #15).
 
 ### 8. `position_utils.py` — Shared Conversion Module
 - `decimal_to_dms()` and `sign_to_absolute_position()` were originally defined in `transit_logger.py` but were needed by `db_helpers.py` too
@@ -217,7 +217,7 @@ flowchart TD
 
 **Core:**
 - Python 3.14
-- MCP (Model Context Protocol) server
+- MCP (Model Context Protocol) server, Python SDK 1.x (`mcp>=1.28.1,<2`; the 2.x API is not supported yet)
 - SQLAlchemy 2.0 ORM
 - SQLite database
 
@@ -228,7 +228,7 @@ flowchart TD
 - tzdata (timezone database for `zoneinfo` on Windows and minimal containers)
 
 **Dev:**
-- pytest (540 tests)
+- pytest (566 tests)
 - git (version control)
 
 ## Database Schema
@@ -358,7 +358,7 @@ See `handle_find_house_placements()` and `handle_compare_charts()` in `server.py
 implementations. Apply this pattern to any new handler whose logic
 branches enough to warrant standalone test coverage.
 
-### 15. Transit Direction, Chart Labels, and JSON Output — v0.13.0
+### 15. Transit Direction, Chart Labels, and JSON Output — v0.14.0
 `compare_charts` now answers three questions a transit reader needs:
 
 - **Is the aspect building or fading?** `EphemerisEngine._calc_planets()` keeps each planet's
@@ -484,15 +484,11 @@ pytest tests/models/test_connections.py
 3. Idempotent — safe to run multiple times
 4. After migrating, use `setup_owner` to confirm your profile is set
 
-**v0.13 → v0.14.0 (local times converted to UT):**
+**v0.12 → v0.14.0 (local times converted to UT; transit direction, chart labels, JSON output):**
 1. Run `w8s-astro-recalculate --all` to see what would change, then `w8s-astro-recalculate --all --apply` (a database backup is written first)
 2. Add `--events` to include saved event charts; review those first — a chart saved for a birth clock time labelled with a different timezone is not a relocation chart
 3. Stored profiles keep their local birth times. One new small table (`dismissed_notices`) is added to your database automatically on the next start; there is nothing to migrate
-
-**v0.12 → v0.13 (transit direction, chart labels, JSON output):**
-1. No migration — there is no schema change and nothing to run
-2. Additive: `compare_charts` text output keeps its four existing lines per aspect and gains one appended line; new options (`include_angles`, `format`) are opt-in
-3. Callers that parse the old text should read the four existing lines and ignore the fifth (see the CHANGELOG entry)
+4. The `compare_charts` changes are additive: the four existing text lines per aspect are unchanged and one line is appended; new options (`include_angles`, `format`) are opt-in. Callers that parse the old text should read the four existing lines and ignore the fifth
 
 **For new users:**
 - No migration needed

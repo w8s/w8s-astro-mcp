@@ -113,6 +113,13 @@ they create separate sessions and cause transaction conflicts.
 (not at module top) because `swisseph` may not be installed in test environments.
 Always import them after input validation so validation tests don't require swisseph.
 
+### Dependency Bounds
+`mcp` is bounded `<2`: SDK 2.x removed the `Server.list_tools()` / `call_tool()` decorators the server is
+built on, and an unbounded `mcp>=1.0.0` broke every fresh install at import. Bound the major version of any
+dependency the server is built on. `tests/test_dependency_pins.py` guards the `mcp` bound. Look at Dependabot
+proposals that loosen a bound before merging them (`timezonefinder` is held below 8 because 8.x pulls in a
+compiled dependency that breaks installs without CMake; see the 0.11.2 changelog).
+
 ### Test Fixtures
 - All test DB fixtures must import all models before `DatabaseHelper()` so
   `Base.metadata` is complete when `create_tables()` runs.

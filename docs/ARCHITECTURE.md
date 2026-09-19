@@ -192,7 +192,7 @@ flowchart TD
 
 **Core:**
 - Python 3.14
-- MCP (Model Context Protocol) server
+- MCP (Model Context Protocol) server, Python SDK 1.x (`mcp>=1.28.1,<2`; the 2.x API is not supported yet)
 - SQLAlchemy 2.0 ORM
 - SQLite database
 

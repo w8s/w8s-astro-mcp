@@ -36,7 +36,7 @@ def get_event_tools() -> list[Tool]:
                     },
                     "time": {
                         "type": "string",
-                        "description": "Time in HH:MM format (local time at the given location)"
+                        "description": "Time in HH:MM format, local time at the given location (converted to UT using the timezone)"
                     },
                     "latitude": {
                         "type": "number",
@@ -48,7 +48,7 @@ def get_event_tools() -> list[Tool]:
                     },
                     "timezone": {
                         "type": "string",
-                        "description": "IANA timezone name (e.g., 'America/Chicago')"
+                        "description": "IANA timezone name (e.g., 'America/Chicago'); used to convert the local time to UT"
                     },
                     "location_name": {
                         "type": "string",
@@ -154,7 +154,7 @@ def get_event_tools() -> list[Tool]:
                     },
                     "timezone": {
                         "type": "string",
-                        "description": "IANA timezone for display and local-time interpretation"
+                        "description": "IANA timezone: start_date and end_date are local dates in this timezone, and results are shown in local time"
                     },
                     "location_name": {
                         "type": "string",
@@ -222,14 +222,21 @@ async def handle_cast_event_chart(db_helper, arguments: dict) -> list[TextConten
     if latitude is None or longitude is None:
         return [TextContent(type="text", text="Error: latitude and longitude are required")]
 
+    # `time` is local time at the event location; the ephemeris needs UT.
+    from ..utils.timezones import TimezoneError, utc_engine_args
+    try:
+        ut_date, ut_time = utc_engine_args(date, time, timezone)
+    except TimezoneError as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
     from ..utils.ephemeris import EphemerisEngine, EphemerisError
     try:
         engine = EphemerisEngine()
         chart = engine.get_chart(
             latitude=latitude,
             longitude=longitude,
-            date_str=date,
-            time_str=time,
+            date_str=ut_date,
+            time_str=ut_time,
         )
     except EphemerisError as e:
         return [TextContent(type="text", text=f"Error calculating chart: {e}")]
@@ -244,6 +251,7 @@ async def handle_cast_event_chart(db_helper, arguments: dict) -> list[TextConten
         f"**Date:** {date} at {time}",
         f"**Location:** {location_name} ({latitude:.3f}, {longitude:.3f})",
         f"**Timezone:** {timezone}",
+        f"**UT:** {ut_date} {ut_time}",
     ]
     if description:
         lines.append(f"**Notes:** {description}")
@@ -386,14 +394,23 @@ async def handle_find_electional_windows(db_helper, arguments: dict) -> list[Tex
     if window_days < 0:
         return [TextContent(type="text", text="Error: end_date must be after start_date")]
 
+    # start_date / end_date are local dates in `timezone`; the ephemeris needs UT. The scan steps
+    # through real elapsed time in UT (so it is safe across DST changes) and reports local times.
+    from ..utils.timezones import TimezoneError, local_to_utc, utc_to_local
+    try:
+        start_utc = local_to_utc(start_date, "00:00", timezone)
+        end_utc = local_to_utc(end_date, "00:00", timezone)
+    except TimezoneError as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
     from ..utils.ephemeris import EphemerisEngine, EphemerisError
     from ..utils.electional import score_chart
     engine = EphemerisEngine()
     candidates = []
-    current = start_dt
+    current = start_utc
     step = timedelta(minutes=interval_minutes)
 
-    while current <= end_dt:
+    while current <= end_utc:
         date_str = current.strftime("%Y-%m-%d")
         time_str = current.strftime("%H:%M")
         try:
@@ -426,13 +443,15 @@ async def handle_find_electional_windows(db_helper, arguments: dict) -> list[Tex
     lines = [
         f"# Electional Windows: {start_date} – {end_date}",
         f"**Location:** {location_name}",
+        f"**Timezone:** {timezone} (times below are local)",
         f"**Criteria:** {', '.join(criteria)}",
         f"**Interval:** {interval_minutes} min | **Results:** {len(candidates)} of {max_results} max",
         "",
     ]
 
     for i, (score, dt, met_criteria, details) in enumerate(candidates, 1):
-        lines.append(f"## {i}. {dt.strftime('%Y-%m-%d %H:%M')} — {score}/{len(criteria)} criteria met")
+        local_dt = utc_to_local(dt, timezone)
+        lines.append(f"## {i}. {local_dt.strftime('%Y-%m-%d %H:%M')} — {score}/{len(criteria)} criteria met")
         for c in met_criteria:
             lines.append(f"  ✓ {c}")
         for c in criteria:

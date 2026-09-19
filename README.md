@@ -73,6 +73,16 @@ This renames the internal `current_profile_id` column to `owner_profile_id`. Saf
 
 Upgrading to v0.13 needs no migration. `compare_charts` keeps its existing output and adds one line per aspect (which chart each body is from, and whether the aspect is applying or separating); see the [CHANGELOG](CHANGELOG.md) if you parse that text.
 
+**Upgrading to v0.13.1 — recalculate your stored charts.** Earlier versions used the local birth time as if it were UT, so every stored natal chart has the wrong Ascendant, MC, houses and Moon. Fix it once after upgrading:
+
+```bash
+w8s-astro-recalculate --all            # dry run: shows exactly what would change
+w8s-astro-recalculate --all --apply    # backs up the database first, then recalculates
+# with uvx: uvx --from w8s-astro-mcp w8s-astro-recalculate --all
+```
+
+Add `--events` to include saved event charts. It is safe to run more than once. A note on times: birth time, event time and electional dates are **local** times (converted using the location's timezone); the `time` you pass to `get_transits`, `find_house_placements` and `compare_charts` is **UT**.
+
 ### Requirements
 
 - Python 3.10+

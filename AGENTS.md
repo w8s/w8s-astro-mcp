@@ -113,16 +113,18 @@ they create separate sessions and cause transaction conflicts.
 (not at module top) because `swisseph` may not be installed in test environments.
 Always import them after input validation so validation tests don't require swisseph.
 
-### Time Arguments Are UT
-Every `time` argument (`get_transits`, `find_house_placements`, `compare_charts`,
-`cast_event_chart`), each stored `birth_time`, and the window times scanned by
-`find_electional_windows` are passed to Swiss Ephemeris as **UT** — no timezone conversion.
-The only place a timezone is applied is the Davison midpoint (`connection_calculator`).
-Arguments named `timezone` (`create_profile`, `cast_event_chart`, `find_electional_windows`)
-are recorded or displayed; they do not shift the time. So `"09:00"` means 09:00 UT, which is
-04:00 in US Central daylight time, and anything derived from a snapshot (for example
-`compare_charts`' `exact_utc`) is UT too. Do not assume "local" in tool descriptions, docs or
-examples, and convert to UT before calling if you mean a local time.
+### Local Times vs UT
+`EphemerisEngine.get_chart()` takes **UT**. Never pass it a local time.
+- **Local inputs are converted.** A birth time (`Profile.birth_time` + the birth location's timezone),
+  a `cast_event_chart` time, and `find_electional_windows` dates are local wall-clock times. Convert
+  them with `utils/timezones.py` (`utc_engine_args`, `local_to_utc`, `utc_to_local`) before calling the
+  engine, and keep the stored/displayed values local. Do not hand-roll offset arithmetic; `zoneinfo`
+  handles historical DST.
+- **Transit tools take UT.** The `time` argument of `get_transits`, `find_house_placements` and
+  `compare_charts` is UT (`"09:00"` is 04:00 in US Central daylight time), and anything derived from a
+  snapshot (for example `compare_charts`' `exact_utc`) is UT too. Say so in tool descriptions and docs.
+- Before v0.13.1 the local inputs were passed through unconverted; `w8s-astro-recalculate` repairs
+  charts stored that way (see ARCHITECTURE.md decision #16).
 
 ### Tool Output Is a Public Surface
 The server is published to PyPI and the MCP Registry, and `uvx` users pick up releases without
@@ -145,7 +147,7 @@ choosing to upgrade. Treat default tool output as an interface:
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 440 tests total as of v0.13.0 (361 at v0.12.0).
+- 498 tests total as of v0.13.1 (440 at v0.13.0, 361 at v0.12.0).
 
 ## Common Commands
 

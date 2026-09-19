@@ -48,6 +48,7 @@ src/w8s_astro_mcp/
 │       ├── db_helpers.py        # High-level database queries
 │       ├── connection_calculator.py # Composite & Davison math
 │       ├── position_utils.py    # Shared position conversion functions
+│       ├── timezones.py         # Local wall-clock time -> UT (zoneinfo), used before every chart calculation
 │       ├── transit_logger.py    # Save transit data to database
 │       └── geocoding.py         # Nominatim geocoding + IANA timezone lookup (timezonefinder)
 │
@@ -223,9 +224,10 @@ flowchart TD
 - pysweph (Python Swiss Ephemeris extension — no binary required)
 - matplotlib (chart visualization)
 - timezonefinder (offline IANA timezone lookup from coordinates)
+- tzdata (timezone database for `zoneinfo` on Windows and minimal containers)
 
 **Dev:**
-- pytest (440 tests)
+- pytest (498 tests)
 - git (version control)
 
 ## Database Schema
@@ -376,11 +378,38 @@ Design rules: **the server returns data, callers present it.** Arrows, glyphs, w
 "which angle hits are worth showing" belong to the caller. The version bump is minor (additive;
 no deprecation of `text`).
 
-**Time is UT.** The `time` argument is passed to Swiss Ephemeris as UT (no timezone conversion).
-`exact_utc` is UT for that reason; callers convert to local time.
+**Time is UT for transit tools.** The `time` argument of `get_transits`, `find_house_placements` and
+`compare_charts` is passed to Swiss Ephemeris as UT. `exact_utc` is UT for that reason; callers convert to
+local time. Birth, event and electional times are local and are converted (decision #16).
 
 Known limits: transit-chart angles use the owner's current home location (no location argument on
 `compare_charts`); saved event charts carry no speed, so they report `applying: null`.
+
+### 16. Local Times Are Converted to UT — v0.13.1
+Swiss Ephemeris takes UT. Before v0.13.1, three tools collected a *local* time plus an IANA timezone
+and passed the local time to the ephemeris unchanged: natal chart calculation (`get_natal_chart_data`,
+the only place natal charts are calculated, lazily), `cast_event_chart` and `find_electional_windows`.
+The timezone was recorded or displayed but never applied, so every chart was off by the location's UTC
+offset — wrong Ascendant, MC, houses and Moon.
+
+- **One conversion point.** `utils/timezones.py` (`local_to_utc`, `utc_engine_args`, `utc_to_local`)
+  uses `zoneinfo`, so historical DST rules apply. An ambiguous fall-back time takes the first
+  occurrence; a nonexistent spring-forward time shifts forward. Bad input raises `TimezoneError`, which
+  handlers turn into a clear message.
+- **Stored data stays local.** `profiles.birth_time` and `events.event_time` keep meaning what a
+  record says; only the value handed to the ephemeris is converted. No schema change.
+- **Electional scans step in UT** (real elapsed minutes, safe across DST changes) and print local times.
+- **Transit tools are unchanged.** `get_transits`, `find_house_placements`, `get_ingresses` and
+  `compare_charts` take UT by design and have no timezone input; their descriptions say so.
+- **Existing data needs recalculating.** `w8s-astro-recalculate` (module `recalculate_natal`) rebuilds
+  natal charts — and, with `--events`, saved event charts — from the stored local data. It requires an
+  explicit selection, is a dry run unless `--apply` is given, backs up the database first, invalidates
+  cached connection charts, and is idempotent. It is a console script rather than a file under
+  `scripts/` so `uvx` and `pip` users can run it.
+- **Davison charts** already converted correctly (`connection_calculator`).
+
+Deliberately not done: automatic detection or silent recalculation of stale charts (users opt in), and a
+timezone argument for the transit tools.
 
 ## Contributing
 
@@ -412,6 +441,9 @@ pytest tests/models/
 # compare_charts: motion, labels, include_angles, text/JSON formatters, handler
 pytest tests/test_compare_charts.py
 
+# Local -> UT conversion: util, natal, events/electional, recalculation tool
+pytest tests/test_timezones.py tests/test_natal_local_time.py tests/test_event_time_conversion.py tests/test_recalculate_natal.py
+
 # Specific test file
 pytest tests/models/test_connections.py
 ```
@@ -429,6 +461,11 @@ pytest tests/models/test_connections.py
 2. Renames `current_profile_id` → `owner_profile_id` in `app_settings` table
 3. Idempotent — safe to run multiple times
 4. After migrating, use `setup_owner` to confirm your profile is set
+
+**v0.13 → v0.13.1 (local times converted to UT):**
+1. Run `w8s-astro-recalculate --all` to see what would change, then `w8s-astro-recalculate --all --apply` (a database backup is written first)
+2. Add `--events` to include saved event charts; review those first — a chart saved for a birth clock time labelled with a different timezone is not a relocation chart
+3. Stored profiles keep their local birth times; no schema change
 
 **v0.12 → v0.13 (transit direction, chart labels, JSON output):**
 1. No migration — there is no schema change and nothing to run

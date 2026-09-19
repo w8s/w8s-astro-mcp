@@ -1104,44 +1104,66 @@ class DatabaseHelper:
             session.add(event)
             session.flush()
 
-            for planet_name, pos_data in chart.get("planets", {}).items():
-                norm = self._normalize_position(pos_data)
-                session.add(EventPlanet(
-                    event_id=event.id,
-                    planet=planet_name,
-                    degree=norm["degree"],
-                    minutes=norm["minutes"],
-                    seconds=norm["seconds"],
-                    sign=norm["sign"],
-                    absolute_position=norm["absolute_position"],
-                    house_number=pos_data.get("house_number"),
-                    is_retrograde=bool(pos_data.get("is_retrograde", False)),
-                ))
+            self._add_event_position_rows(session, event.id, chart)
 
-            for house_num, pos_data in chart.get("houses", {}).items():
-                norm = self._normalize_position(pos_data)
-                session.add(EventHouse(
-                    event_id=event.id,
-                    house_number=int(house_num),
-                    degree=norm["degree"],
-                    minutes=norm["minutes"],
-                    seconds=norm["seconds"],
-                    sign=norm["sign"],
-                    absolute_position=norm["absolute_position"],
-                ))
+            session.commit()
 
-            for point_type, pos_data in chart.get("points", {}).items():
-                norm = self._normalize_position(pos_data)
-                session.add(EventPoint(
-                    event_id=event.id,
-                    point_type=point_type,
-                    degree=norm["degree"],
-                    minutes=norm["minutes"],
-                    seconds=norm["seconds"],
-                    sign=norm["sign"],
-                    absolute_position=norm["absolute_position"],
-                ))
+    def _add_event_position_rows(self, session, event_id: int, chart: dict) -> None:
+        """Add the planet, house and point rows for an event chart (caller commits)."""
+        from ..models import EventPlanet, EventHouse, EventPoint
 
+        for planet_name, pos_data in chart.get("planets", {}).items():
+            norm = self._normalize_position(pos_data)
+            session.add(EventPlanet(
+                event_id=event_id,
+                planet=planet_name,
+                degree=norm["degree"],
+                minutes=norm["minutes"],
+                seconds=norm["seconds"],
+                sign=norm["sign"],
+                absolute_position=norm["absolute_position"],
+                house_number=pos_data.get("house_number"),
+                is_retrograde=bool(pos_data.get("is_retrograde", False)),
+            ))
+
+        for house_num, pos_data in chart.get("houses", {}).items():
+            norm = self._normalize_position(pos_data)
+            session.add(EventHouse(
+                event_id=event_id,
+                house_number=int(house_num),
+                degree=norm["degree"],
+                minutes=norm["minutes"],
+                seconds=norm["seconds"],
+                sign=norm["sign"],
+                absolute_position=norm["absolute_position"],
+            ))
+
+        for point_type, pos_data in chart.get("points", {}).items():
+            norm = self._normalize_position(pos_data)
+            session.add(EventPoint(
+                event_id=event_id,
+                point_type=point_type,
+                degree=norm["degree"],
+                minutes=norm["minutes"],
+                seconds=norm["seconds"],
+                sign=norm["sign"],
+                absolute_position=norm["absolute_position"],
+            ))
+
+    def replace_event_chart_positions(self, event_id: int, chart: dict) -> None:
+        """Replace the stored planet, house and point rows of an existing event chart.
+
+        Used when an event chart is recalculated (for example after a timezone fix). The event's
+        own fields (label, date, time, timezone, location) are left as they are.
+        """
+        from ..models import EventPlanet, EventHouse, EventPoint
+
+        with get_session(self.engine) as session:
+            session.query(EventPlanet).filter_by(event_id=event_id).delete()
+            session.query(EventHouse).filter_by(event_id=event_id).delete()
+            session.query(EventPoint).filter_by(event_id=event_id).delete()
+            session.flush()
+            self._add_event_position_rows(session, event_id, chart)
             session.commit()
 
     def list_event_charts(self, profile_id: int = None) -> list:

@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+> **Upgrade note — recalculate your stored charts.** Every chart calculated by earlier versions has the wrong Ascendant, MC, houses and Moon, because the local birth time was used as if it were UT. After upgrading, run `w8s-astro-recalculate --all` (a dry run that shows exactly what would change), then `w8s-astro-recalculate --all --apply`. With uvx: `uvx --from w8s-astro-mcp w8s-astro-recalculate --all`. It backs up the database first and is safe to run more than once. Add `--events` to include saved event charts.
+
+### Fixed
+
+- **Local times are now converted to UT before charts are calculated.** Swiss Ephemeris takes UT, but birth times, event times and electional windows are local times that come with an IANA timezone, and the timezone was recorded or displayed but never applied. The result was an Ascendant, MC, house cusps and Moon that were off by the location's UTC offset (for a birth at 00:50 in St. Louis in May, the stored chart had Scorpio rising instead of Capricorn), and slightly wrong Mercury, Venus and Mars. Fixed for:
+  - **natal charts** — the birth time is converted using the birth location's timezone; the stored profile keeps the local time
+  - **`cast_event_chart`** — the event time is converted using `timezone`; the stored event keeps the local date and time
+  - **`find_electional_windows`** — `start_date` / `end_date` are local dates in `timezone`, the scan steps through real elapsed time (safe across daylight-saving changes) and results show local times
+  Conversion uses `zoneinfo`, so historical daylight-saving rules apply (US DST was in effect on 1981-05-06). An ambiguous fall-back time takes the first occurrence; a nonexistent spring-forward time is shifted forward. Davison charts already converted correctly.
+
+### Added
+
+- **`w8s-astro-recalculate`** — recalculates stored natal charts (and, with `--events`, saved event charts) from the stored local birth/event data. Dry run by default, needs `--all` or `--profile-id`, backs up the database before writing, invalidates cached connection charts, reports before/after, and flags 12:00 birth times that are probably a placeholder for "unknown". Also available as `python -m w8s_astro_mcp.recalculate_natal`.
+- `tzdata` dependency (Windows and minimal containers have no system timezone database, which `zoneinfo` needs).
+- `cast_event_chart` output gains one line, `**UT:**`, after the existing lines; `find_electional_windows` output gains a `**Timezone:**` line.
+
+### Changed
+
+- Tool descriptions now say which times are local (birth time, event time, electional dates) and which are UT (`time` on `get_transits`, `find_house_placements` and `compare_charts`). Those transit tools are unchanged.
+- `find_electional_windows` results are now local times (they were UT times shown as if local). Which moments qualify changes accordingly.
+
+### Tests
+
+- New `tests/test_timezones.py`, `tests/test_natal_local_time.py`, `tests/test_event_time_conversion.py` and `tests/test_recalculate_natal.py`: conversion cases (three real zones and dates, date rollover both ways, DST gap and fold, half-hour zones, bad input), the natal calculation end to end against a reference chart cross-checked with an independent chart site, event and electional handlers, and the recalculation tool.
+- **498 tests total** (up from 440).
+
+## [0.13.0] — unreleased
+
 ### Added
 
 - **`compare_charts` reports aspect direction** — each aspect now carries `applying` (true while tightening, false once separating, null when unknown), a signed `days_to_exact` (negative = already exact) and `exact_utc` (ISO-8601, UT). Available when a chart carries planet speeds, which transit charts now do; natal and saved event charts have no speed, so a natal-vs-natal or natal-vs-event comparison reports null. The estimate is linear and unreliable for the Moon and near stations.

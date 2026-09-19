@@ -221,14 +221,14 @@ erDiagram
         string label "unique per profile"
         float latitude
         float longitude
-        string timezone "IANA e.g. America/Chicago"
+        string timezone "IANA e.g. America/Chicago — converts local times to UT"
         bool is_current_home "one true per profile"
     }
     profiles {
         int id PK
         string name
         string birth_date "YYYY-MM-DD — immutable"
-        string birth_time "HH:MM — immutable"
+        string birth_time "HH:MM local at the birth location — immutable"
         int birth_location_id FK
         int preferred_house_system_id FK
     }
@@ -457,6 +457,8 @@ stateDiagram-v2
 - Cannot delete a house system that is in use
 
 **Position format:** All positions stored as `degree` (int, 0-29), `minutes` (int, 0-59), `seconds` (float, 0-59.999) within sign, plus `absolute_position` (float, 0-359.999°) for aspect math. The `_normalize_position()` method in `DatabaseHelper` coerces EphemerisEngine decimal-degree output into this format before any write.
+
+**Times are local; positions come from UT:** `profiles.birth_time` and `events.event_time` are local wall-clock times at the birth or event location, interpreted with that location's IANA `timezone` (historical daylight-saving rules apply). Stored planet, house and point positions are calculated from the UT equivalent. Before v0.13.1 the local time was handed to the ephemeris as if it were UT, so charts stored by earlier versions are off by the location's UTC offset; `w8s-astro-recalculate` recalculates them from the stored local data. There is no schema change.
 
 ---
 

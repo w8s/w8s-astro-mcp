@@ -17,6 +17,7 @@ from pathlib import Path
 from .utils.ephemeris import EphemerisEngine, EphemerisError
 from .utils.db_helpers import DatabaseHelper
 from .utils.geocoding import geocode_location
+from .utils.timezones import TimezoneError, utc_engine_args
 from .tools.analysis_tools import (
     compare_charts,
     find_planets_in_houses,
@@ -102,12 +103,22 @@ def get_natal_chart_data(profile_id: Optional[int] = None):
                 "Cannot calculate natal chart."
             )
 
+        # birth_time is the local time on the birth record; the ephemeris needs UT.
+        try:
+            ut_date, ut_time = utc_engine_args(
+                profile.birth_date, profile.birth_time, birth_loc.timezone
+            )
+        except TimezoneError as e:
+            raise EphemerisError(
+                f"Cannot calculate natal chart for '{profile.name}': {e}"
+            ) from e
+
         engine = init_ephemeris()
         calculated = engine.get_chart(
             birth_loc.latitude,
             birth_loc.longitude,
-            profile.birth_date,
-            profile.birth_time,
+            ut_date,
+            ut_time,
             "P",  # Placidus; matches preferred_house_system_id=1
         )
 
@@ -383,7 +394,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "birth_time": {
                         "type": "string",
-                        "description": "Birth time in HH:MM format (24-hour)"
+                        "description": "Birth time in HH:MM format (24-hour), local time at the birth location (converted to UT using the timezone)"
                     },
                     "birth_location_name": {
                         "type": "string",
@@ -399,7 +410,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "birth_timezone": {
                         "type": "string",
-                        "description": "Timezone (e.g., 'America/Chicago')"
+                        "description": "IANA timezone of the birth location (e.g., 'America/Chicago'); used to convert the local birth time to UT"
                     }
                 },
                 "required": ["birth_date", "birth_time", "birth_location_name", 
@@ -445,7 +456,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "time": {
                         "type": "string",
-                        "description": "Time in HH:MM format (optional, defaults to 12:00)"
+                        "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
                     },
                     "location": {
                         "type": "string",
@@ -671,7 +682,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "time": {
                         "type": "string",
-                        "description": "Time in HH:MM format (optional, defaults to 12:00)"
+                        "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
                     },
                     "profile_id": {
                         "type": "integer",

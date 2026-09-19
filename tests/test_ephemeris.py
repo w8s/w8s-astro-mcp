@@ -299,3 +299,41 @@ class TestEphemerisMode:
     def test_sweph_mode_when_path_is_set(self, tmp_path):
         e = EphemerisEngine(ephe_path=str(tmp_path))
         assert e.get_mode() == "sweph"
+
+
+# ---------------------------------------------------------------------------
+# Planet speed (v0.13.0) — signed degrees/day, kept alongside is_retrograde
+# ---------------------------------------------------------------------------
+
+class TestPlanetSpeed:
+    """get_chart() keeps each planet's signed daily speed."""
+
+    @pytest.fixture
+    def chart(self, engine):
+        return engine.get_chart(32.9483, -96.7299, "2026-09-19", "09:00")
+
+    def test_every_planet_has_a_numeric_speed(self, chart):
+        for name, planet in chart["planets"].items():
+            assert isinstance(planet["speed"], float), name
+
+    def test_speed_sign_matches_is_retrograde(self, chart):
+        for name, planet in chart["planets"].items():
+            assert planet["is_retrograde"] == (planet["speed"] < 0), name
+
+    def test_sun_speed_is_about_one_degree_per_day(self, chart):
+        assert 0.9 < chart["planets"]["Sun"]["speed"] < 1.1
+
+    def test_moon_is_the_fastest_body(self, chart):
+        moon = chart["planets"]["Moon"]["speed"]
+        assert 10 < moon < 16
+        assert all(p["speed"] < moon for n, p in chart["planets"].items() if n != "Moon")
+
+    def test_saturn_is_retrograde_on_2026_09_19(self, chart):
+        saturn = chart["planets"]["Saturn"]
+        assert saturn["speed"] < 0
+        assert saturn["is_retrograde"] is True
+
+    def test_existing_fields_are_unchanged(self, chart):
+        sun = chart["planets"]["Sun"]
+        for key in ("sign", "degree", "formatted", "absolute_position", "is_retrograde"):
+            assert key in sun

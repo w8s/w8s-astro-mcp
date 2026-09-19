@@ -25,12 +25,16 @@ release or a failed MCP Registry publish.
 
 - [ ] Feature complete and tests passing (`.venv/bin/python -m pytest`)
 - [ ] `pyproject.toml` — bump `version`
-- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match
+- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match (`scripts/bump_version.py <version>` does all three plus the CHANGELOG heading)
 - [ ] `CHANGELOG.md` — add entry under new version
-- [ ] Merge feature branch to `main` with `--no-ff`
-- [ ] `git tag -a <version> -m "..."` and `git push origin main && git push origin <tag>`
+- [ ] Merge to `main` with a merge commit, not a squash (`gh pr merge --merge`, or `--no-ff` locally)
+- [ ] `git tag -a <version> <merge-commit> -m "..."` and `git push origin <version>` (the tag triggers the PyPI publish)
 - [ ] Wait for PyPI publish GitHub Action to complete (also auto-creates GitHub Release from CHANGELOG.md; preview the notes first with `python scripts/release_notes.py <version>`)
-- [ ] `/opt/homebrew/bin/mcp-publisher publish` from repo root on `main`
+- [ ] **Update the main clone** (`/Users/w8s/Documents/_git/w8s-astro-mcp`): `git pull --ff-only` on `main`, then check that `server.json` carries the released version in both places. `mcp-publisher` publishes the `server.json` in the directory it runs from, so a stale clone re-submits the old version and fails as a duplicate. If you edited `server.json` by hand there, discard it first (`git checkout -- server.json`); the pull brings the same change
+- [ ] `/opt/homebrew/bin/mcp-publisher publish` from that repo root on `main`
+
+> The main clone is also what Claude Desktop runs, so this pull updates the live server's working tree.
+> `git diff --stat HEAD origin/main -- src` (before pulling) shows whether any runtime code changes.
 
 > ⚠️ **server.json and pyproject.toml must always be updated together.**
 > The MCP Registry validates the version against the live PyPI package — a mismatch
@@ -98,7 +102,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 ```
 
 Tests import and call `handle_*()` directly — no need to pierce the MCP decorator.
-See `tests/test_find_house_placements.py` for the pattern.
+See `tests/test_find_house_placements.py` and `tests/test_compare_charts.py` for the pattern.
 
 ### Entry Points Must Be Sync
 `[project.scripts]` entry points in `pyproject.toml` are called directly by pip-generated
@@ -112,6 +116,29 @@ they create separate sessions and cause transaction conflicts.
 `EphemerisEngine` and `EphemerisError` are imported **lazily** inside handler functions
 (not at module top) because `swisseph` may not be installed in test environments.
 Always import them after input validation so validation tests don't require swisseph.
+
+### Time Arguments Are UT
+Every `time` argument (`get_transits`, `find_house_placements`, `compare_charts`,
+`cast_event_chart`), each stored `birth_time`, and the window times scanned by
+`find_electional_windows` are passed to Swiss Ephemeris as **UT** — no timezone conversion.
+The only place a timezone is applied is the Davison midpoint (`connection_calculator`).
+Arguments named `timezone` (`create_profile`, `cast_event_chart`, `find_electional_windows`)
+are recorded or displayed; they do not shift the time. So `"09:00"` means 09:00 UT, which is
+04:00 in US Central daylight time, and anything derived from a snapshot (for example
+`compare_charts`' `exact_utc`) is UT too. Do not assume "local" in tool descriptions, docs or
+examples, and convert to UT before calling if you mean a local time.
+
+### Tool Output Is a Public Surface
+The server is published to PyPI and the MCP Registry, and `uvx` users pick up releases without
+choosing to upgrade. Treat default tool output as an interface:
+- Change it **additively**: keep existing lines byte-for-byte and append new information, or put
+  it behind an opt-in parameter (see `compare_charts`: original four lines per aspect, one line
+  appended, `include_angles` / `format` opt-in).
+- Keep old parameters working as aliases rather than renaming them (`planets_only`).
+- Add a regression test that pins the unchanged lines, and list the change under **Changed** in
+  the CHANGELOG with a before/after example.
+- Presentation (glyphs, wikilinks, which results are worth showing) belongs to the caller; the
+  server returns data.
 
 ### Dependency Bounds
 `mcp` is bounded `<2`: SDK 2.x removed the `Server.list_tools()` / `call_tool()` decorators the server is
@@ -129,7 +156,7 @@ compiled dependency that breaks installs without CMake; see the 0.11.2 changelog
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 356 tests total as of v0.12.0.
+- 466 tests total as of v0.13.0 (364 at v0.12.1, 361 at v0.12.0).
 
 ## Common Commands
 

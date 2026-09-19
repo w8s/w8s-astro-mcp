@@ -21,7 +21,7 @@
 
 - [x] Calculate major aspects (conjunction, opposition, square, trine, sextile)
 - [x] Configurable orbs
-- [x] Applying vs separating
+- [x] Applying vs separating — Phase 3 shipped only a placeholder field (`"applying": None`); actually implemented in v0.13.0
 - [x] Aspect patterns (T-squares, Grand Trines, etc.)
 
 ## Phase 4: Historical & Predictive ✅
@@ -82,6 +82,19 @@ Cross-cutting improvements to how an AI assistant queries profiles. The key insi
 - [x] Handler extraction pattern established — complex handlers live in standalone `handle_*()` functions for direct testability
 - [x] 13 new tests for `find_house_placements`; 356 total
 
+## v0.13.0: Transit Reading — Direction, Labels, JSON (in progress)
+
+Makes `compare_charts` usable for day-to-day transit reading. Presentation (arrows, links, which angle hits to show) stays with the caller; the server returns data.
+
+- [x] Planet `speed` (signed degrees/day) kept from the ephemeris alongside `is_retrograde`
+- [x] Each aspect reports `applying`, signed `days_to_exact`, and `exact_utc` when a chart carries speeds
+- [x] Each body is labelled with the chart it came from (natal / transit / `event:<label>`; profile names for synastry)
+- [x] `include_angles` (none | natal | transit | both) alongside the all-or-nothing `planets_only` (kept as an alias)
+- [x] `format: json` option; `text` stays the default, original lines unchanged, one line appended per aspect
+- [x] `handle_compare_charts()` extracted for testability
+- [x] First real test coverage for `compare_charts` (the old analysis "tests" were print scripts); 79 new tests
+- [ ] Release: version bump, merge, tag, PyPI, MCP Registry
+
 ## Phase 9: Database Self-Healing — In Progress
 
 Tools for schema diagnosis and repair as the schema evolves across versions.
@@ -98,4 +111,9 @@ Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with d
 - [ ] Chart wheel visualizer for composite, Davison, and synastry wheels
 - [ ] `visualize_custom_chart(planets, title)` — render any arbitrary positions
 - [ ] Voice mode ("What's my transit weather?")
+- [ ] `compare_charts`: a location argument for transit-chart angles (today they use the owner's current home location)
+- [ ] Persist planet speed for saved event charts, so event-vs-natal comparisons can report applying/separating
+- [ ] Native MCP structured output for `format: json` (would raise the `mcp` SDK floor)
+- [ ] State that `time` is UT in the `get_transits` and `find_house_placements` tool descriptions (done for `compare_charts` in v0.13.0)
+- [ ] Turn `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` from print scripts into real tests
 - [ ] Migrate the server to the MCP Python SDK 2.x API (`mcp` is held below 2 until then)

@@ -34,7 +34,7 @@ src/w8s_astro_mcp/
 ├── Analysis & Visualization
 │   └── tools/                   # MCP tool handlers
 │       ├── __init__.py
-│       ├── analysis_tools.py    # Aspects, house placements
+│       ├── analysis_tools.py    # Aspects (applying/separating, chart labels, text + JSON formatters), house placements
 │       ├── visualization.py     # Chart drawing (matplotlib)
 │       ├── profile_management.py # Profile/location CRUD tools
 │       ├── connection_management.py # Connection/composite/Davison tools
@@ -43,7 +43,7 @@ src/w8s_astro_mcp/
 ├── Ephemeris & Utilities
 │   └── utils/
 │       ├── __init__.py
-│       ├── ephemeris.py         # EphemerisEngine — pysweph wrapper, chart calculation
+│       ├── ephemeris.py         # EphemerisEngine — pysweph wrapper, chart calculation (planets carry speed)
 │       ├── constants.py         # ZODIAC_SIGNS, PLANET_IDS, HOUSE_SYSTEM_CODES
 │       ├── db_helpers.py        # High-level database queries
 │       ├── connection_calculator.py # Composite & Davison math
@@ -83,6 +83,28 @@ flowchart TD
     SAVE --> DB[(SQLite\nTransitLookup · Planet · House · Point)]
     DB --> R
     R --> U
+```
+
+### Chart Comparison (`compare_charts`) — v0.13.0
+
+```mermaid
+flowchart TD
+    U([User / Claude]) -->|compare_charts\nchart1_date · chart2_date\ninclude_angles · format| H[handle_compare_charts]
+    H --> V{Valid format and\ninclude_angles?}
+    V -->|no| ERR([Error message])
+    V -->|yes| RES{Resolve each chart}
+    RES -->|natal| N[get_natal_chart_data\nDB cache · no speed]
+    RES -->|today or date| T[EphemerisEngine.get_chart\nplanets carry speed · time is UT]
+    RES -->|event:label| EV[db_helpers.get_event_chart_positions\nno speed]
+    N --> L[Label each chart\nnatal · transit · event:label\nsynastry uses profile names]
+    T --> L
+    EV --> L
+    L --> C[analysis_tools.compare_charts\nangles chosen by include_angles\naspect_motion per body pair]
+    C --> F{format}
+    F -->|text| TX[format_aspect_report\noriginal 4 lines + 1 appended line]
+    F -->|json| JS[format_aspect_json\nnumeric fields · no display strings]
+    TX --> U
+    JS --> U
 ```
 
 ### Composite Chart (pure math, no ephemeris call)
@@ -176,6 +198,7 @@ flowchart TD
   - **EphemerisEngine output:** `degree` (decimal float within sign), no `minutes`/`seconds`/`absolute_position`
 - `DatabaseHelper._normalize_position()` coerces either format before any DB write
 - Reuses `decimal_to_dms()` and `sign_to_absolute_position()` from `position_utils.py`
+- `EphemerisEngine` planet dicts also carry `is_retrograde` and, since v0.13.0, `speed` (signed degrees/day). `_normalize_position()` passes extra keys through and every persistence site (`NatalPlanet`, `TransitPlanet`, `EventPlanet`, `ConnectionPlanet`) reads named fields, so `speed` is never written to the database. Charts loaded from the database therefore carry no speed (see decision #15).
 
 ### 8. `position_utils.py` — Shared Conversion Module
 - `decimal_to_dms()` and `sign_to_absolute_position()` were originally defined in `transit_logger.py` but were needed by `db_helpers.py` too
@@ -202,7 +225,7 @@ flowchart TD
 - timezonefinder (offline IANA timezone lookup from coordinates)
 
 **Dev:**
-- pytest (356 tests)
+- pytest (466 tests)
 - git (version control)
 
 ## Database Schema
@@ -253,6 +276,7 @@ cast_event_chart, list_event_charts, delete_event_chart, find_electional_windows
 Notes:
 - `get_natal_chart`, `get_transits`, `get_transit_history`, `find_last_transit`, and `visualize_natal_chart` all accept an optional `profile_id` — defaults to owner, supply any profile ID to query about someone else.
 - `compare_charts` accepts `chart1_profile_id` and `chart2_profile_id` separately for synastry, and `event:<label>` as a chart source.
+- `compare_charts` also accepts `include_angles` (`none` | `natal` | `transit` | `both`) and `format` (`text` | `json`). Each aspect reports `applying`, `days_to_exact` and `exact_utc` when a chart carries planet speeds (transit charts do; natal and saved event charts do not). See decision #15.
 - `find_house_placements` accepts either `profile_id` (natal house reference frame) or `connection_id` + `chart_type` (composite/Davison house reference frame); the two are mutually exclusive.
 
 ## Future Enhancements
@@ -323,9 +347,40 @@ Complex tool handlers that benefit from direct testing are extracted into standa
 delegates with a single `await handle_*(arguments)`. Tests import and call `handle_*()`
 directly without needing to pierce the MCP decorator.
 
-See `handle_find_house_placements()` in `server.py` and `tests/test_find_house_placements.py`
-for the reference implementation. Apply this pattern to any new handler whose logic
+See `handle_find_house_placements()` and `handle_compare_charts()` in `server.py`, with
+`tests/test_find_house_placements.py` and `tests/test_compare_charts.py`, for the reference
+implementations. Apply this pattern to any new handler whose logic
 branches enough to warrant standalone test coverage.
+
+### 15. Transit Direction, Chart Labels, and JSON Output — v0.13.0
+`compare_charts` now answers three questions a transit reader needs:
+
+- **Is the aspect building or fading?** `EphemerisEngine._calc_planets()` keeps each planet's
+  signed `speed` (degrees/day). `aspect_motion()` in `tools/analysis_tools.py` compares the signed
+  separation with the aspect's exact angle and the relative speed to return `applying`
+  (True/False/None) and a signed `days_to_exact` (negative = already exact), plus `exact_utc`
+  (the moving chart's date/time plus that offset, ISO-8601 UT, rounded to the minute). A body without a speed
+  (natal points, DB-loaded event charts) is treated as fixed; with no speed on either side the
+  result is `None`. The estimate is linear, so it is unreliable for the Moon and near stations.
+- **Which chart does each body belong to?** The handler labels each chart `natal`, `transit` or
+  `event:<label>`; when both are the same kind (synastry) it falls back to profile names, then
+  "chart 1" / "chart 2". `include_angles` uses those kinds so that `natal` brings only the natal
+  angles — a transit chart's own Ascendant/MC swing through the zodiac every day and are noise
+  when comparing against a natal chart.
+- **Can I consume this without parsing prose?** `format: json` returns the same data with numeric
+  fields and no display strings. Text stays the default: the original four lines per aspect are
+  unchanged and one line is appended (`Neptune = natal · Mars = transit · separating · exact ~0.6
+  days ago (≈ 2026-09-18 19:40 UT)`), so callers that parse the old lines keep working.
+
+Design rules: **the server returns data, callers present it.** Arrows, glyphs, wikilinks and
+"which angle hits are worth showing" belong to the caller. The version bump is minor (additive;
+no deprecation of `text`).
+
+**Time is UT.** The `time` argument is passed to Swiss Ephemeris as UT (no timezone conversion).
+`exact_utc` is UT for that reason; callers convert to local time.
+
+Known limits: transit-chart angles use the owner's current home location (no location argument on
+`compare_charts`); saved event charts carry no speed, so they report `applying: null`.
 
 ## Contributing
 
@@ -354,6 +409,9 @@ pytest tests/test_connection_calculator.py
 # Model tests only
 pytest tests/models/
 
+# compare_charts: motion, labels, include_angles, text/JSON formatters, handler
+pytest tests/test_compare_charts.py
+
 # Specific test file
 pytest tests/models/test_connections.py
 ```
@@ -371,6 +429,11 @@ pytest tests/models/test_connections.py
 2. Renames `current_profile_id` → `owner_profile_id` in `app_settings` table
 3. Idempotent — safe to run multiple times
 4. After migrating, use `setup_owner` to confirm your profile is set
+
+**v0.12 → v0.13 (transit direction, chart labels, JSON output):**
+1. No migration — there is no schema change and nothing to run
+2. Additive: `compare_charts` text output keeps its four existing lines per aspect and gains one appended line; new options (`include_angles`, `format`) are opt-in
+3. Callers that parse the old text should read the four existing lines and ignore the fifth (see the CHANGELOG entry)
 
 **For new users:**
 - No migration needed

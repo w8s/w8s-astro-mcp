@@ -57,6 +57,22 @@ Show me my natal chart.
 What are my transits for today?
 ```
 
+## 6. Test Aspect Direction
+
+```
+Which of today's transits to my natal chart are building and which are fading?
+```
+
+Each aspect should say which chart each body is from (natal or transit) and whether it is
+applying or separating, with an estimated time of exactness in UT. For structured output, ask
+for JSON and natal angles explicitly:
+
+```
+Compare my natal chart to today's sky as JSON, including my natal angles.
+```
+
+(The tool arguments behind that prompt are `format: "json"` and `include_angles: "natal"`.)
+
 ## Troubleshooting
 
 **Tools not showing up:**

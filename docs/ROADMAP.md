@@ -21,7 +21,7 @@
 
 - [x] Calculate major aspects (conjunction, opposition, square, trine, sextile)
 - [x] Configurable orbs
-- [x] Applying vs separating — Phase 3 shipped only a placeholder field (`"applying": None`); actually implemented in v0.13.0
+- [x] Applying vs separating — Phase 3 shipped only a placeholder field (`"applying": None`); actually implemented in v0.14.0
 - [x] Aspect patterns (T-squares, Grand Trines, etc.)
 
 ## Phase 4: Historical & Predictive ✅
@@ -82,7 +82,7 @@ Cross-cutting improvements to how an AI assistant queries profiles. The key insi
 - [x] Handler extraction pattern established — complex handlers live in standalone `handle_*()` functions for direct testability
 - [x] 13 new tests for `find_house_placements`; 356 total
 
-## v0.13.0: Transit Reading — Direction, Labels, JSON (in progress)
+## v0.14.0, part 1: Transit Reading — Direction, Labels, JSON (in progress)
 
 Makes `compare_charts` usable for day-to-day transit reading. Presentation (arrows, links, which angle hits to show) stays with the caller; the server returns data.
 
@@ -93,7 +93,18 @@ Makes `compare_charts` usable for day-to-day transit reading. Presentation (arro
 - [x] `format: json` option; `text` stays the default, original lines unchanged, one line appended per aspect
 - [x] `handle_compare_charts()` extracted for testability
 - [x] First real test coverage for `compare_charts` (the old analysis "tests" were print scripts); 79 new tests
-- [ ] Release: version bump, merge, tag, PyPI, MCP Registry
+
+## v0.14.0, part 2: Local Times Converted to UT (in progress)
+
+Fixes a bug found while building part 1: local birth, event and electional times were handed to the ephemeris as if they were UT.
+
+- [x] `utils/timezones.py` — local -> UT with `zoneinfo` (historical DST), clear errors
+- [x] Natal chart calculation, `cast_event_chart` and `find_electional_windows` convert before calculating
+- [x] `w8s-astro-recalculate` — dry-run-first recalculation of stored natal and (opt-in) event charts, with backup
+- [x] `tzdata` dependency; tool descriptions say which times are local and which are UT
+- [x] Server `instructions` (local vs UT times, how to treat a data notice) and a condition-based data notice when stored natal charts predate the fix
+- [x] `dismiss_data_notice` tool and a `dismissed_notices` table: the user can dismiss the notice; a different stale chart brings it back
+- [ ] Release 0.14.0 (parts 1 and 2 ship together, so nobody gets the new `compare_charts` without the fix and the notice): version bump, merge, tag, PyPI, MCP Registry; add a warning line to the GitHub release pages of affected older versions (external edit, needs approval)
 
 ## Phase 9: Database Self-Healing — In Progress
 
@@ -114,6 +125,8 @@ Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with d
 - [ ] `compare_charts`: a location argument for transit-chart angles (today they use the owner's current home location)
 - [ ] Persist planet speed for saved event charts, so event-vs-natal comparisons can report applying/separating
 - [ ] Native MCP structured output for `format: json` (would raise the `mcp` SDK floor)
-- [ ] State that `time` is UT in the `get_transits` and `find_house_placements` tool descriptions (done for `compare_charts` in v0.13.0)
+- [ ] A `timezone` argument for the transit tools (`get_transits`, `find_house_placements`, `compare_charts`), so callers can pass local times
+- [ ] Optional MCP tool `recalculate_natal_charts` (dry run by default, `confirm: true` to apply) so an assistant can run the fix for users who never find the console command
+- [ ] Relocation-chart tool (a birth chart cast for a different place at the birth moment)
 - [ ] Turn `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` from print scripts into real tests
 - [ ] Migrate the server to the MCP Python SDK 2.x API (`mcp` is held below 2 until then)

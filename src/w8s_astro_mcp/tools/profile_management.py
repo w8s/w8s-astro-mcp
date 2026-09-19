@@ -52,7 +52,7 @@ def get_profile_management_tools() -> list[Tool]:
                     },
                     "birth_time": {
                         "type": "string",
-                        "description": "Birth time in HH:MM format (24-hour)"
+                        "description": "Birth time in HH:MM format (24-hour), local time at the birth location (converted to UT using birth_timezone)"
                     },
                     "birth_location_name": {
                         "type": "string",
@@ -68,7 +68,7 @@ def get_profile_management_tools() -> list[Tool]:
                     },
                     "birth_timezone": {
                         "type": "string",
-                        "description": "Timezone (e.g., 'America/New_York')"
+                        "description": "IANA timezone of the birth location (e.g., 'America/New_York'); used to convert the local birth time to UT"
                     }
                 },
                 "required": ["name", "birth_date", "birth_time", "birth_location_name",

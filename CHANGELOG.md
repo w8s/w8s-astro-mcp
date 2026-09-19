@@ -4,10 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0] — 2026-09-19
+
+> **⚠ Charts from earlier versions used the wrong time zone.** Birth, event and electional times were treated as UT instead of local time, so the Ascendant, MC, houses and Moon were off by your location's UTC offset. Planet signs almost always stay the same. Run `w8s-astro-recalculate --all` to see what changes, then add `--apply`. A backup is made first, and nothing is lost.
+>
+> With uvx: `uvx --from w8s-astro-mcp w8s-astro-recalculate --all`. Add `--events` to include saved event charts. It is safe to run more than once. After you upgrade, your AI assistant will also mention this if any stored chart still needs recalculating.
+
+### Breaking
+
+- **Results change.** Natal charts, saved event charts and electional searches calculated by earlier versions were wrong, and recalculated values differ: the Ascendant, MC, houses and Moon, and slightly Mercury, Venus and Mars. Your stored data is not corrected until you run the recalculation tool.
+- **`find_electional_windows` dates are now local** in the given `timezone`, and results are local times (they were UT times shown as if local).
+- This is a minor bump (0.14.0) because results and stored data change and you need to act (SemVer, pre-1.0). The release also carries the additive `compare_charts` changes listed under Added and Changed; they need nothing from you.
+
+### Fixed
+
+- **Local times are now converted to UT before charts are calculated.** Swiss Ephemeris takes UT, but birth times, event times and electional windows are local times that come with an IANA timezone, and the timezone was recorded or displayed but never applied. The result was an Ascendant, MC, house cusps and Moon that were off by the location's UTC offset (for a birth at 00:50 in St. Louis in May, the stored chart had Scorpio rising instead of Capricorn), and slightly wrong Mercury, Venus and Mars. Fixed for:
+  - **natal charts** — the birth time is converted using the birth location's timezone; the stored profile keeps the local time
+  - **`cast_event_chart`** — the event time is converted using `timezone`; the stored event keeps the local date and time
+  - **`find_electional_windows`** — `start_date` / `end_date` are local dates in `timezone`, the scan steps through real elapsed time (safe across daylight-saving changes) and results show local times
+  Conversion uses `zoneinfo`, so historical daylight-saving rules apply (US DST was in effect on 1981-05-06). An ambiguous fall-back time takes the first occurrence; a nonexistent spring-forward time is shifted forward. Davison charts already converted correctly.
+
+- **GitHub Release notes were published empty.** The publish workflow's extraction (an awk range whose start line also matched its end pattern) returned nothing for every version, so the 0.12.1 release had blank notes. The extraction is now `scripts/release_notes.py`, which is tested against every version in this CHANGELOG, and the workflow fails loudly if a version has no section or an empty one. Preview a release's notes with `python scripts/release_notes.py <version>`.
 
 ### Added
 
+- **`w8s-astro-recalculate`** — recalculates stored natal charts (and, with `--events`, saved event charts) from the stored local birth/event data. Dry run by default, needs `--all` or `--profile-id`, backs up the database before writing, invalidates cached connection charts, reports before/after (the UTC offset it applied and the angles, not the raw birth date and time, since the output is easy to paste into an issue or a chat), and flags 12:00 birth times that are probably a placeholder for "unknown". Also available as `python -m w8s_astro_mcp.recalculate_natal`.
+- **A data notice tells your AI assistant when stored charts need recalculating.** On the tools that use stored natal charts (`get_natal_chart`, `find_house_placements`, `compare_charts`, `visualize_natal_chart`, `get_connection_chart`), if any stored chart differs from a correct calculation, a separate block starting `Data notice:` is added to the result, at most once every 30 minutes. In `compare_charts` JSON output the notice is a `notices` list instead, so the JSON stays parseable. It names no one, states the facts and asks the assistant to get your consent before running anything. The original output is never altered, and it goes away by itself once the charts are recalculated. It stores no version-tracking state.
+- **You can dismiss the notice.** Ask your assistant to dismiss it and it calls the new `dismiss_data_notice` tool (`undo=true` brings it back). The dismissal is remembered for the stale charts you have seen, so fixing some does not bring it back, but a *different* chart becoming stale does. It does not fix anything. It is stored in one small new table, `dismissed_notices`, which existing databases get automatically the next time the server starts (no migration to run).
+- **Server instructions** are now sent to the AI when it connects: which times are local and which are UT, and how to treat a data notice.
+- `tzdata` dependency (Windows and minimal containers have no system timezone database, which `zoneinfo` needs).
+- `cast_event_chart` output gains one line, `**UT:**`, after the existing lines; `find_electional_windows` output gains a `**Timezone:**` line.
 - **`compare_charts` reports aspect direction** — each aspect now carries `applying` (true while tightening, false once separating, null when unknown), a signed `days_to_exact` (negative = already exact) and `exact_utc` (ISO-8601, UT). Available when a chart carries planet speeds, which transit charts now do; natal and saved event charts have no speed, so a natal-vs-natal or natal-vs-event comparison reports null. The estimate is linear and unreliable for the Moon and near stations.
 - **`compare_charts` labels which chart each body belongs to** — `natal`, `transit` or `event:<label>`; for two charts of the same kind (synastry) the profile names are used, falling back to "chart 1" / "chart 2".
 - **`include_angles` option on `compare_charts`** — `none` (default), `natal`, `transit` or `both`. `natal` compares only the natal chart's angles, which is what you want for transits: the transit sky's own Ascendant/MC change every few minutes and otherwise show up as noise. `planets_only` still works as an alias (`true` = `none`, `false` = `both`); `include_angles` wins if both are given.
@@ -16,21 +42,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 
+- Tool descriptions now say which times are local (birth time, event time, electional dates) and which are UT (`time` on `get_transits`, `find_house_placements` and `compare_charts`). Those transit tools are unchanged.
+- `find_electional_windows` results are now local times (they were UT times shown as if local). Which moments qualify changes accordingly.
 - **`compare_charts` text output gains one line per aspect.** The four existing lines are byte-for-byte unchanged; a fifth line follows, for example:
   `  Neptune = natal · Mars = transit · separating · exact ~0.6 days ago (≈ 2026-09-18 19:40 UT)`
   Parsers that read the existing lines are unaffected; a parser that assumes exactly four lines per aspect block will see the extra line.
 - **`compare_charts` handler extracted** to `handle_compare_charts()` (same pattern as `handle_find_house_placements`). Invalid `format` / `include_angles` values now return a clear error.
-- **Tool descriptions state that `time` is UT.** It always was: the value is passed to Swiss Ephemeris without timezone conversion.
-
-### Fixed
-
-- **GitHub Release notes were published empty.** The publish workflow's extraction (an awk range whose start line also matched its end pattern) returned nothing for every version, so the 0.12.1 release had blank notes. The extraction is now `scripts/release_notes.py`, which is tested against every version in this CHANGELOG, and the workflow fails loudly if a version has no section or an empty one. Preview a release's notes with `python scripts/release_notes.py <version>`.
 
 ### Tests
 
-- New `tests/test_compare_charts.py`: motion helper (both directions, retrograde, wraparound, missing/near-zero speeds), regression fixtures frozen from real 2026-09-19 data, labels, `include_angles` matrix and `planets_only` alias, text and JSON formatters, and the extracted handler. `tests/test_ephemeris.py` covers `speed`.
-- The older `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` contain no test functions (print scripts) and are unchanged.
-- **466 tests total** (up from 387 on `main`; 79 of the new ones are for `compare_charts` and planet speed).
+- New `tests/test_timezones.py`, `tests/test_natal_local_time.py`, `tests/test_event_time_conversion.py`, `tests/test_recalculate_natal.py`, `tests/test_chart_health.py`, `tests/test_notice_dismissal.py` and `tests/test_server_instructions.py`: conversion cases (three real zones and dates, date rollover both ways, DST gap and fold, half-hour zones, bad input), the natal calculation end to end against a reference chart cross-checked with an independent chart site, event and electional handlers, the recalculation tool, the data notice and its dismissal (including through the MCP dispatcher, and the new table appearing on an existing database) and the server instructions.
+- New `tests/test_compare_charts.py`: motion helper (both directions, retrograde, wraparound, missing/near-zero speeds), regression fixtures frozen from real 2026-09-19 data, labels, `include_angles` matrix and `planets_only` alias, text and JSON formatters, and the extracted handler. `tests/test_ephemeris.py` covers `speed`. The older `tests/test_analysis_tools.py` and `tests/test_real_world_logic.py` contain no test functions (print scripts) and are unchanged.
+- New `tests/test_dependency_pins.py` (0.12.1) and `tests/test_release_notes.py` guard the `mcp` bound and the release-notes extraction.
+- **572 tests total** (up from 364 in 0.12.1).
 
 ## [0.12.1] — 2026-09-19
 

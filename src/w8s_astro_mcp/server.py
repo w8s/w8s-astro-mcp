@@ -17,6 +17,9 @@ from pathlib import Path
 from .utils.ephemeris import EphemerisEngine, EphemerisError
 from .utils.db_helpers import DatabaseHelper
 from .utils.geocoding import geocode_location
+from .utils.timezones import TimezoneError, utc_engine_args
+from .utils import chart_health
+from .utils.chart_health import DataNoticeGate, data_notice
 from .tools.analysis_tools import (
     compare_charts,
     find_planets_in_houses,
@@ -44,7 +47,23 @@ from .tools.event_management import (
 
 
 # Initialize MCP server
-app = Server("w8s-astro-mcp")
+# Durable guidance sent to the AI when it connects. Facts about the user's data belong in tool
+# results (see the data notice below), not here.
+SERVER_INSTRUCTIONS = (
+    "w8s-astro-mcp: astrology charts and transits (Swiss Ephemeris).\n\n"
+    "Times: birth times, cast_event_chart times and find_electional_windows dates are LOCAL time at "
+    "the location and are converted using its timezone. The `time` argument of get_transits, "
+    "find_house_placements and compare_charts is UT (for example \"09:00\" is 04:00 US Central "
+    "daylight time), and timestamps in their results (such as exact_utc) are UT. Convert the user's "
+    "local time to UT before calling those tools.\n\n"
+    "Data notices: a tool result may end with a separate block that starts with \"Data notice:\". "
+    "It states a fact about the user's stored data, for example charts calculated by an older "
+    "version. Tell the user about it in plain words and get their consent before running or "
+    "suggesting any fix; do not apply fixes on your own. If the user asks not to be reminded, call "
+    "dismiss_data_notice."
+)
+
+app = Server("w8s-astro-mcp", instructions=SERVER_INSTRUCTIONS)
 
 # Global state
 db_helper: Optional[DatabaseHelper] = None
@@ -102,12 +121,22 @@ def get_natal_chart_data(profile_id: Optional[int] = None):
                 "Cannot calculate natal chart."
             )
 
+        # birth_time is the local time on the birth record; the ephemeris needs UT.
+        try:
+            ut_date, ut_time = utc_engine_args(
+                profile.birth_date, profile.birth_time, birth_loc.timezone
+            )
+        except TimezoneError as e:
+            raise EphemerisError(
+                f"Cannot calculate natal chart for '{profile.name}': {e}"
+            ) from e
+
         engine = init_ephemeris()
         calculated = engine.get_chart(
             birth_loc.latitude,
             birth_loc.longitude,
-            profile.birth_date,
-            profile.birth_time,
+            ut_date,
+            ut_time,
             "P",  # Placidus; matches preferred_house_system_id=1
         )
 
@@ -330,6 +359,23 @@ async def list_tools() -> list[Tool]:
     # Core tools
     core_tools = [
         Tool(
+            name="dismiss_data_notice",
+            description=(
+                "Stop the 'Data notice' about stored natal charts that need recalculating, until a "
+                "different chart becomes affected. Call this ONLY when the user asks not to be "
+                "reminded; it does not fix anything. Use undo=true to bring the notice back."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "undo": {
+                        "type": "boolean",
+                        "description": "If true, bring the notice back instead of dismissing it (default false)"
+                    }
+                }
+            }
+        ),
+        Tool(
             name="check_ephemeris",
             description=(
                 "Check the current ephemeris mode and precision level. "
@@ -383,7 +429,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "birth_time": {
                         "type": "string",
-                        "description": "Birth time in HH:MM format (24-hour)"
+                        "description": "Birth time in HH:MM format (24-hour), local time at the birth location (converted to UT using the timezone)"
                     },
                     "birth_location_name": {
                         "type": "string",
@@ -399,7 +445,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "birth_timezone": {
                         "type": "string",
-                        "description": "Timezone (e.g., 'America/Chicago')"
+                        "description": "IANA timezone of the birth location (e.g., 'America/Chicago'); used to convert the local birth time to UT"
                     }
                 },
                 "required": ["birth_date", "birth_time", "birth_location_name", 
@@ -445,7 +491,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "time": {
                         "type": "string",
-                        "description": "Time in HH:MM format (optional, defaults to 12:00)"
+                        "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
                     },
                     "location": {
                         "type": "string",
@@ -671,7 +717,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "time": {
                         "type": "string",
-                        "description": "Time in HH:MM format (optional, defaults to 12:00)"
+                        "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
                     },
                     "profile_id": {
                         "type": "integer",
@@ -726,9 +772,86 @@ async def list_tools() -> list[Tool]:
 
 
 
+async def handle_dismiss_data_notice(arguments: Any) -> list[TextContent]:
+    """Dismiss (or, with undo, bring back) the data notice about stale natal charts."""
+    try:
+        db = init_db()
+        if (arguments or {}).get("undo"):
+            if db.restore_notice(chart_health.NOTICE_KEY):
+                text = ("The data notice is back on. It will appear again if any stored chart "
+                        "still needs recalculating.")
+            else:
+                text = "No notice was dismissed, so there is nothing to bring back."
+            return [TextContent(type="text", text=text)]
+
+        health = chart_health.check_natal_chart_health(db, init_ephemeris())   # fresh, not the cached result
+        if health.stale == 0:
+            return [TextContent(type="text", text="Nothing to dismiss: no stored natal chart needs recalculating.")]
+        db.dismiss_notice(chart_health.NOTICE_KEY, list(health.stale_ids))
+        noun, verb = ("chart", "needs") if health.stale == 1 else ("charts", "need")
+        return [TextContent(type="text", text=(
+            f"Dismissed the data notice for {health.stale} stored natal {noun} that still {verb} recalculating. "
+            "It will come back if a different chart is affected. Nothing was fixed: to recalculate, run "
+            "`w8s-astro-recalculate --all`. To bring the notice back, call dismiss_data_notice with undo=true."
+        ))]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
+# Tools whose output depends on stored natal charts. Only these can carry a data notice.
+NATAL_NOTICE_TOOLS = {
+    "get_natal_chart", "find_house_placements", "compare_charts",
+    "visualize_natal_chart", "get_connection_chart",
+}
+_notice_gate = DataNoticeGate()
+
+
+def _json_with_notice(result: list[TextContent], notice: str) -> list[TextContent]:
+    """Put the notice inside JSON output (a `notices` list) so the JSON stays parseable."""
+    try:
+        payload = json.loads(result[0].text)
+    except (ValueError, IndexError, TypeError):
+        return result
+    payload.setdefault("notices", []).append(notice)
+    return [TextContent(type="text", text=json.dumps(payload, indent=2, ensure_ascii=False)), *result[1:]]
+
+
+def _with_data_notice(name: str, arguments: Any, result: list[TextContent]) -> list[TextContent]:
+    """Add a data notice when stored natal charts predate the local-time -> UT fix.
+
+    The original output is never altered: text tools get a separate extra block (at most once per
+    interval); JSON output carries the notice inside a `notices` list. The check is a courtesy and
+    must never break a tool call.
+    """
+    if name not in NATAL_NOTICE_TOOLS:
+        return result
+    try:
+        db = init_db()
+        health = chart_health.current_health(db, init_ephemeris())
+        notice = data_notice(health)
+        if notice is None or chart_health.notice_dismissed(db, health):
+            return result
+        if (arguments or {}).get("format") == "json":
+            return _json_with_notice(result, notice)
+        if _notice_gate.should_show():
+            return [*result, TextContent(type="text", text=notice)]
+    except Exception:
+        pass
+    return result
+
+
 @app.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent]:
-    """Handle tool calls."""
+    """Handle tool calls, adding a data notice when stored charts need recalculating."""
+    result = await _dispatch_tool(name, arguments)
+    return _with_data_notice(name, arguments, result)
+
+
+async def _dispatch_tool(name: str, arguments: Any) -> list[TextContent]:
+    """Route a tool call to its handler."""
+
+    if name == "dismiss_data_notice":
+        return await handle_dismiss_data_notice(arguments)
     
     if name == "check_ephemeris":
         import swisseph as swe

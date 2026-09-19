@@ -93,6 +93,7 @@ def create_tables(engine: Engine) -> None:
         TransitLookup, TransitPlanet, TransitHouse, TransitPoint,
         Connection, ConnectionMember, ConnectionChart,
         ConnectionPlanet, ConnectionHouse, ConnectionPoint,
+        DismissedNotice,
     )
     Base.metadata.create_all(engine)
 

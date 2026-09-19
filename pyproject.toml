@@ -1,6 +1,6 @@
 [project]
 name = "w8s-astro-mcp"
-version = "0.12.1"
+version = "0.14.0"
 description = "Personal astrological MCP server — natal charts, transits, aspects, composite & Davison relationship charts, backed by SQLite"
 requires-python = ">=3.10"
 readme = "README.md"
@@ -28,6 +28,7 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "pysweph>=2.10.3.3",
     "timezonefinder>=6.0.0,<8.0.0",
+    "tzdata>=2024.1",
 ]
 
 [project.urls]
@@ -44,6 +45,7 @@ dev = [
 
 [project.scripts]
 w8s-astro-mcp = "w8s_astro_mcp.server:run"
+w8s-astro-recalculate = "w8s_astro_mcp.recalculate_natal:run"
 
 [build-system]
 requires = ["hatchling"]

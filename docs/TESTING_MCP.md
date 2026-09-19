@@ -57,6 +57,12 @@ Show me my natal chart.
 What are my transits for today?
 ```
 
+## 6a. Test the Data Notice (only with stored charts from before v0.14.0)
+
+Ask for your natal chart or house placements. If any stored chart differs from a correct calculation, the
+result ends with a separate block starting `Data notice:` (at most once every 30 minutes). Run
+`w8s-astro-recalculate --all --apply` and it stops appearing. To silence it without fixing anything, ask your assistant to dismiss the notice (`dismiss_data_notice`; `undo=true` brings it back).
+
 ## 6. Test Aspect Direction
 
 ```

@@ -25,12 +25,16 @@ release or a failed MCP Registry publish.
 
 - [ ] Feature complete and tests passing (`.venv/bin/python -m pytest`)
 - [ ] `pyproject.toml` — bump `version`
-- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match
+- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match (`scripts/bump_version.py <version>` does all three plus the CHANGELOG heading)
 - [ ] `CHANGELOG.md` — add entry under new version
-- [ ] Merge feature branch to `main` with `--no-ff`
-- [ ] `git tag -a <version> -m "..."` and `git push origin main && git push origin <tag>`
+- [ ] Merge to `main` with a merge commit, not a squash (`gh pr merge --merge`, or `--no-ff` locally)
+- [ ] `git tag -a <version> <merge-commit> -m "..."` and `git push origin <version>` (the tag triggers the PyPI publish)
 - [ ] Wait for PyPI publish GitHub Action to complete (also auto-creates GitHub Release from CHANGELOG.md; preview the notes first with `python scripts/release_notes.py <version>`)
-- [ ] `/opt/homebrew/bin/mcp-publisher publish` from repo root on `main`
+- [ ] **Update the main clone** (`/Users/w8s/Documents/_git/w8s-astro-mcp`): `git pull --ff-only` on `main`, then check that `server.json` carries the released version in both places. `mcp-publisher` publishes the `server.json` in the directory it runs from, so a stale clone re-submits the old version and fails as a duplicate. If you edited `server.json` by hand there, discard it first (`git checkout -- server.json`); the pull brings the same change
+- [ ] `/opt/homebrew/bin/mcp-publisher publish` from that repo root on `main`
+
+> The main clone is also what Claude Desktop runs, so this pull updates the live server's working tree.
+> `git diff --stat HEAD origin/main -- src` (before pulling) shows whether any runtime code changes.
 
 > ⚠️ **server.json and pyproject.toml must always be updated together.**
 > The MCP Registry validates the version against the live PyPI package — a mismatch

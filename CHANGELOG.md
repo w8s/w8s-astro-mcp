@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **GitHub Release notes were published empty.** The publish workflow's extraction (an awk range whose start line also matched its end pattern) returned nothing for every version, so the 0.12.1 release had blank notes. The extraction is now `scripts/release_notes.py`, which is tested against every version in this CHANGELOG, and the workflow fails loudly if a version has no section or an empty one. Preview a release's notes with `python scripts/release_notes.py <version>`.
+
 ## [0.12.1] — 2026-09-19
 
 ### Fixed

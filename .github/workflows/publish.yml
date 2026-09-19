@@ -53,7 +53,8 @@ jobs:
       - name: Extract changelog for this version
         run: |
           VERSION="${GITHUB_REF#refs/tags/}"
-          awk "/## \[$VERSION\]/,/^## \[/" CHANGELOG.md | sed '1d;$d' > release_notes.md
+          # Fails (and so does the release job) if the version has no CHANGELOG section or it is empty.
+          python3 scripts/release_notes.py "$VERSION" > release_notes.md
           cat release_notes.md
 
       - name: Create GitHub Release

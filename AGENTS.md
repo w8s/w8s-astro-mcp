@@ -173,7 +173,7 @@ compiled dependency that breaks installs without CMake; see the 0.11.2 changelog
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 566 tests total as of v0.14.0 (364 at v0.12.1, 361 at v0.12.0).
+- 572 tests total as of v0.14.0 (364 at v0.12.1, 361 at v0.12.0).
 
 ## Common Commands
 

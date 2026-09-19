@@ -26,7 +26,7 @@ from .tools.analysis_tools import find_planets_in_houses
 from .utils.chart_health import charts_match, fresh_natal_chart
 from .utils.db_helpers import DatabaseHelper
 from .utils.ephemeris import EphemerisEngine, EphemerisError
-from .utils.timezones import TimezoneError, utc_engine_args
+from .utils.timezones import TimezoneError, utc_engine_args, utc_offset_label
 
 PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
 PLACEHOLDER_TIMES = {"12:00", "12:00:00"}
@@ -40,8 +40,10 @@ def _dms(degree: float) -> str:
     return f"{whole}°{minutes:02d}'"
 
 
-def _profile_report(profile, ut_date: str, ut_time: str, tz: str, stored: Dict, fresh: Dict) -> List[str]:
-    lines = [f"{profile.name} (id {profile.id}): born {profile.birth_date} {profile.birth_time} {tz} -> {ut_date} {ut_time} UT"]
+def _profile_report(profile, tz: str, offset: str, stored: Dict, fresh: Dict) -> List[str]:
+    # The birth date and time are deliberately not echoed: the report is easy to paste into an issue or
+    # a chat. The offset shows what was applied; the angles below show the effect.
+    lines = [f"{profile.name} (id {profile.id}): birth time converted from {tz} ({offset}) to UT"]
     if stored["planets"]:
         parts = []
         for label, part, key in (("Ascendant", "points", "Ascendant"), ("MC", "points", "MC"), ("Moon", "planets", "Moon")):
@@ -126,13 +128,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     for pid in profile_ids:
         profile = db.get_profile_by_id(pid)
         try:
-            fresh, ut_date, ut_time, tz = fresh_natal_chart(db, engine, profile)
+            fresh, _ut_date, _ut_time, tz = fresh_natal_chart(db, engine, profile)
+            offset = utc_offset_label(profile.birth_date, profile.birth_time, tz)
         except (TimezoneError, EphemerisError, AttributeError) as exc:
             errors += 1
             print(f"{profile.name} (id {profile.id}): cannot recalculate: {exc}\n")
             continue
         stored = db.get_natal_chart_data(profile)
-        for line in _profile_report(profile, ut_date, ut_time, tz, stored, fresh):
+        for line in _profile_report(profile, tz, offset, stored, fresh):
             print(line)
         if not stored["planets"]:
             print()

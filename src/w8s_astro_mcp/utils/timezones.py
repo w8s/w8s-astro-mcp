@@ -48,16 +48,28 @@ def _parse_time(time_str: str) -> Tuple[int, int]:
     return hour, minute
 
 
-def local_to_utc(date_str: str, time_str: str, tz_name: str) -> datetime:
-    """Convert a local date and time in ``tz_name`` to a timezone-aware UTC datetime."""
+def _local(date_str: str, time_str: str, tz_name: str) -> datetime:
+    """A local date and time in ``tz_name`` as a timezone-aware datetime."""
     zone = _zone(tz_name)
     try:
         day = datetime.strptime(str(date_str).strip(), "%Y-%m-%d")
     except ValueError as exc:
         raise TimezoneError(f"Invalid date {date_str!r}; expected YYYY-MM-DD.") from exc
     hour, minute = _parse_time(time_str)
-    local = day.replace(hour=hour, minute=minute, tzinfo=zone)  # fold=0: first occurrence
-    return local.astimezone(timezone.utc)
+    return day.replace(hour=hour, minute=minute, tzinfo=zone)  # fold=0: first occurrence
+
+
+def local_to_utc(date_str: str, time_str: str, tz_name: str) -> datetime:
+    """Convert a local date and time in ``tz_name`` to a timezone-aware UTC datetime."""
+    return _local(date_str, time_str, tz_name).astimezone(timezone.utc)
+
+
+def utc_offset_label(date_str: str, time_str: str, tz_name: str) -> str:
+    """The UTC offset in force at a local date and time, for display: ``UTC-5``, ``UTC+5:30``, ``UTC+0``."""
+    minutes = int(_local(date_str, time_str, tz_name).utcoffset().total_seconds() // 60)
+    sign = "+" if minutes >= 0 else "-"
+    hours, rest = divmod(abs(minutes), 60)
+    return f"UTC{sign}{hours}" + (f":{rest:02d}" if rest else "")
 
 
 def utc_engine_args(date_str: str, time_str: str, tz_name: str) -> Tuple[str, str]:

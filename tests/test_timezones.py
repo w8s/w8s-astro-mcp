@@ -8,6 +8,7 @@ from w8s_astro_mcp.utils.timezones import (
     TimezoneError,
     local_to_utc,
     utc_engine_args,
+    utc_offset_label,
     utc_to_local,
 )
 
@@ -54,6 +55,24 @@ class TestLocalToUtc:
     def test_dst_fall_back_ambiguity_takes_first_occurrence(self):
         # 01:30 happens twice on 2026-11-01 in Chicago; the first (CDT, UTC-5) wins.
         assert local_to_utc("2026-11-01", "01:30", "America/Chicago") == utc(2026, 11, 1, 6, 30)
+
+
+class TestUtcOffsetLabel:
+    def test_negative_whole_hours(self):
+        assert utc_offset_label("1981-05-06", "00:50", "America/Chicago") == "UTC-5"      # DST in effect
+
+    def test_standard_time(self):
+        assert utc_offset_label("2026-01-01", "12:00", "America/Chicago") == "UTC-6"
+
+    def test_half_hour_zone(self):
+        assert utc_offset_label("2026-06-01", "12:00", "Asia/Kolkata") == "UTC+5:30"
+
+    def test_utc(self):
+        assert utc_offset_label("2026-06-01", "12:00", "UTC") == "UTC+0"
+
+    def test_bad_timezone_raises(self):
+        with pytest.raises(TimezoneError):
+            utc_offset_label("2026-06-01", "12:00", "Mars/Olympus")
 
 
 class TestErrors:

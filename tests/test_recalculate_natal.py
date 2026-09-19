@@ -78,6 +78,18 @@ def test_dry_run_writes_nothing(env, capsys):
     assert _backups(backups) == []
 
 
+def test_report_does_not_echo_birth_dates_or_times(env, capsys):
+    """The report is easy to paste into an issue or a chat, so it shows the offset applied, not the raw data."""
+    db, path, backups = env
+    _add(db, **PERSON_A)
+    _add(db, **PERSON_B)
+    _run(path, backups, "--all")
+    out = capsys.readouterr().out
+    for private in ("1981", "1983", "00:50", "09:52"):
+        assert private not in out
+    assert "America/Chicago (UTC-5)" in out and "America/Los_Angeles (UTC-7)" in out
+
+
 def test_missing_database_is_an_error_and_is_not_created(tmp_path, capsys):
     missing = tmp_path / "nope.db"
     assert main(["--db", str(missing), "--all"]) == 1

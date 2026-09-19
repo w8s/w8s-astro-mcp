@@ -98,3 +98,4 @@ Planned tools: `diagnose_database`, `repair_database`, `migrate_database` with d
 - [ ] Chart wheel visualizer for composite, Davison, and synastry wheels
 - [ ] `visualize_custom_chart(planets, title)` — render any arbitrary positions
 - [ ] Voice mode ("What's my transit weather?")
+- [ ] Migrate the server to the MCP Python SDK 2.x API (`mcp` is held below 2 until then)

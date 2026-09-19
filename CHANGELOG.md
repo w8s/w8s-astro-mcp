@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Fresh installs failed to start.** The dependency was `mcp>=1.0.0` with no upper bound, so once the MCP Python SDK 2.0 was published every new install (`uvx w8s-astro-mcp`, `pip install w8s-astro-mcp`) resolved to it, and the server failed at import with `AttributeError: 'Server' object has no attribute 'list_tools'`. Version 0.12.0 and earlier are affected. The dependency is now `mcp>=1.28.1,<2`. Installs that already had an older SDK kept working, which is why this went unnoticed. **If you hit this error, upgrade** (`uvx --refresh w8s-astro-mcp`, or `pip install -U w8s-astro-mcp`).
+- The lower bound also excludes SDK releases with published security advisories (HTTP and WebSocket transports, experimental task handlers). This server only uses stdio, so we believe they did not apply, but a new install should not resolve to a flagged version.
+
+### Changed
+
+- `uv.lock`: `mcp` 1.26.0 → 1.30.0.
+
+### Tests
+
+- New `tests/test_dependency_pins.py`: the `mcp` requirement stays bounded below 2.x with a lower bound that excludes flagged releases, and the installed SDK still has the `list_tools` / `call_tool` decorators the server is built on.
+- **364 tests total** (up from 361).
+
 ## [0.12.0] — 2026-06-06
 
 ### Changed

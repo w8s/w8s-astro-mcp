@@ -227,3 +227,109 @@ def test_console_script_and_tzdata_are_declared():
     pyproject = (Path(__file__).parent.parent / "pyproject.toml").read_text(encoding="utf-8")
     assert 'w8s-astro-recalculate = "w8s_astro_mcp.recalculate_natal:run"' in pyproject
     assert '"tzdata' in pyproject          # zoneinfo needs it on Windows and in minimal containers
+
+
+# ---------------------------------------------------------------------------
+# --event LABEL: recalculate individual saved event charts
+# ---------------------------------------------------------------------------
+
+def _save_wrong_labelled_event(db, label, time="04:00"):
+    """A saved event stored the pre-0.14.0 way (local time taken as UT)."""
+    wrong = ENGINE.get_chart(32.9483, -96.7299, "2026-09-19", time)
+    db.save_event_chart(
+        label=label, event_date="2026-09-19", event_time=time, latitude=32.9483, longitude=-96.7299,
+        timezone="America/Chicago", location_name="Richardson, TX", chart=wrong)
+    return db.get_event_chart_by_label(label)
+
+
+def _corrected_event_asc(local_time):
+    utc_hour = int(local_time[:2]) + 5                     # America/Chicago, CDT
+    fresh = ENGINE.get_chart(32.9483, -96.7299, "2026-09-19", f"{utc_hour:02d}:{local_time[3:]}")
+    return fresh["points"]["Ascendant"]["absolute_position"]
+
+
+class TestEventLabel:
+    def test_recalculates_only_the_named_event(self, env):
+        db, path, backups = env
+        person = _add(db, **PERSON_A)
+        first = _save_wrong_labelled_event(db, "first", "04:00")
+        second = _save_wrong_labelled_event(db, "second", "06:00")
+        second_before = _event_asc(db, second.id)
+
+        assert _run(path, backups, "--event", "first", "--apply") == 0
+
+        assert _event_asc(db, first.id) == pytest.approx(_corrected_event_asc("04:00"), abs=0.02)
+        assert _event_asc(db, second.id) == second_before        # other events untouched
+        assert _asc(db, person) == "Scorpio"                      # profiles untouched
+        assert len(_backups(backups)) == 1
+
+    def test_needs_neither_all_nor_a_profile_nor_the_events_flag(self, env, capsys):
+        db, path, backups = env
+        _add(db, **PERSON_A)
+        _save_wrong_labelled_event(db, "first")
+        _run(path, backups, "--event", "first")
+        out = capsys.readouterr().out
+        assert "event 'first'" in out and "would change" in out
+        assert "Person A" not in out and "No matching profiles" not in out
+
+    def test_dry_run_writes_nothing(self, env, capsys):
+        db, path, backups = env
+        event = _save_wrong_labelled_event(db, "first")
+        before = _event_asc(db, event.id)
+        assert _run(path, backups, "--event", "first") == 0
+        assert "DRY RUN" in capsys.readouterr().out
+        assert _event_asc(db, event.id) == before
+        assert _backups(backups) == []
+
+    def test_can_be_repeated(self, env):
+        db, path, backups = env
+        first = _save_wrong_labelled_event(db, "first", "04:00")
+        second = _save_wrong_labelled_event(db, "second", "06:00")
+        assert _run(path, backups, "--event", "first", "--event", "second", "--apply") == 0
+        assert _event_asc(db, first.id) == pytest.approx(_corrected_event_asc("04:00"), abs=0.02)
+        assert _event_asc(db, second.id) == pytest.approx(_corrected_event_asc("06:00"), abs=0.02)
+
+    def test_combines_with_a_profile(self, env):
+        db, path, backups = env
+        person = _add(db, **PERSON_A)
+        first = _save_wrong_labelled_event(db, "first", "04:00")
+        second = _save_wrong_labelled_event(db, "second", "06:00")
+        second_before = _event_asc(db, second.id)
+
+        assert _run(path, backups, "--profile-id", str(person.id), "--event", "first", "--apply") == 0
+        assert _asc(db, person) == "Capricorn"
+        assert _event_asc(db, first.id) == pytest.approx(_corrected_event_asc("04:00"), abs=0.02)
+        assert _event_asc(db, second.id) == second_before
+
+    def test_an_unknown_label_is_an_error_and_writes_nothing(self, env, capsys):
+        db, path, backups = env
+        event = _save_wrong_labelled_event(db, "first")
+        before = _event_asc(db, event.id)
+
+        assert _run(path, backups, "--event", "nope", "--apply") == 1
+        out = capsys.readouterr().out
+        assert "nope" in out and "Saved event charts: first" in out
+        assert _event_asc(db, event.id) == before
+        assert _backups(backups) == []
+
+    def test_an_event_selected_twice_is_processed_once(self, env, capsys):
+        db, path, backups = env
+        _save_wrong_labelled_event(db, "first")
+        _run(path, backups, "--all", "--events", "--event", "first")
+        assert capsys.readouterr().out.count("event 'first'") == 1
+
+    def test_running_it_again_changes_nothing(self, env, capsys):
+        db, path, backups = env
+        _save_wrong_labelled_event(db, "first")
+        _run(path, backups, "--event", "first", "--apply")
+        capsys.readouterr()
+        assert _run(path, backups, "--event", "first", "--apply") == 0
+        assert "already correct" in capsys.readouterr().out
+        assert len(_backups(backups)) == 1
+
+    def test_the_selection_error_mentions_the_new_option(self, env, capsys):
+        _, path, backups = env
+        with pytest.raises(SystemExit) as exc:
+            _run(path, backups)
+        assert exc.value.code == 2
+        assert "--event LABEL" in capsys.readouterr().err          # "--events" alone would not satisfy this

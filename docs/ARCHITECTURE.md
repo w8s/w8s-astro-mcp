@@ -228,7 +228,7 @@ flowchart TD
 - tzdata (timezone database for `zoneinfo` on Windows and minimal containers)
 
 **Dev:**
-- pytest (589 tests)
+- pytest (598 tests)
 - git (version control)
 
 ## Database Schema
@@ -406,7 +406,7 @@ offset — wrong Ascendant, MC, houses and Moon.
 - **Transit tools are unchanged.** `get_transits`, `find_house_placements`, `get_ingresses` and
   `compare_charts` take UT by design and have no timezone input; their descriptions say so.
 - **Existing data needs recalculating.** `w8s-astro-recalculate` (module `recalculate_natal`) rebuilds
-  natal charts — and, with `--events`, saved event charts — from the stored local data. It requires an
+  natal charts — and, with `--events` (all of them) or `--event LABEL` (individual ones), saved event charts — from the stored local data. It requires an
   explicit selection, is a dry run unless `--apply` is given, backs up the database first, invalidates
   cached connection charts, and is idempotent. It is a console script rather than a file under
   `scripts/` so `uvx` and `pip` users can run it.

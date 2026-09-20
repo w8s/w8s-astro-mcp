@@ -160,9 +160,11 @@ choosing to upgrade. Treat default tool output as an interface:
 ### Dependency Bounds
 `mcp` is bounded `<2`: SDK 2.x removed the `Server.list_tools()` / `call_tool()` decorators the server is
 built on, and an unbounded `mcp>=1.0.0` broke every fresh install at import. Bound the major version of any
-dependency the server is built on. `tests/test_dependency_pins.py` guards the `mcp` bound. Look at Dependabot
-proposals that loosen a bound before merging them (`timezonefinder` is held below 8 because 8.x pulls in a
-compiled dependency that breaks installs without CMake; see the 0.11.2 changelog).
+dependency the server is built on. `tests/test_dependency_pins.py` guards the `mcp` bound. Dependabot is
+told not to propose the two updates known to break installs (`.github/dependabot.yml`: `mcp` major
+versions, and `timezonefinder` 8.x, which pulls in a compiled dependency that breaks installs without
+CMake; see the 0.11.2 changelog), and `tests/test_dependabot_config.py` keeps those rules from being dropped.
+Still look at any other Dependabot proposal that loosens a bound before merging it.
 
 ### Test Fixtures
 - All test DB fixtures must import all models before `DatabaseHelper()` so
@@ -173,7 +175,7 @@ compiled dependency that breaks installs without CMake; see the 0.11.2 changelog
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 572 tests total as of v0.14.0 (364 at v0.12.1, 361 at v0.12.0).
+- 577 tests total (573 at v0.14.0, 364 at v0.12.1, 361 at v0.12.0).
 
 ## Common Commands
 

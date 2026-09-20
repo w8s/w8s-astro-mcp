@@ -228,7 +228,7 @@ flowchart TD
 - tzdata (timezone database for `zoneinfo` on Windows and minimal containers)
 
 **Dev:**
-- pytest (572 tests)
+- pytest (577 tests)
 - git (version control)
 
 ## Database Schema

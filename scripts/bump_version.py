@@ -10,6 +10,7 @@ Updates:
     - pyproject.toml        (version = "...")
     - server.json           (version + packages[].version)
     - CHANGELOG.md          ([Unreleased] → [X.Y.Z] — YYYY-MM-DD)
+    - uv.lock               (the project's own version; `uv lock --check` fails if it lags)
 
 Does NOT commit or tag — run the release workflow after reviewing the diff.
 """
@@ -29,6 +30,14 @@ def current_version() -> str:
     m = re.search(r'^version = "(.+)"', text, re.MULTILINE)
     if not m:
         sys.exit("ERROR: could not find version in pyproject.toml")
+    return m.group(1)
+
+
+def project_name() -> str:
+    text = (ROOT / "pyproject.toml").read_text()
+    m = re.search(r'^name = "(.+)"', text, re.MULTILINE)
+    if not m:
+        sys.exit("ERROR: could not find name in pyproject.toml")
     return m.group(1)
 
 
@@ -69,8 +78,32 @@ def bump_server_json(new: str, dry_run: bool) -> bool:
         return False
 
     if not dry_run:
-        path.write_text(json.dumps(data, indent=2) + "\n")
+        # ensure_ascii=False keeps characters such as the em dash literal instead of \u2014
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"  {'DRY ' if dry_run else ''}BUMP  server.json     version → {new}")
+    return True
+
+
+def bump_uv_lock(new: str, dry_run: bool) -> bool:
+    """Set the project's own version in uv.lock (other packages' versions are left alone)."""
+    path = ROOT / "uv.lock"
+    if not path.exists():
+        print("  SKIP  uv.lock — no lock file")
+        return False
+
+    name = project_name()
+    old_text = path.read_text(encoding="utf-8")
+    pattern = re.compile(r'(\[\[package\]\]\nname = "%s"\nversion = ")[^"]+(")' % re.escape(name))
+    if len(pattern.findall(old_text)) != 1:
+        sys.exit(f"ERROR: could not find exactly one [[package]] block for {name} in uv.lock")
+
+    new_text = pattern.sub(rf"\g<1>{new}\2", old_text, count=1)
+    if old_text == new_text:
+        print("  SKIP  uv.lock — no change")
+        return False
+    if not dry_run:
+        path.write_text(new_text, encoding="utf-8")
+    print(f"  {'DRY ' if dry_run else ''}BUMP  uv.lock         {name} version → {new}")
     return True
 
 
@@ -114,14 +147,15 @@ def main() -> None:
     bump_pyproject(args.version, args.dry_run)
     bump_server_json(args.version, args.dry_run)
     bump_changelog(args.version, args.dry_run)
+    bump_uv_lock(args.version, args.dry_run)
 
     if not args.dry_run:
         print(f"""
-Next steps:
-  git add pyproject.toml server.json CHANGELOG.md
+Next steps (AGENTS.md, Release Checklist):
+  git add pyproject.toml server.json CHANGELOG.md uv.lock
   git commit -m "release: bump version to {args.version}"
-  git tag {args.version}
-  git push origin main {args.version}
+  merge it, then tag the merge commit and push the tag:
+  git tag -a {args.version} <merge-commit> -m "..." && git push origin {args.version}
 """)
     else:
         print("\n(dry run — no files written)")

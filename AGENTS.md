@@ -25,7 +25,7 @@ release or a failed MCP Registry publish.
 
 - [ ] Feature complete and tests passing (`.venv/bin/python -m pytest`)
 - [ ] `pyproject.toml` — bump `version`
-- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match (`scripts/bump_version.py <version>` does all three plus the CHANGELOG heading)
+- [ ] `server.json` — bump **both** `version` and `packages[0].version` to match (`scripts/bump_version.py <version>` does both, the project's own version in `uv.lock`, and the CHANGELOG heading; add `uv.lock` to the release commit)
 - [ ] `CHANGELOG.md` — add entry under new version
 - [ ] Merge to `main` with a merge commit, not a squash (`gh pr merge --merge`, or `--no-ff` locally)
 - [ ] `git tag -a <version> <merge-commit> -m "..."` and `git push origin <version>` (the tag triggers the PyPI publish)
@@ -175,7 +175,7 @@ Still look at any other Dependabot proposal that loosens a bound before merging 
   don't construct `Profile` + `Location` manually (FK ordering is tricky).
 - Mock `swisseph`-dependent modules via `sys.modules` injection, not `patch()` on
   the module path (the module may not be importable at all in CI).
-- 577 tests total (573 at v0.14.0, 364 at v0.12.1, 361 at v0.12.0).
+- 589 tests total (573 at v0.14.0, 364 at v0.12.1, 361 at v0.12.0).
 
 ## Common Commands
 

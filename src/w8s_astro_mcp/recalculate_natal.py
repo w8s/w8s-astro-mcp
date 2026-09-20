@@ -8,6 +8,7 @@ Ascendant, MC, houses and Moon. This tool recalculates charts from the stored lo
     w8s-astro-recalculate --all --apply         # back up the database, then recalculate
     w8s-astro-recalculate --profile-id 3 --apply
     w8s-astro-recalculate --all --events --apply   # also saved event charts
+    w8s-astro-recalculate --event palo-duro-2026 --apply   # just one saved event chart (repeat --event for more)
 
 It is safe to run more than once: charts that are already correct are left alone, and nothing is
 backed up or written when there is nothing to change.
@@ -71,6 +72,12 @@ def _select_profile_ids(db: DatabaseHelper, args) -> List[int]:
     return existing if args.all else [pid for pid in dict.fromkeys(args.profile_id) if pid in existing]
 
 
+def _event_labels(db: DatabaseHelper) -> List[str]:
+    with get_session(db.engine) as session:
+        rows = session.query(Event.label).filter(Event.label.isnot(None)).order_by(Event.id).all()
+    return [row[0] for row in rows]
+
+
 def _connections_of(db: DatabaseHelper, profile_ids: Sequence[int]) -> List[int]:
     with get_session(db.engine) as session:
         rows = session.query(ConnectionMember.connection_id).filter(
@@ -104,11 +111,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--events", action="store_true",
                         help="also recalculate saved event charts (all of them with --all, "
                              "otherwise those attached to the selected profiles)")
+    parser.add_argument("--event", action="append", default=[], metavar="LABEL",
+                        help="recalculate this saved event chart by label (repeat for several); "
+                             "needs neither --all nor --events")
     parser.add_argument("--apply", action="store_true", help="write the changes (default is a dry run)")
     parser.add_argument("--backup-dir", help="where to put the pre-change backup (default: <db folder>/backups)")
     args = parser.parse_args(argv)
-    if not (args.all or args.profile_id):
-        parser.error("choose which profiles to recalculate: --all or --profile-id ID")
+    if not (args.all or args.profile_id or args.event):
+        parser.error("choose what to recalculate: --all, --profile-id ID or --event LABEL")
 
     db_path = Path(args.db) if args.db else get_database_path()
     if not db_path.is_file():
@@ -122,8 +132,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     event_changes: List[Any] = []       # (event id, fresh chart)
 
     print(f"Database: {db_path}\n")
-    profile_ids = _select_profile_ids(db, args)
-    if not profile_ids:
+    known_labels = _event_labels(db)
+    unknown = [label for label in dict.fromkeys(args.event) if label not in known_labels]
+    if unknown:
+        for label in unknown:
+            print(f"No saved event chart with label '{label}'.")
+        print("Saved event charts: " + (", ".join(known_labels) if known_labels else "none"))
+        return 1
+
+    selecting_profiles = bool(args.all or args.profile_id)
+    profile_ids = _select_profile_ids(db, args) if selecting_profiles else []
+    if selecting_profiles and not profile_ids:
         print("No matching profiles.")
     for pid in profile_ids:
         profile = db.get_profile_by_id(pid)
@@ -146,12 +165,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"    {'recalculated' if args.apply else 'would change'}\n")
             profile_changes.append((profile, fresh))
 
-    if args.events:
+    selected_labels = set(args.event)
+    if args.events or selected_labels:
         with get_session(db.engine) as session:
             events = [(e.id, e.label, e.event_date, e.event_time, e.latitude, e.longitude, e.timezone, e.profile_id)
                       for e in session.query(Event).order_by(Event.id).all()]
         for event_id, label, date, time, lat, lon, tz, event_profile in events:
-            if not args.all and event_profile not in profile_ids:
+            in_scope = args.events and (args.all or event_profile in profile_ids)
+            if not (in_scope or label in selected_labels):
                 continue
             try:
                 ut_date, ut_time = utc_engine_args(date, time, tz)

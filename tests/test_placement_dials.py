@@ -213,17 +213,30 @@ def test_refused_path_leaves_an_existing_file_untouched(tmp_path):
     assert victim.read_text() == "export PATH=1"
 
 
-def test_other_profiles_get_their_own_default_file(monkeypatch, tmp_path):
+def test_default_file_is_named_after_the_profile(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
-    owner = pd.resolve_output_path()
-    other = pd.resolve_output_path(profile_id=3)
-    assert owner.name == "placement_dials.html"
-    assert other.name == "placement_dials_profile3.html" and other.parent == owner.parent
+    mine = pd.resolve_output_path(profile_name="Todd")
+    liz = pd.resolve_output_path(profile_name="Liz", profile_id=3)
+    assert mine.name == "placement_dials_todd.html"
+    assert liz.name == "placement_dials_liz.html" and liz.parent == mine.parent == (tmp_path / "Downloads").resolve()
     folder = tmp_path / "out"
     folder.mkdir()
-    assert pd.resolve_output_path(str(folder), profile_id=3).name == "placement_dials_profile3.html"
+    assert pd.resolve_output_path(str(folder), profile_name="Liz").name == "placement_dials_liz.html"
     explicit = tmp_path / "mine.html"
-    assert pd.resolve_output_path(str(explicit), profile_id=3) == explicit.resolve()
+    assert pd.resolve_output_path(str(explicit), profile_name="Liz") == explicit.resolve()
+
+
+@pytest.mark.parametrize("name,pid,expected", [
+    ("Liz W.", 2, "placement_dials_liz_w.html"),
+    ("  José  Núñez ", None, "placement_dials_jose_nunez.html"),
+    ("../../etc/passwd", None, "placement_dials_etc_passwd.html"),
+    ("🌙", 5, "placement_dials_profile5.html"),
+    ("", 5, "placement_dials_profile5.html"),
+    (None, None, "placement_dials.html"),
+    ("x" * 100, None, "placement_dials_" + "x" * 40 + ".html"),
+])
+def test_default_file_name_is_safe_and_has_fallbacks(name, pid, expected):
+    assert pd.default_file_name(name, pid) == expected
 
 
 def test_create_writes_file_and_makes_folders_and_overwrites(tmp_path):
@@ -239,6 +252,24 @@ def test_create_writes_file_and_makes_folders_and_overwrites(tmp_path):
 # ---------------------------------------------------------------------------
 # Server wiring
 # ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _no_real_profile_lookup(monkeypatch):
+    """Handler tests never touch the real database for the profile name."""
+    monkeypatch.setattr(server, "get_profile_name", lambda profile_id=None: "Todd")
+
+
+@pytest.mark.asyncio
+async def test_handler_names_the_default_file_after_the_profile(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    seen = []
+    monkeypatch.setattr(server, "get_profile_name", lambda profile_id=None: seen.append(profile_id) or "Liz")
+    with patch.object(server, "get_natal_chart_data", return_value=CHART):
+        result = await server.handle_visualize_placement_dials({"profile_id": 3})
+    assert seen == [3]
+    assert (tmp_path / "Downloads" / "placement_dials_liz.html").exists()
+    assert "placement_dials_liz.html" in result[0].text
+
 
 @pytest.mark.asyncio
 async def test_handler_success_writes_file(tmp_path):

@@ -776,7 +776,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "output_path": {
                         "type": "string",
-                        "description": "Where to save the page: a file path, or a file path ending in .html or .htm, or a folder (the file is then named placement_dials.html). Defaults to ~/Downloads/placement_dials.html; for a non-owner profile the name is placement_dials_profile<ID>.html. Existing files are overwritten."
+                        "description": "Where to save the page: a file path, or a file path ending in .html or .htm, or a folder (the file is then named placement_dials_<profile name>.html). Defaults to ~/Downloads/placement_dials_<profile name>.html (for example placement_dials_todd.html). Existing files are overwritten."
                     },
                     "title": {
                         "type": "string",
@@ -834,6 +834,16 @@ async def handle_dismiss_data_notice(arguments: Any) -> list[TextContent]:
         return [TextContent(type="text", text=f"Error: {e}")]
 
 
+def get_profile_name(profile_id: Optional[int] = None) -> Optional[str]:
+    """Name of the given profile (the owner's when None), or None if it can't be found."""
+    try:
+        db = init_db()
+        profile = db.get_profile_by_id(profile_id) if profile_id is not None else db.get_owner_profile()
+        return profile.name if profile else None
+    except Exception:
+        return None
+
+
 async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]:
     """Handle visualize_placement_dials tool call. Extracted for testability."""
     try:
@@ -842,6 +852,7 @@ async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]
             chart,
             title=arguments.get("title") or PLACEMENT_DIALS_TITLE,
             output_path=arguments.get("output_path") or None,
+            profile_name=get_profile_name(arguments.get("profile_id")),
             profile_id=arguments.get("profile_id"),
         )
         how_to_use = (

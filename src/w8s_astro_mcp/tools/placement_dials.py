@@ -16,7 +16,9 @@ a chart that was recalculated (or not yet) always agrees with its own cusps.
 
 import json
 import os
+import re
 import sys
+import unicodedata
 import webbrowser
 from importlib import resources
 from pathlib import Path
@@ -138,18 +140,28 @@ def render_placement_dials(chart: Dict[str, Any], title: str = DEFAULT_TITLE) ->
     )
 
 
-def default_file_name(profile_id: Optional[int] = None) -> str:
+def _slug(text: str) -> str:
+    """Lowercase letters and digits only, words joined by underscores ("Liz W." -> "liz_w")."""
+    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "_", plain.lower()).strip("_")[:40]
+
+
+def default_file_name(profile_name: Optional[str] = None, profile_id: Optional[int] = None) -> str:
     """
-    File name used when none is given. The owner's chart keeps the plain name; another
-    profile gets its id in the name, so generating one never overwrites another's page.
+    File name used when none is given: placement_dials_<profile name>.html, so each
+    person's page keeps its own file. A name with nothing usable in it falls back to the
+    profile id, and with neither the plain default name is used.
     """
-    if profile_id is None:
-        return DEFAULT_FILE_NAME
     stem, suffix = DEFAULT_FILE_NAME.rsplit(".", 1)
-    return f"{stem}_profile{int(profile_id)}.{suffix}"
+    label = _slug(profile_name or "") or (f"profile{int(profile_id)}" if profile_id is not None else "")
+    return f"{stem}_{label}.{suffix}" if label else DEFAULT_FILE_NAME
 
 
-def resolve_output_path(output_path: Optional[str] = None, profile_id: Optional[int] = None) -> Path:
+def resolve_output_path(
+    output_path: Optional[str] = None,
+    profile_name: Optional[str] = None,
+    profile_id: Optional[int] = None,
+) -> Path:
     """
     Expand the requested path. A folder (an existing directory, or a path ending in a
     separator) gets the default file name inside it. With no path at all the file goes
@@ -158,7 +170,7 @@ def resolve_output_path(output_path: Optional[str] = None, profile_id: Optional[
     Only .html and .htm files are written, so a wrong path (a dotfile, a script, a note)
     can never be overwritten with a web page.
     """
-    name = default_file_name(profile_id)
+    name = default_file_name(profile_name, profile_id)
     raw = output_path or str(Path(DEFAULT_OUTPUT_PATH).with_name(name))
     path = Path(raw).expanduser()
     if path.is_dir() or raw.endswith(("/", "\\")):
@@ -175,10 +187,11 @@ def create_placement_dials(
     chart: Dict[str, Any],
     title: str = DEFAULT_TITLE,
     output_path: Optional[str] = None,
+    profile_name: Optional[str] = None,
     profile_id: Optional[int] = None,
 ) -> str:
     """Write the page to disk (creating folders as needed) and return the saved path."""
-    path = resolve_output_path(output_path, profile_id)
+    path = resolve_output_path(output_path, profile_name, profile_id)
     html = render_placement_dials(chart, title)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")

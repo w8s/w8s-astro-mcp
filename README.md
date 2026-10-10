@@ -16,6 +16,7 @@ Personal astrological MCP server — natal charts, transits, forecasting, and re
 - 🗂️ **Multi-profile** — manage charts for yourself, family, and friends
 - 📜 **Persistent history** — every transit lookup auto-logged to SQLite; query by date, planet, or sign
 - 🧭 **Transit reading** — compare today's sky to your natal chart with applying/separating direction and an estimated time of exactness; opt-in JSON output
+- 🎛️ **Placement dials** — an interactive page that teaches what a planet, a sign and a house mean, alone and together, using your own placements
 - 🔗 **Relationship charts** — composite and Davison charts for any group of 2+ people; place today's sky in any chart's house system
 - 🗓️ **Event & electional tools** — cast charts for any moment; scan windows for auspicious times
 
@@ -106,6 +107,9 @@ Add `--events` to include saved event charts, or `--event LABEL` to recalculate 
 > "What major transits are coming up in the next 90 days?"
 
 > "Which of today's transits to my chart are building and which are fading?"
+
+**Learn what a placement means:**
+> "Make me a placement dials page so I can see what Mars in Taurus in House 3 means." *(saves an HTML file to your Downloads folder; open it in a browser)*
 
 **Other profiles:**
 > "Show me Liz's natal chart."

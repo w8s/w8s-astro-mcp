@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
+- **`visualize_placement_dials`** makes an interactive page for learning what a planet, a sign and a house mean, alone and together. It saves one HTML file to `~/Downloads/placement_dials.html` by default (give `output_path` for another file or folder; an existing file is overwritten). Three dials (planet, sign, house) can be turned or switched off, and the reading shows each layer by itself and how the layers combine, including whether the planet is at home or strained in that sign. The chart's ten placements are quick picks, and a toggle switches between the chart's own house cusps and the textbook scheme. Houses are worked out from the cusps, not from stored house numbers. The meaning text is plain JSON in `templates/placement_dials_content.json`. Accepts `profile_id`, like the other single-profile tools, and carries the stored-chart data notice.
 - **`w8s-astro-recalculate --event LABEL`** recalculates a single saved event chart by its label (repeat it for several). It needs neither `--all` nor `--events`, so you can fix one event without touching the others or any profile, and it combines with `--profile-id`. An unknown label is an error that lists the saved labels and changes nothing.
 
 ## [0.14.0] — 2026-09-19

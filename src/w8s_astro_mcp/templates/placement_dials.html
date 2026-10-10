@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planet Sign House Dials</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Instrument+Sans:wght@400;500;600&family=Noto+Sans+Symbols&display=swap">
+<style>
+/* Layout: sticky three-ring dial on the left, composed reading on the right; stacks on phones. */
+:root {
+  color-scheme: light;
+  --bg: #EDF0F3; --fg: #141A22; --muted: #566170; --line: #C3CAD3; --panel: #F8F9FB;
+  --seg: #E1E6EC; --seg2: #D0D7E0; --accent: #A9690F; --on-accent: #FFFFFF;
+  --fire: #D4502A; --earth: #5F8434; --air: #B88C0B; --water: #2A76B0;
+  --font-display: 'Young Serif', Georgia, 'Times New Roman', serif;
+  --font-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sym: 'Noto Sans Symbols', 'Apple Symbols', 'Segoe UI Symbol', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1116; --fg: #E6E9ED; --muted: #94A0AD; --line: #2B3440; --panel: #151B23;
+    --seg: #1A212A; --seg2: #232C37; --accent: #E5A744; --on-accent: #0D1116;
+    --fire: #F27B53; --earth: #9CBF68; --air: #E7BE3E; --water: #5DA8DF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1116; --fg: #E6E9ED; --muted: #94A0AD; --line: #2B3440; --panel: #151B23;
+  --seg: #1A212A; --seg2: #232C37; --accent: #E5A744; --on-accent: #0D1116;
+  --fire: #F27B53; --earth: #9CBF68; --air: #E7BE3E; --water: #5DA8DF;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; padding: 20px 16px 40px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) {
+  .wrap { grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 48px; align-items: start; }
+  .left { position: sticky; top: 20px; }
+}
+.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.intro { margin: 0 0 14px; color: var(--muted); max-width: 46ch; }
+
+/* wheel */
+svg.wheel { display: block; width: 100%; height: auto; max-width: 440px; margin: 0 auto; }
+.seg { stroke: var(--line); stroke-width: 1; cursor: pointer; transition: fill-opacity .3s; }
+.seg.ang { fill: var(--seg2); } .seg.suc, .seg.cad { fill: var(--seg); }
+.seg.pl { fill: var(--seg); }
+.seg.e-fire { fill: var(--fire); fill-opacity: .2; } .seg.e-earth { fill: var(--earth); fill-opacity: .2; }
+.seg.e-air { fill: var(--air); fill-opacity: .2; } .seg.e-water { fill: var(--water); fill-opacity: .2; }
+.seg.e-fire.sel, .seg.e-earth.sel, .seg.e-air.sel, .seg.e-water.sel { fill-opacity: .62; }
+.seg.ang.sel, .seg.suc.sel, .seg.cad.sel, .seg.pl.sel { fill: var(--accent); fill-opacity: .55; }
+.seg.sel { stroke: var(--accent); stroke-width: 1.5; }
+.seg:hover { stroke: var(--muted); }
+.ring, .lbl { transition: transform .75s cubic-bezier(.3, .7, .2, 1), opacity .3s; }
+.noanim .ring, .noanim .lbl { transition: none; }
+.ring.off { opacity: .28; }
+.lbl { fill: var(--fg); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.lbl.num { font: 600 15px var(--font-body); }
+.lbl.sym { font: 22px var(--font-sym); }
+.hub { fill: var(--panel); stroke: var(--line); }
+.hub-main { font: 46px var(--font-sym); fill: var(--fg); text-anchor: middle; dominant-baseline: central; }
+.hub-main.num { font: 40px var(--font-display); }
+.hub-sub { font: 500 13px var(--font-body); fill: var(--muted); text-anchor: middle; letter-spacing: .04em; }
+.pointer { fill: var(--accent); }
+.caption { font-size: 12px; color: var(--muted); text-align: center; margin: 4px 0 16px; }
+
+/* controls */
+.dials { display: grid; gap: 10px; }
+.dial { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 6px 12px; align-items: center; }
+.dial .sw { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.dial .sw small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; line-height: 1.1; }
+.dial input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; flex: none; }
+.step { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 6px; }
+button, select { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-height: 40px; }
+button { cursor: pointer; font-size: 20px; line-height: 1; }
+button:hover, select:hover { border-color: var(--muted); }
+select { padding: 0 10px; width: 100%; font-family: var(--font-body); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tools { margin-top: 18px; display: grid; gap: 12px; }
+.tools h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; font-weight: 500; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 13px; min-height: 34px; padding: 0 10px; border-radius: 999px; line-height: 1; }
+.chip .g { font-family: var(--font-sym); font-size: 14px; }
+.chip[aria-pressed=true] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.seg2 { display: inline-grid; grid-template-columns: 1fr 1fr; }
+.seg2 button { font-size: 13px; min-height: 36px; padding: 0 12px; border-radius: 0; }
+.seg2 button:first-child { border-radius: 6px 0 0 6px; } .seg2 button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.seg2 button[aria-pressed=true] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+/* reading */
+.hero h1 { font: 400 clamp(28px, 4.2vw, 42px)/1.12 var(--font-display); margin: 0 0 14px; text-wrap: balance; }
+.hero h1 .g { font-family: var(--font-sym); font-size: .86em; }
+.hero p { font-size: 18px; line-height: 1.5; margin: 0; max-width: 56ch; }
+.layers { margin-top: 26px; border-top: 1px solid var(--line); }
+.layer { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 4px 20px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+@media (max-width: 560px) { .layer { grid-template-columns: minmax(0, 1fr); } }
+.layer .tag { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+.layer .tag b { display: block; color: var(--fg); font-weight: 600; letter-spacing: .02em; text-transform: none; font-size: 15px; margin-top: 2px; }
+.layer h3 { font: 400 20px/1.2 var(--font-display); margin: 0 0 6px; }
+.layer p { margin: 0 0 8px; max-width: 60ch; }
+.layer p:last-child { margin-bottom: 0; }
+.layer .quiet { color: var(--muted); font-size: 14px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.empty { padding: 20px 0; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .ring, .lbl, .seg { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <section class="left" aria-label="Dials">
+    <p class="eyebrow">Planet · Sign · House</p>
+    <p class="intro">Turn each dial and read what the combination says. Untick a layer to hear what the others say without it.</p>
+
+    <svg class="wheel noanim" id="wheel" viewBox="0 0 500 500" role="img" aria-label="Three concentric dials: houses outside, signs in the middle, planets inside">
+      <g id="ring-h" class="ring" style="transform-origin:250px 250px"></g>
+      <g id="ring-s" class="ring" style="transform-origin:250px 250px"></g>
+      <g id="ring-p" class="ring" style="transform-origin:250px 250px"></g>
+      <circle class="hub" cx="250" cy="250" r="58"/>
+      <text class="hub-main" id="hub-main" x="250" y="246">♂︎</text>
+      <text class="hub-sub" id="hub-sub" x="250" y="283"></text>
+      <path class="pointer" d="M250 19 L241 3 L259 3 Z"/>
+    </svg>
+    <p class="caption">A dial, not a chart. Each ring turns to bring your pick to the top.</p>
+
+    <div class="dials">
+      <div class="dial">
+        <label class="sw"><input type="checkbox" id="on-p" checked><span>Planet<small>what</small></span></label>
+        <div class="step"><button type="button" id="prev-p" aria-label="Previous planet">‹</button><select id="sel-p" aria-label="Planet"></select><button type="button" id="next-p" aria-label="Next planet">›</button></div>
+      </div>
+      <div class="dial">
+        <label class="sw"><input type="checkbox" id="on-s" checked><span>Sign<small>how</small></span></label>
+        <div class="step"><button type="button" id="prev-s" aria-label="Previous sign">‹</button><select id="sel-s" aria-label="Sign"></select><button type="button" id="next-s" aria-label="Next sign">›</button></div>
+      </div>
+      <div class="dial">
+        <label class="sw"><input type="checkbox" id="on-h" checked><span>House<small>where</small></span></label>
+        <div class="step"><button type="button" id="prev-h" aria-label="Previous house">‹</button><select id="sel-h" aria-label="House"></select><button type="button" id="next-h" aria-label="Next house">›</button></div>
+      </div>
+    </div>
+
+    <div class="tools">
+      <div>
+        <h2 id="chips-h">Natal placements</h2>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div>
+        <h2>Where houses begin</h2>
+        <div class="seg2" role="group" aria-label="House cusp signs">
+          <button type="button" id="cusp-chart" aria-pressed="true">This chart</button>
+          <button type="button" id="cusp-text" aria-pressed="false">Textbook</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="right" aria-live="polite" aria-label="Reading">
+    <div class="hero">
+      <h1 id="title"></h1>
+      <p id="sentence"></p>
+    </div>
+    <div class="layers" id="layers"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var V = '︎';
+  var CONTENT = $content_json;
+  var CHART = $chart_json;
+  var PLANETS = CONTENT.planets.map(function (p) { return { n: p.name, g: p.glyph, does: p.does, core: p.core, kw: p.keywords }; });
+  var SIGNS = CONTENT.signs.map(function (x) { return { n: x.name, g: x.glyph, el: x.element, mo: x.mode, manner: x.manner }; });
+  var HOUSES = CONTENT.houses;
+  var ANGULARITY = CONTENT.angularity;
+  var ELEMENT_TXT = CONTENT.element_text;
+  var MODE_TXT = CONTENT.mode_text;
+  var RULER = CONTENT.rulers;
+  var DIG = {};
+  Object.keys(CONTENT.dignity).forEach(function (k) {
+    var d = CONTENT.dignity[k];
+    DIG[k] = { dom: d.domicile, ex: d.exaltation, det: d.detriment, fall: d.fall };
+  });
+  var CUSPS = CHART.cusps;
+  var PLACEMENTS = CHART.placements;
+
+  var NS = 'http://www.w3.org/2000/svg';
+  var RINGS = { h: { N: 12, rin: 182, rout: 238 }, s: { N: 12, rin: 124, rout: 178 }, p: { N: 10, rin: 66, rout: 120 } };
+  var state = { p: PLACEMENTS[0][0], s: PLACEMENTS[0][1], h: PLACEMENTS[0][2] - 1, on: { p: true, s: true, h: true }, cusp: 'chart' };
+  var ang = { h: 0, s: 0, p: 0 };
+  var byId = function (id) { return document.getElementById(id); };
+  var cap = function (t) { return t.charAt(0).toUpperCase() + t.slice(1); };
+
+  function polar(r, t) { var a = t * Math.PI / 180; return [250 + r * Math.sin(a), 250 - r * Math.cos(a)]; }
+  function sector(rin, rout, t1, t2) {
+    var a = polar(rout, t1), b = polar(rout, t2), c = polar(rin, t2), d = polar(rin, t1);
+    return 'M' + a[0] + ' ' + a[1] + 'A' + rout + ' ' + rout + ' 0 0 1 ' + b[0] + ' ' + b[1] +
+      'L' + c[0] + ' ' + c[1] + 'A' + rin + ' ' + rin + ' 0 0 0 ' + d[0] + ' ' + d[1] + 'Z';
+  }
+  function segClass(k, i) {
+    if (k === 's') return 'e-' + SIGNS[i].el;
+    if (k === 'h') return ANGULARITY[i % 3 === 0 ? 0 : (i % 3 === 1 ? 1 : 2)][0];
+    return 'pl';
+  }
+  function labelFor(k, i) { return k === 'h' ? String(i + 1) : (k === 's' ? SIGNS[i].g + V : PLANETS[i].g + V); }
+
+  function build(k) {
+    var R = RINGS[k], g = byId('ring-' + k), step = 360 / R.N, i, p, t, pos;
+    for (i = 0; i < R.N; i++) {
+      p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', sector(R.rin, R.rout, i * step - step / 2 + 0.4, i * step + step / 2 - 0.4));
+      p.setAttribute('class', 'seg ' + segClass(k, i));
+      p.setAttribute('data-k', k); p.setAttribute('data-i', i);
+      g.appendChild(p);
+    }
+    for (i = 0; i < R.N; i++) {
+      pos = polar((R.rin + R.rout) / 2, i * step);
+      t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', pos[0]); t.setAttribute('y', pos[1]);
+      t.setAttribute('class', 'lbl ' + (k === 'h' ? 'num' : 'sym'));
+      t.style.transformOrigin = pos[0] + 'px ' + pos[1] + 'px';
+      t.textContent = labelFor(k, i);
+      g.appendChild(t);
+    }
+  }
+
+  function turn(k) {
+    var step = 360 / RINGS[k].N, target = -state[k] * step;
+    var d = ((target - ang[k]) % 360 + 540) % 360 - 180;
+    ang[k] += d;
+    var g = byId('ring-' + k);
+    g.style.transform = 'rotate(' + ang[k] + 'deg)';
+    var ls = g.querySelectorAll('.lbl'), j;
+    for (j = 0; j < ls.length; j++) ls[j].style.transform = 'rotate(' + (-ang[k]) + 'deg)';
+    var ps = g.querySelectorAll('.seg');
+    for (j = 0; j < ps.length; j++) ps[j].classList.toggle('sel', j === state[k]);
+    g.classList.toggle('off', !state.on[k]);
+  }
+
+  function cuspOf(h) { return state.cusp === 'chart' ? CUSPS[h] : h; }
+  function dignity(pn, sn) {
+    var d = DIG[pn];
+    if (d.dom.indexOf(sn) > -1) return pn + ' rules ' + sn + ', so it is at home here and works with little friction.';
+    if (d.ex.indexOf(sn) > -1) return sn + ' is a sign where ' + pn + ' is exalted: a favored placement, like an honored guest.';
+    if (d.det.indexOf(sn) > -1) return sn + ' sits opposite a sign that ' + pn + ' rules, which traditional astrology calls detriment. ' + pn + ' works against the grain here. Not broken, just more effortful and often indirect.';
+    if (d.fall.indexOf(sn) > -1) return sn + ' is opposite the sign where ' + pn + ' is exalted, called fall. It is the least comfortable placement, where ' + pn + ' learns to work with less.';
+    var outer = (pn === 'Uranus' || pn === 'Neptune' || pn === 'Pluto') ? ' Traditional rules are less settled for the outer planets.' : '';
+    return pn + ' in ' + sn + ' is neither especially strong nor strained in traditional terms, so the sign\'s style does most of the coloring.' + outer;
+  }
+
+  function layerHTML(tag, sub, title, paras) {
+    return '<div class="layer"><div class="tag">' + tag + '<b>' + sub + '</b></div><div><h3>' + title + '</h3>' + paras.map(function (t) { return '<p' + (t.q ? ' class="quiet"' : '') + '>' + (t.q ? t.q : t) + '</p>'; }).join('') + '</div></div>';
+  }
+
+  function render() {
+    var on = state.on, P = PLANETS[state.p], S = SIGNS[state.s], H = state.h;
+    ['h', 's', 'p'].forEach(turn);
+    byId('on-p').checked = on.p; byId('on-s').checked = on.s; byId('on-h').checked = on.h;
+    byId('sel-p').value = state.p; byId('sel-s').value = state.s; byId('sel-h').value = state.h;
+    byId('cusp-chart').setAttribute('aria-pressed', state.cusp === 'chart');
+    byId('cusp-text').setAttribute('aria-pressed', state.cusp === 'text');
+    var chips = byId('chips').children, j;
+    for (j = 0; j < chips.length; j++) {
+      var t = PLACEMENTS[j];
+      chips[j].setAttribute('aria-pressed', state.cusp === 'chart' && on.p && on.s && on.h && t[0] === state.p && t[1] === state.s && (t[2] - 1) === state.h);
+    }
+
+    /* hub */
+    var hm = byId('hub-main'), hs = byId('hub-sub'), subs = [];
+    if (on.p) { hm.textContent = P.g + V; hm.setAttribute('class', 'hub-main'); if (on.s) subs.push(S.g + V); if (on.h) subs.push('H' + (H + 1)); }
+    else if (on.s) { hm.textContent = S.g + V; hm.setAttribute('class', 'hub-main'); if (on.h) subs.push('H' + (H + 1)); }
+    else if (on.h) { hm.textContent = H + 1; hm.setAttribute('class', 'hub-main num'); }
+    else { hm.textContent = ''; }
+    hs.textContent = subs.join('   ');
+
+    /* title + sentence */
+    var title = [];
+    if (on.p) title.push('<span class="g">' + P.g + V + '</span> ' + P.n);
+    if (on.s) title.push((on.p ? 'in ' : '') + '<span class="g">' + S.g + V + '</span> ' + S.n);
+    if (on.h) title.push((on.p || on.s ? 'in ' : '') + 'House ' + (H + 1));
+    var sentence = '';
+    var arena = HOUSES[H];
+    if (on.p && on.s && on.h) sentence = cap(P.does) + ', ' + S.manner + ', in the arena of ' + arena + '.';
+    else if (on.p && on.s) sentence = cap(P.does) + ', ' + S.manner + '.';
+    else if (on.p && on.h) sentence = cap(P.does) + ', in the arena of ' + arena + '.';
+    else if (on.p) sentence = cap(P.does) + '.';
+    else if (on.s && on.h) sentence = cap(arena) + ', handled ' + S.manner + '.';
+    else if (on.s) sentence = 'Anything this sign touches is done ' + S.manner + '.';
+    else if (on.h) sentence = cap(arena) + '.';
+    byId('title').innerHTML = title.join(' ') || 'Nothing selected';
+    byId('sentence').textContent = sentence || 'Tick at least one dial to get a reading.';
+
+    /* layers */
+    var out = '';
+    if (on.p) out += layerHTML('Planet', 'What', P.g + V + ' ' + P.n, [P.core, { q: 'Keywords: ' + P.kw }]);
+    if (on.s) out += layerHTML('Sign', 'How', '<span class="dot" style="background:var(--' + S.el + ')"></span>' + S.n,
+      [cap(S.manner) + '.', ELEMENT_TXT[S.el] + ' ' + MODE_TXT[S.mo], { q: S.el.charAt(0).toUpperCase() + S.el.slice(1) + ' · ' + S.mo + ' · ruled by ' + RULER[state.s] }]);
+    if (on.h) {
+      var cs = SIGNS[cuspOf(H)], where = state.cusp === 'chart' ? 'In this chart' : 'In the textbook scheme';
+      out += layerHTML('House', 'Where', 'House ' + (H + 1), [cap(arena) + '.', ANGULARITY[H % 3 === 0 ? 0 : (H % 3 === 1 ? 1 : 2)][1],
+        { q: where + ', this house begins in ' + cs.n + ', so its default style is ' + cs.manner + '. Ruler: ' + RULER[cuspOf(H)] + '.' }]);
+    }
+    var n = (on.p ? 1 : 0) + (on.s ? 1 : 0) + (on.h ? 1 : 0);
+    if (n >= 2) {
+      var inter = [], cuspIdx = cuspOf(H), cs2 = SIGNS[cuspIdx], ruler = RULER[cuspIdx];
+      if (on.p && on.s) inter.push(dignity(P.n, S.n));
+      if (on.s && on.h) {
+        if (state.s === cuspIdx) inter.push('The sign you picked is the same one the house begins in, so the style is doubled: ' + S.manner + '.');
+        else inter.push('The house begins in ' + cs2.n + ' (' + cs2.manner + '), and the sign you picked adds a second layer (' + S.manner + '). When they differ, the house\'s topic runs on one style while whatever sits in it runs on another.');
+      }
+      if (on.p && on.h) {
+        if (ruler === P.n) inter.push(P.n + ' rules ' + cs2.n + ', where this house begins. It is the house\'s boss and also sits inside it, so the theme and the planet are tightly bound.');
+        else inter.push('This house is run by ' + ruler + ' (ruler of ' + cs2.n + '). ' + P.n + ' here works alongside it, so how ' + ruler + ' is doing colors this house too.');
+      }
+      out += layerHTML('Together', 'How they interact', 'The interplay', inter);
+    }
+    byId('layers').innerHTML = out || '<p class="empty">All three dials are off.</p>';
+  }
+
+  function set(k, i, forceOn) { state[k] = ((i % RINGS[k].N) + RINGS[k].N) % RINGS[k].N; if (forceOn) state.on[k] = true; render(); }
+
+  /* options */
+  PLANETS.forEach(function (p, i) { byId('sel-p').add(new Option(p.g + V + '  ' + p.n, i)); });
+  SIGNS.forEach(function (s, i) { byId('sel-s').add(new Option(s.g + V + '  ' + s.n, i)); });
+  for (var hi = 0; hi < 12; hi++) byId('sel-h').add(new Option('House ' + (hi + 1), hi));
+  ['p', 's', 'h'].forEach(function (k) {
+    byId('sel-' + k).addEventListener('change', function (e) { set(k, +e.target.value, true); });
+    byId('prev-' + k).addEventListener('click', function () { set(k, state[k] - 1, true); });
+    byId('next-' + k).addEventListener('click', function () { set(k, state[k] + 1, true); });
+    byId('on-' + k).addEventListener('change', function (e) { state.on[k] = e.target.checked; render(); });
+    build(k);
+  });
+  byId('wheel').addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('path.seg') : null;
+    if (el) set(el.getAttribute('data-k'), +el.getAttribute('data-i'), true);
+  });
+  byId('cusp-chart').addEventListener('click', function () { state.cusp = 'chart'; render(); });
+  byId('cusp-text').addEventListener('click', function () { state.cusp = 'text'; render(); });
+
+  PLACEMENTS.forEach(function (t) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip';
+    b.innerHTML = '<span class="g">' + PLANETS[t[0]].g + V + '</span> ' + PLANETS[t[0]].n + ' · <span class="g">' + SIGNS[t[1]].g + V + '</span> · H' + t[2];
+    b.addEventListener('click', function () {
+      state.p = t[0]; state.s = t[1]; state.h = t[2] - 1; state.on = { p: true, s: true, h: true }; state.cusp = 'chart'; render();
+    });
+    byId('chips').appendChild(b);
+  });
+
+  byId('chips-h').textContent = CHART.title;
+  render();
+  void byId('wheel').getBoundingClientRect();
+  requestAnimationFrame(function () { byId('wheel').classList.remove('noanim'); });
+})();
+</script>
+</body>
+</html>

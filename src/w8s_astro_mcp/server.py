@@ -30,6 +30,12 @@ from .tools.analysis_tools import (
     AnalysisError
 )
 from .tools.visualization import create_natal_chart
+from .tools.placement_dials import (
+    create_placement_dials,
+    open_in_default_browser,
+    slugify as placement_dials_slug,
+    DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
+)
 from .tools.profile_management import (
     get_profile_management_tools,
     handle_profile_tool
@@ -66,6 +72,8 @@ SERVER_INSTRUCTIONS = (
 app = Server("w8s-astro-mcp", instructions=SERVER_INSTRUCTIONS)
 
 # Global state
+logger = logging.getLogger(__name__)
+
 db_helper: Optional[DatabaseHelper] = None
 ephemeris: Optional[EphemerisEngine] = None
 
@@ -756,6 +764,37 @@ async def list_tools() -> list[Tool]:
                     }
                 }
             }
+        ),
+        Tool(
+            name="visualize_placement_dials",
+            description=(
+                "Create an interactive page for learning what a planet, a sign and a house mean, "
+                "alone and together. Three dials (planet, sign, house) can be turned or switched "
+                "off, and the reading shows each layer by itself and how the layers combine. "
+                "The chart's own placements and house cusps are loaded as quick picks. "
+                "Saves one HTML file to open in a browser."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "output_path": {
+                        "type": "string",
+                        "description": "Where to save the page: a file path, or a file path ending in .html or .htm, or a folder (the file is then named placement_dials_<profile name>.html). Defaults to ~/Downloads/placement_dials_<profile name>.html (for example placement_dials_todd.html). Existing files are overwritten."
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Heading above the placement quick picks (optional, defaults to 'Natal placements')"
+                    },
+                    "open_in_browser": {
+                        "type": "boolean",
+                        "description": "Open the page in the default browser after saving. Defaults to false; ask the user before turning it on."
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to use (from list_profiles). Defaults to owner profile."
+                    }
+                }
+            }
         )
     ]
     
@@ -798,10 +837,81 @@ async def handle_dismiss_data_notice(arguments: Any) -> list[TextContent]:
         return [TextContent(type="text", text=f"Error: {e}")]
 
 
+def get_profile_info(profile_id: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Name, id and birth time of the given profile (the owner's when None), and whether
+    another profile has the same name. Returns {} if it can't be found, so callers can
+    carry on without it.
+    """
+    try:
+        db = init_db()
+        profile = db.get_profile_by_id(profile_id) if profile_id is not None else db.get_owner_profile()
+        if not profile:
+            return {}
+        same_name = [
+            p for p in db.list_all_profiles()
+            if p.id != profile.id and placement_dials_slug(p.name) == placement_dials_slug(profile.name)
+        ]
+        return {
+            "id": profile.id,
+            "name": profile.name,
+            "birth_time": profile.birth_time,
+            "name_shared": bool(same_name),
+        }
+    except Exception as e:
+        logger.warning("Could not look up the profile for placement dials: %s", e)
+        return {}
+
+
+def _placement_dials_notices(info: Dict[str, Any]) -> list:
+    """Caveats shown on the page under the quick picks."""
+    notices = []
+    if info.get("birth_time") == "12:00":
+        notices.append(
+            "This profile's birth time is 12:00, which is often a placeholder for an unknown time. "
+            "If it is a guess, the houses and the Moon's degree are not reliable. Planet and sign "
+            "meanings are unaffected."
+        )
+    return notices
+
+
+async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]:
+    """Handle visualize_placement_dials tool call. Extracted for testability."""
+    try:
+        chart = get_natal_chart_data(profile_id=arguments.get("profile_id"))
+        info = get_profile_info(arguments.get("profile_id"))
+        # Two profiles with the same name get their ids in the file name so they don't collide.
+        file_label = f"{info['name']} {info['id']}" if info.get("name_shared") else info.get("name")
+        saved_path = create_placement_dials(
+            chart,
+            title=arguments.get("title") or PLACEMENT_DIALS_TITLE,
+            output_path=arguments.get("output_path") or None,
+            profile_name=file_label,
+            profile_id=info.get("id", arguments.get("profile_id")),
+            notices=_placement_dials_notices(info),
+        )
+        how_to_use = (
+            "Turn the planet, sign and house dials, or switch a layer off to read it alone. "
+            "The chart's ten placements are quick picks, and the house toggle switches between "
+            "this chart's house cusps and the textbook scheme."
+        )
+        if arguments.get("open_in_browser"):
+            if open_in_default_browser(saved_path):
+                status = "Opened in your default browser."
+            else:
+                status = "Could not open a browser from here, so open the file yourself."
+            text = f"Placement dials created.\n\nSaved to: {saved_path}\n\n{status} {how_to_use}"
+        else:
+            text = f"Placement dials created.\n\nSaved to: {saved_path}\n\nOpen it in a browser. {how_to_use}"
+        return [TextContent(type="text", text=text)]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
 # Tools whose output depends on stored natal charts. Only these can carry a data notice.
 NATAL_NOTICE_TOOLS = {
     "get_natal_chart", "find_house_placements", "compare_charts",
-    "visualize_natal_chart", "get_connection_chart",
+    "visualize_natal_chart", "visualize_placement_dials", "get_connection_chart",
 }
 _notice_gate = DataNoticeGate()
 
@@ -1360,6 +1470,9 @@ async def _dispatch_tool(name: str, arguments: Any) -> list[TextContent]:
     elif name == "find_house_placements":
         return await handle_find_house_placements(arguments)
     
+    elif name == "visualize_placement_dials":
+        return await handle_visualize_placement_dials(arguments)
+
     elif name == "visualize_natal_chart":
         try:
             profile_id = arguments.get("profile_id")

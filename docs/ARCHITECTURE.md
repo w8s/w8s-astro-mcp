@@ -36,6 +36,7 @@ src/w8s_astro_mcp/
 │       ├── __init__.py
 │       ├── analysis_tools.py    # Aspects (applying/separating, chart labels, text + JSON formatters), house placements
 │       ├── visualization.py     # Chart drawing (matplotlib)
+│       ├── placement_dials.py   # Interactive planet/sign/house dials page (string.Template); page and editable meaning text live in src/w8s_astro_mcp/templates/
 │       ├── profile_management.py # Profile/location CRUD tools
 │       ├── connection_management.py # Connection/composite/Davison tools
 │       └── event_management.py  # Event charts and electional tools
@@ -262,10 +263,10 @@ Event Charts — Phase 8 (4):
 App State — v0.14.0 (1):
 22. DismissedNotice — notices the user chose to stop seeing (one row per notice key)
 
-## MCP Tools (30 total)
+## MCP Tools (31 total)
 
-**Core (10):**
-dismiss_data_notice, check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config, get_natal_chart, get_transits, compare_charts, find_house_placements, visualize_natal_chart
+**Core (11):**
+dismiss_data_notice, check_ephemeris, download_ephemeris_files, setup_astro_config (deprecated), view_config, get_natal_chart, get_transits, compare_charts, find_house_placements, visualize_natal_chart, visualize_placement_dials
 
 **Profile Management (7):**
 list_profiles, create_profile, update_profile, delete_profile, setup_owner, add_location, remove_location
@@ -280,7 +281,7 @@ create_connection, list_connections, add_connection_member, remove_connection_me
 cast_event_chart, list_event_charts, delete_event_chart, find_electional_windows
 
 Notes:
-- `get_natal_chart`, `get_transits`, `get_transit_history`, `find_last_transit`, and `visualize_natal_chart` all accept an optional `profile_id` — defaults to owner, supply any profile ID to query about someone else.
+- `get_natal_chart`, `get_transits`, `get_transit_history`, `find_last_transit`, `visualize_natal_chart`, and `visualize_placement_dials` all accept an optional `profile_id` — defaults to owner, supply any profile ID to query about someone else.
 - `compare_charts` accepts `chart1_profile_id` and `chart2_profile_id` separately for synastry, and `event:<label>` as a chart source.
 - `compare_charts` also accepts `include_angles` (`none` | `natal` | `transit` | `both`) and `format` (`text` | `json`). Each aspect reports `applying`, `days_to_exact` and `exact_utc` when a chart carries planet speeds (transit charts do; natal and saved event charts do not). See decision #15.
 - `find_house_placements` accepts either `profile_id` (natal house reference frame) or `connection_id` + `chart_type` (composite/Davison house reference frame); the two are mutually exclusive.

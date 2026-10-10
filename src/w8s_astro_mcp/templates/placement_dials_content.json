@@ -1,0 +1,368 @@
+{
+  "_about": "Meaning text for the placement dials page. Edit the wording freely; keep the same keys and counts (10 planets, 12 signs, 12 houses, 12 rulers, 12 rulers_traditional). To keep your own wording through upgrades, copy only the keys you want to change into ~/.w8s-astro-mcp/placement_dials_content.json; they replace these. 'rulers' are the modern rulers shown first; 'rulers_traditional' are shown in parentheses where they differ.",
+  "planets": [
+    {
+      "name": "Sun",
+      "glyph": "☉",
+      "does": "your core identity and vitality",
+      "core": "Who you are becoming. The center you organize your life around.",
+      "keywords": "identity · vitality · purpose"
+    },
+    {
+      "name": "Moon",
+      "glyph": "☾",
+      "does": "your needs and instinctive reactions",
+      "core": "What you need to feel safe, and how you react before you think.",
+      "keywords": "needs · mood · habit"
+    },
+    {
+      "name": "Mercury",
+      "glyph": "☿",
+      "does": "your mind and the way you say things",
+      "core": "How you notice, think, and put things into words.",
+      "keywords": "thinking · speech · curiosity"
+    },
+    {
+      "name": "Venus",
+      "glyph": "♀",
+      "does": "what you value and what draws you in",
+      "core": "What you value, what attracts you, and how you bond.",
+      "keywords": "values · attraction · harmony"
+    },
+    {
+      "name": "Mars",
+      "glyph": "♂",
+      "does": "your drive and the way you go after things",
+      "core": "How you go after what you want. Assertion, courage, and anger.",
+      "keywords": "drive · anger · initiative"
+    },
+    {
+      "name": "Jupiter",
+      "glyph": "♃",
+      "does": "your appetite for growth and meaning",
+      "core": "Where you expand, trust, and look for the larger meaning.",
+      "keywords": "growth · optimism · meaning"
+    },
+    {
+      "name": "Saturn",
+      "glyph": "♄",
+      "does": "your sense of structure and limits",
+      "core": "Where you build, commit, and feel the weight of responsibility.",
+      "keywords": "structure · limits · responsibility"
+    },
+    {
+      "name": "Uranus",
+      "glyph": "♅",
+      "does": "your urge to break the pattern",
+      "core": "Where you need freedom and where things suddenly change.",
+      "keywords": "freedom · disruption · invention"
+    },
+    {
+      "name": "Neptune",
+      "glyph": "♆",
+      "does": "your imagination and ideals",
+      "core": "Where boundaries soften: imagination, ideals, and confusion.",
+      "keywords": "imagination · ideals · dissolving"
+    },
+    {
+      "name": "Pluto",
+      "glyph": "♇",
+      "does": "your capacity for deep change",
+      "core": "Where you go through deep change. Power, control, and depth.",
+      "keywords": "power · depth · transformation"
+    }
+  ],
+  "signs": [
+    {
+      "name": "Aries",
+      "glyph": "♈",
+      "element": "fire",
+      "mode": "Cardinal",
+      "manner": "fast, direct, and first in"
+    },
+    {
+      "name": "Taurus",
+      "glyph": "♉",
+      "element": "earth",
+      "mode": "Fixed",
+      "manner": "slowly, steadily, and with staying power"
+    },
+    {
+      "name": "Gemini",
+      "glyph": "♊",
+      "element": "air",
+      "mode": "Mutable",
+      "manner": "curiously, quickly, and in several directions"
+    },
+    {
+      "name": "Cancer",
+      "glyph": "♋",
+      "element": "water",
+      "mode": "Cardinal",
+      "manner": "protectively, with feeling and memory"
+    },
+    {
+      "name": "Leo",
+      "glyph": "♌",
+      "element": "fire",
+      "mode": "Fixed",
+      "manner": "warmly, loudly, and wanting to be seen"
+    },
+    {
+      "name": "Virgo",
+      "glyph": "♍",
+      "element": "earth",
+      "mode": "Mutable",
+      "manner": "carefully, practically, and with an eye for what needs fixing"
+    },
+    {
+      "name": "Libra",
+      "glyph": "♎",
+      "element": "air",
+      "mode": "Cardinal",
+      "manner": "by weighing, balancing, and looking for fairness"
+    },
+    {
+      "name": "Scorpio",
+      "glyph": "♏",
+      "element": "water",
+      "mode": "Fixed",
+      "manner": "intensely, privately, and all the way down"
+    },
+    {
+      "name": "Sagittarius",
+      "glyph": "♐",
+      "element": "fire",
+      "mode": "Mutable",
+      "manner": "boldly, restlessly, and in search of meaning"
+    },
+    {
+      "name": "Capricorn",
+      "glyph": "♑",
+      "element": "earth",
+      "mode": "Cardinal",
+      "manner": "with discipline, ambition, and an eye on the long game"
+    },
+    {
+      "name": "Aquarius",
+      "glyph": "♒",
+      "element": "air",
+      "mode": "Fixed",
+      "manner": "independently, unconventionally, and from a distance"
+    },
+    {
+      "name": "Pisces",
+      "glyph": "♓",
+      "element": "water",
+      "mode": "Mutable",
+      "manner": "porously, intuitively, and with little regard for edges"
+    }
+  ],
+  "houses": [
+    "how you show up: body, temperament, first impressions",
+    "money, possessions, and what you own and value",
+    "everyday thinking, talking, learning, siblings, and your local world",
+    "home, family roots, and your private foundation",
+    "play, creativity, romance, and children",
+    "daily work, routines, health habits, and service",
+    "one-to-one partnerships: marriage, close collaborators, open rivals",
+    "shared resources, intimacy, loss, and transformation",
+    "belief, higher learning, travel, and the big picture",
+    "career, public standing, and what you are known for",
+    "friends, groups, communities, and long-term hopes",
+    "solitude, the unconscious, endings, and what works behind the scenes"
+  ],
+  "angularity": [
+    [
+      "ang",
+      "Angular: where things visibly start and get noticed."
+    ],
+    [
+      "suc",
+      "Succedent: where things get built and held onto."
+    ],
+    [
+      "cad",
+      "Cadent: where things get processed, learned, and adjusted."
+    ]
+  ],
+  "element_text": {
+    "fire": "Fire acts on inspiration.",
+    "earth": "Earth works with what is tangible.",
+    "air": "Air works through ideas and exchange.",
+    "water": "Water works through feeling and sensing."
+  },
+  "mode_text": {
+    "Cardinal": "Cardinal signs start things.",
+    "Fixed": "Fixed signs sustain things and resist change.",
+    "Mutable": "Mutable signs adapt and adjust."
+  },
+  "rulers": [
+    "Mars",
+    "Venus",
+    "Mercury",
+    "Moon",
+    "Sun",
+    "Mercury",
+    "Venus",
+    "Pluto",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune"
+  ],
+  "dignity": {
+    "Sun": {
+      "domicile": [
+        "Leo"
+      ],
+      "exaltation": [
+        "Aries"
+      ],
+      "detriment": [
+        "Aquarius"
+      ],
+      "fall": [
+        "Libra"
+      ]
+    },
+    "Moon": {
+      "domicile": [
+        "Cancer"
+      ],
+      "exaltation": [
+        "Taurus"
+      ],
+      "detriment": [
+        "Capricorn"
+      ],
+      "fall": [
+        "Scorpio"
+      ]
+    },
+    "Mercury": {
+      "domicile": [
+        "Gemini",
+        "Virgo"
+      ],
+      "exaltation": [
+        "Virgo"
+      ],
+      "detriment": [
+        "Sagittarius",
+        "Pisces"
+      ],
+      "fall": [
+        "Pisces"
+      ]
+    },
+    "Venus": {
+      "domicile": [
+        "Taurus",
+        "Libra"
+      ],
+      "exaltation": [
+        "Pisces"
+      ],
+      "detriment": [
+        "Aries",
+        "Scorpio"
+      ],
+      "fall": [
+        "Virgo"
+      ]
+    },
+    "Mars": {
+      "domicile": [
+        "Aries",
+        "Scorpio"
+      ],
+      "exaltation": [
+        "Capricorn"
+      ],
+      "detriment": [
+        "Taurus",
+        "Libra"
+      ],
+      "fall": [
+        "Cancer"
+      ]
+    },
+    "Jupiter": {
+      "domicile": [
+        "Sagittarius",
+        "Pisces"
+      ],
+      "exaltation": [
+        "Cancer"
+      ],
+      "detriment": [
+        "Gemini",
+        "Virgo"
+      ],
+      "fall": [
+        "Capricorn"
+      ]
+    },
+    "Saturn": {
+      "domicile": [
+        "Capricorn",
+        "Aquarius"
+      ],
+      "exaltation": [
+        "Libra"
+      ],
+      "detriment": [
+        "Cancer",
+        "Leo"
+      ],
+      "fall": [
+        "Aries"
+      ]
+    },
+    "Uranus": {
+      "domicile": [
+        "Aquarius"
+      ],
+      "exaltation": [],
+      "detriment": [
+        "Leo"
+      ],
+      "fall": []
+    },
+    "Neptune": {
+      "domicile": [
+        "Pisces"
+      ],
+      "exaltation": [],
+      "detriment": [
+        "Virgo"
+      ],
+      "fall": []
+    },
+    "Pluto": {
+      "domicile": [
+        "Scorpio"
+      ],
+      "exaltation": [],
+      "detriment": [
+        "Taurus"
+      ],
+      "fall": []
+    }
+  },
+  "rulers_traditional": [
+    "Mars",
+    "Venus",
+    "Mercury",
+    "Moon",
+    "Sun",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Saturn",
+    "Jupiter"
+  ]
+}

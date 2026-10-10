@@ -32,6 +32,7 @@ from .tools.analysis_tools import (
 from .tools.visualization import create_natal_chart
 from .tools.placement_dials import (
     create_placement_dials,
+    open_in_default_browser,
     DEFAULT_OUTPUT_PATH as PLACEMENT_DIALS_OUTPUT_PATH,
     DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
 )
@@ -782,6 +783,10 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Heading above the placement quick picks (optional, defaults to 'Natal placements')"
                     },
+                    "open_in_browser": {
+                        "type": "boolean",
+                        "description": "Open the page in the default browser after saving. Defaults to false; ask the user before turning it on."
+                    },
                     "profile_id": {
                         "type": "integer",
                         "description": "Profile ID to use (from list_profiles). Defaults to owner profile."
@@ -839,16 +844,20 @@ async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]
             title=arguments.get("title") or PLACEMENT_DIALS_TITLE,
             output_path=arguments.get("output_path") or PLACEMENT_DIALS_OUTPUT_PATH,
         )
-        return [TextContent(
-            type="text",
-            text=(
-                "Placement dials created.\n\n"
-                f"Saved to: {saved_path}\n\n"
-                "Open it in a browser. Turn the planet, sign and house dials, or switch a layer off "
-                "to read it alone. The chart's ten placements are quick picks, and the house toggle "
-                "switches between this chart's house cusps and the textbook scheme."
-            ),
-        )]
+        how_to_use = (
+            "Turn the planet, sign and house dials, or switch a layer off to read it alone. "
+            "The chart's ten placements are quick picks, and the house toggle switches between "
+            "this chart's house cusps and the textbook scheme."
+        )
+        if arguments.get("open_in_browser"):
+            if open_in_default_browser(saved_path):
+                status = "Opened in your default browser."
+            else:
+                status = "Could not open a browser from here, so open the file yourself."
+            text = f"Placement dials created.\n\nSaved to: {saved_path}\n\n{status} {how_to_use}"
+        else:
+            text = f"Placement dials created.\n\nSaved to: {saved_path}\n\nOpen it in a browser. {how_to_use}"
+        return [TextContent(type="text", text=text)]
     except Exception as e:
         return [TextContent(type="text", text=f"Error: {e}")]
 

@@ -215,9 +215,59 @@ async def test_handler_reports_errors_as_text():
 async def test_tool_is_listed_with_expected_inputs():
     tools = {t.name: t for t in await server.list_tools()}
     tool = tools["visualize_placement_dials"]
-    assert set(tool.inputSchema["properties"]) == {"output_path", "title", "profile_id"}
+    assert set(tool.inputSchema["properties"]) == {"output_path", "title", "profile_id", "open_in_browser"}
+    assert tool.inputSchema["properties"]["open_in_browser"]["type"] == "boolean"
     assert "required" not in tool.inputSchema
 
 
 def test_tool_carries_the_stored_chart_data_notice():
     assert "visualize_placement_dials" in server.NATAL_NOTICE_TOOLS
+
+
+# ---------------------------------------------------------------------------
+# Opening the page in a browser
+# ---------------------------------------------------------------------------
+
+def test_open_in_default_browser_passes_a_file_uri(tmp_path):
+    page = tmp_path / "dials.html"
+    page.write_text("x")
+    with patch.object(pd.webbrowser, "open", return_value=True) as opener:
+        assert pd.open_in_default_browser(str(page)) is True
+    opener.assert_called_once_with(page.resolve().as_uri())
+
+
+def test_open_in_default_browser_reports_false_instead_of_raising(tmp_path):
+    with patch.object(pd.webbrowser, "open", return_value=False):
+        assert pd.open_in_default_browser(str(tmp_path / "a.html")) is False
+    with patch.object(pd.webbrowser, "open", side_effect=RuntimeError("no display")):
+        assert pd.open_in_default_browser(str(tmp_path / "a.html")) is False
+
+
+@pytest.mark.asyncio
+async def test_handler_does_not_open_a_browser_unless_asked(tmp_path):
+    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
+         patch.object(server, "open_in_default_browser") as opener:
+        result = await server.handle_visualize_placement_dials({"output_path": str(tmp_path / "d.html")})
+    opener.assert_not_called()
+    assert "Open it in a browser" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_handler_opens_the_page_when_asked(tmp_path):
+    out = tmp_path / "d.html"
+    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
+         patch.object(server, "open_in_default_browser", return_value=True) as opener:
+        result = await server.handle_visualize_placement_dials({"output_path": str(out), "open_in_browser": True})
+    opener.assert_called_once_with(str(out.resolve()))
+    assert "Opened in your default browser" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_handler_says_so_when_the_browser_cannot_be_opened(tmp_path):
+    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
+         patch.object(server, "open_in_default_browser", return_value=False):
+        result = await server.handle_visualize_placement_dials(
+            {"output_path": str(tmp_path / "d.html"), "open_in_browser": True}
+        )
+    assert "Could not open a browser" in result[0].text
+    assert "Saved to:" in result[0].text

@@ -15,6 +15,7 @@ a chart that was recalculated (or not yet) always agrees with its own cusps.
 """
 
 import json
+import webbrowser
 from importlib import resources
 from pathlib import Path
 from string import Template
@@ -149,3 +150,16 @@ def create_placement_dials(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")
     return str(path)
+
+
+def open_in_default_browser(path: str) -> bool:
+    """
+    Open a saved page in the default browser.
+
+    Returns whether a browser took the request. It never raises: on a machine with no
+    desktop session the answer is simply False, and the caller says so.
+    """
+    try:
+        return bool(webbrowser.open(Path(path).resolve().as_uri()))
+    except Exception:
+        return False

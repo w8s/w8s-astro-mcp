@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest.mock import patch
 
@@ -534,8 +535,31 @@ def test_packaged_content_passes_its_own_validation():
 # The page itself (JavaScript)
 # ---------------------------------------------------------------------------
 
+class _ScriptCollector(HTMLParser):
+    """Collects the text of every <script> element, the way a browser would split the page."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.scripts, self._in = [], False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script":
+            self._in = True
+            self.scripts.append("")
+
+    def handle_endtag(self, tag):
+        if tag == "script":
+            self._in = False
+
+    def handle_data(self, data):
+        if self._in:
+            self.scripts[-1] += data
+
+
 def _script_of(html):
-    return re.findall(r"<script>(.*?)</script>", html, re.S)[-1]
+    parser = _ScriptCollector()
+    parser.feed(html)
+    return parser.scripts[-1]
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")

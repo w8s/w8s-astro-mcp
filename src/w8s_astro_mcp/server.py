@@ -33,6 +33,7 @@ from .tools.visualization import create_natal_chart
 from .tools.placement_dials import (
     create_placement_dials,
     open_in_default_browser,
+    slugify as placement_dials_slug,
     DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
 )
 from .tools.profile_management import (
@@ -71,6 +72,8 @@ SERVER_INSTRUCTIONS = (
 app = Server("w8s-astro-mcp", instructions=SERVER_INSTRUCTIONS)
 
 # Global state
+logger = logging.getLogger(__name__)
+
 db_helper: Optional[DatabaseHelper] = None
 ephemeris: Optional[EphemerisEngine] = None
 
@@ -834,26 +837,58 @@ async def handle_dismiss_data_notice(arguments: Any) -> list[TextContent]:
         return [TextContent(type="text", text=f"Error: {e}")]
 
 
-def get_profile_name(profile_id: Optional[int] = None) -> Optional[str]:
-    """Name of the given profile (the owner's when None), or None if it can't be found."""
+def get_profile_info(profile_id: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Name, id and birth time of the given profile (the owner's when None), and whether
+    another profile has the same name. Returns {} if it can't be found, so callers can
+    carry on without it.
+    """
     try:
         db = init_db()
         profile = db.get_profile_by_id(profile_id) if profile_id is not None else db.get_owner_profile()
-        return profile.name if profile else None
-    except Exception:
-        return None
+        if not profile:
+            return {}
+        same_name = [
+            p for p in db.list_all_profiles()
+            if p.id != profile.id and placement_dials_slug(p.name) == placement_dials_slug(profile.name)
+        ]
+        return {
+            "id": profile.id,
+            "name": profile.name,
+            "birth_time": profile.birth_time,
+            "name_shared": bool(same_name),
+        }
+    except Exception as e:
+        logger.warning("Could not look up the profile for placement dials: %s", e)
+        return {}
+
+
+def _placement_dials_notices(info: Dict[str, Any]) -> list:
+    """Caveats shown on the page under the quick picks."""
+    notices = []
+    if info.get("birth_time") == "12:00":
+        notices.append(
+            "This profile's birth time is 12:00, which is often a placeholder for an unknown time. "
+            "If it is a guess, the houses and the Moon's degree are not reliable. Planet and sign "
+            "meanings are unaffected."
+        )
+    return notices
 
 
 async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]:
     """Handle visualize_placement_dials tool call. Extracted for testability."""
     try:
         chart = get_natal_chart_data(profile_id=arguments.get("profile_id"))
+        info = get_profile_info(arguments.get("profile_id"))
+        # Two profiles with the same name get their ids in the file name so they don't collide.
+        file_label = f"{info['name']} {info['id']}" if info.get("name_shared") else info.get("name")
         saved_path = create_placement_dials(
             chart,
             title=arguments.get("title") or PLACEMENT_DIALS_TITLE,
             output_path=arguments.get("output_path") or None,
-            profile_name=get_profile_name(arguments.get("profile_id")),
-            profile_id=arguments.get("profile_id"),
+            profile_name=file_label,
+            profile_id=info.get("id", arguments.get("profile_id")),
+            notices=_placement_dials_notices(info),
         )
         how_to_use = (
             "Turn the planet, sign and house dials, or switch a layer off to read it alone. "

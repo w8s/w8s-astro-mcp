@@ -1,8 +1,12 @@
 """Tests for visualize_placement_dials: house assignment, template filling, output paths,
 the packaged content file, and the extracted handler."""
 
+import importlib.util
 import json
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -253,17 +257,25 @@ def test_create_writes_file_and_makes_folders_and_overwrites(tmp_path):
 # Server wiring
 # ---------------------------------------------------------------------------
 
+_REAL_GET_PROFILE_INFO = server.get_profile_info
+TODD = {"id": 1, "name": "Todd", "birth_time": "06:30", "name_shared": False}
+
+
 @pytest.fixture(autouse=True)
-def _no_real_profile_lookup(monkeypatch):
-    """Handler tests never touch the real database for the profile name."""
-    monkeypatch.setattr(server, "get_profile_name", lambda profile_id=None: "Todd")
+def _isolated(monkeypatch, tmp_path_factory):
+    """No test touches the real database or the real ~/.w8s-astro-mcp content override."""
+    monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
+    monkeypatch.setattr(server, "get_profile_info", lambda profile_id=None: dict(TODD))
 
 
 @pytest.mark.asyncio
 async def test_handler_names_the_default_file_after_the_profile(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
     seen = []
-    monkeypatch.setattr(server, "get_profile_name", lambda profile_id=None: seen.append(profile_id) or "Liz")
+    monkeypatch.setattr(
+        server, "get_profile_info",
+        lambda profile_id=None: seen.append(profile_id) or {"id": 3, "name": "Liz", "birth_time": "06:30", "name_shared": False},
+    )
     with patch.object(server, "get_natal_chart_data", return_value=CHART):
         result = await server.handle_visualize_placement_dials({"profile_id": 3})
     assert seen == [3]
@@ -370,3 +382,213 @@ async def test_handler_says_so_when_the_browser_cannot_be_opened(tmp_path):
         )
     assert "Could not open a browser" in result[0].text
     assert "Saved to:" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_handler_adds_the_id_when_two_profiles_share_a_name(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        server, "get_profile_info",
+        lambda profile_id=None: {"id": 4, "name": "Sam", "birth_time": "06:30", "name_shared": True},
+    )
+    with patch.object(server, "get_natal_chart_data", return_value=CHART):
+        await server.handle_visualize_placement_dials({"profile_id": 4})
+    assert (tmp_path / "Downloads" / "placement_dials_sam_4.html").exists()
+
+
+@pytest.mark.asyncio
+async def test_handler_still_works_when_the_profile_lookup_finds_nothing(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(server, "get_profile_info", lambda profile_id=None: {})
+    with patch.object(server, "get_natal_chart_data", return_value=CHART):
+        result = await server.handle_visualize_placement_dials({})
+    assert (tmp_path / "Downloads" / "placement_dials.html").exists()
+    assert "Saved to:" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_handler_passes_a_noon_birth_time_caveat_to_the_page(tmp_path):
+    out = tmp_path / "d.html"
+    noon = dict(TODD, birth_time="12:00")
+    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
+         patch.object(server, "get_profile_info", return_value=noon):
+        await server.handle_visualize_placement_dials({"output_path": str(out)})
+    chart = json.loads(re.search(r"var CHART = (.*);\n", out.read_text(encoding="utf-8")).group(1))
+    assert len(chart["notices"]) == 1 and "12:00" in chart["notices"][0]
+    out2 = tmp_path / "e.html"
+    with patch.object(server, "get_natal_chart_data", return_value=CHART):
+        await server.handle_visualize_placement_dials({"output_path": str(out2)})
+    assert json.loads(re.search(r"var CHART = (.*);\n", out2.read_text(encoding="utf-8")).group(1))["notices"] == []
+
+
+def test_get_profile_info_reports_failure_as_empty_and_logs(monkeypatch, caplog):
+    def boom():
+        raise RuntimeError("db locked")
+    monkeypatch.setattr(server, "init_db", boom)
+    with caplog.at_level("WARNING"):
+        assert _REAL_GET_PROFILE_INFO(5) == {}
+    assert "db locked" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Clear errors for bad chart data
+# ---------------------------------------------------------------------------
+
+def test_missing_or_bad_degrees_name_what_is_wrong():
+    for bad, message in ((None, "no usable degree"), ("abc", "no usable degree"), (31, "outside its sign"), (-1, "outside its sign")):
+        planets = dict(PLANETS, Mars={"sign": "Taurus", "degree": bad})
+        with pytest.raises(pd.PlacementDialsError, match=message) as err:
+            pd.build_chart_data(_equal_house_chart(planets))
+        assert "Mars" in str(err.value)
+    with pytest.raises(pd.PlacementDialsError, match="Mars"):
+        pd.build_chart_data(_equal_house_chart(dict(PLANETS, Mars={"sign": "Taurus"})))
+    with pytest.raises(pd.PlacementDialsError, match="unknown sign"):
+        pd.build_chart_data(_equal_house_chart(dict(PLANETS, Mars={"sign": None, "degree": 3})))
+
+
+def test_bad_house_cusp_names_the_house():
+    chart = _equal_house_chart(PLANETS)
+    chart["houses"]["5"] = {"sign": "Gemini", "degree": None}
+    with pytest.raises(pd.PlacementDialsError, match="House 5 cusp"):
+        pd.build_chart_data(chart)
+
+
+def test_missing_cusps_explain_the_likely_cause():
+    chart = _equal_house_chart(PLANETS)
+    chart["houses"] = {}
+    with pytest.raises(pd.PlacementDialsError, match="birth location"):
+        pd.build_chart_data(chart)
+
+
+# ---------------------------------------------------------------------------
+# Writing the file
+# ---------------------------------------------------------------------------
+
+def test_write_leaves_no_temp_files_and_a_normal_mode(tmp_path):
+    target = tmp_path / "d.html"
+    pd.create_placement_dials(CHART, output_path=str(target))
+    assert [p.name for p in tmp_path.iterdir()] == ["d.html"]
+    assert (target.stat().st_mode & 0o777) == 0o644
+
+
+def test_failed_write_keeps_the_old_file_and_cleans_up(tmp_path):
+    target = tmp_path / "d.html"
+    target.write_text("old page")
+    with patch.object(pd.os, "replace", side_effect=OSError("disk full")):
+        with pytest.raises(OSError):
+            pd.create_placement_dials(CHART, output_path=str(target))
+    assert target.read_text() == "old page"
+    assert [p.name for p in tmp_path.iterdir()] == ["d.html"]
+
+
+# ---------------------------------------------------------------------------
+# Your own wording (override file)
+# ---------------------------------------------------------------------------
+
+def _write_override(data):
+    path = pd.content_override_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(data if isinstance(data, str) else json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_override_replaces_only_the_keys_it_names():
+    houses = [f"My house {n}" for n in range(1, 13)]
+    _write_override({"houses": houses})
+    c = pd.load_content()
+    assert c["houses"] == houses
+    assert [p["name"] for p in c["planets"]] == pd.PLANET_ORDER   # untouched
+    assert f"My house 3" in pd.render_placement_dials(CHART)
+
+
+def test_no_override_means_packaged_text():
+    assert not pd.content_override_path().exists()
+    assert pd.load_content()["houses"][0] != "My house 1"
+
+
+def test_broken_override_is_a_clear_error_naming_the_file():
+    path = _write_override("{not json")
+    with pytest.raises(pd.PlacementDialsError, match="Could not read your content file") as err:
+        pd.load_content()
+    assert str(path) in str(err.value)
+    _write_override([1, 2])
+    with pytest.raises(pd.PlacementDialsError, match="JSON object"):
+        pd.load_content()
+
+
+def test_override_that_breaks_the_counts_is_refused():
+    _write_override({"houses": ["only one"]})
+    with pytest.raises(pd.PlacementDialsError, match="'houses' needs exactly 12") as err:
+        pd.load_content()
+    assert "your content file" in str(err.value)
+
+
+def test_packaged_content_passes_its_own_validation():
+    pd.validate_content(json.loads(
+        __import__("importlib.resources", fromlist=["files"]).files("w8s_astro_mcp")
+        .joinpath("templates", "placement_dials_content.json").read_text(encoding="utf-8")
+    ))
+
+
+# ---------------------------------------------------------------------------
+# The page itself (JavaScript)
+# ---------------------------------------------------------------------------
+
+def _script_of(html):
+    return re.findall(r"<script>(.*?)</script>", html, re.S)[-1]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_page_script_parses(tmp_path):
+    for title in ("Natal placements", "<!--<script>", "</script><b>&"):
+        js = tmp_path / "page.js"
+        js.write_text(_script_of(pd.render_placement_dials(CHART, title)), encoding="utf-8")
+        done = subprocess.run(["node", "--check", str(js)], capture_output=True, text=True)
+        assert done.returncode == 0, done.stderr
+
+
+def _chromium():
+    """Path to a Chromium for Playwright, or None (also None when Playwright isn't installed)."""
+    if importlib.util.find_spec("playwright") is None:
+        return None
+    for path in (os.environ.get("CHROMIUM_PATH"), "/opt/pw-browsers/chromium"):
+        if path and Path(path).exists():
+            return path
+    return None
+
+
+@pytest.mark.skipif(_chromium() is None, reason="Playwright with Chromium is not available")
+def test_page_runs_in_a_browser_and_reads_correctly(tmp_path):
+    from playwright.sync_api import sync_playwright
+
+    pages = {}
+    for name, title in (("plain", "Natal placements"), ("comment", "<!--<script>")):
+        f = tmp_path / f"{name}.html"
+        f.write_text(pd.render_placement_dials(CHART, title, ["Check the birth time."]), encoding="utf-8")
+        pages[name] = f
+    with sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=_chromium()) if _chromium() else p.chromium.launch()
+        try:
+            counts = {}
+            for name, f in pages.items():
+                page = browser.new_page()
+                errors = []
+                page.on("pageerror", lambda e: errors.append(str(e)))
+                page.goto(f.as_uri())
+                counts[name] = page.evaluate("document.querySelectorAll('#chips button').length")
+                assert errors == [], errors
+                # Scorpio: the sign card shows both rulers, and the caveat is visible.
+                page.select_option("#sel-s", "7")
+                text = page.inner_text("#layers")
+                assert "ruled by Pluto (traditionally Mars)" in text
+                assert page.is_visible("#chart-note") and "birth time" in page.inner_text("#chart-note")
+                # Outer planet at home carries the modern-rulership note.
+                page.select_option("#sel-p", str(pd.PLANET_ORDER.index("Pluto")))
+                assert "modern astrology" in page.inner_text("#layers")
+                # Switching a layer off removes it.
+                page.click("#on-s") if page.is_visible("#on-s") else page.evaluate("document.getElementById('on-s').click()")
+                assert "ruled by" not in page.inner_text("#layers")
+                page.close()
+            assert counts["plain"] == counts["comment"] == 10
+        finally:
+            browser.close()

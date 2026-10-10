@@ -123,6 +123,15 @@ def test_render_keeps_title_from_breaking_out_of_the_script():
     assert json.loads(embedded)["title"] == hostile
 
 
+@pytest.mark.parametrize("title", ["<!--<script>", "<!-- x -->", "a & b > c", "</SCRIPT >"])
+def test_render_data_never_contains_raw_html_specials(title):
+    html = pd.render_placement_dials(CHART, title=title)
+    for name in ("CONTENT", "CHART"):
+        line = re.search(r"var %s = (.*);\n" % name, html).group(1)
+        assert "<" not in line and ">" not in line and "&" not in line
+    assert json.loads(re.search(r"var CHART = (.*);\n", html).group(1))["title"] == title
+
+
 # ---------------------------------------------------------------------------
 # Packaged content and template
 # ---------------------------------------------------------------------------
@@ -133,6 +142,14 @@ def test_content_file_is_complete_and_matches_planet_and_sign_order():
     assert [s["name"] for s in c["signs"]] == pd.SIGN_NAMES
     assert len(c["houses"]) == 12 and all(c["houses"])
     assert len(c["rulers"]) == 12 and set(c["rulers"]) <= set(pd.PLANET_ORDER)
+    assert len(c["rulers_traditional"]) == 12 and set(c["rulers_traditional"]) <= set(pd.PLANET_ORDER)
+    # The two lists may differ only where a modern planet took a sign over.
+    differing = {pd.SIGN_NAMES[i] for i in range(12) if c["rulers"][i] != c["rulers_traditional"][i]}
+    assert differing == {"Scorpio", "Aquarius", "Pisces"}
+    # Whoever the page names as ruler must be at home there in the dignity table.
+    for i, sign in enumerate(pd.SIGN_NAMES):
+        for ruler in {c["rulers"][i], c["rulers_traditional"][i]}:
+            assert sign in c["dignity"][ruler]["domicile"], (sign, ruler)
     assert len(c["angularity"]) == 3
     assert {s["element"] for s in c["signs"]} == {"fire", "earth", "air", "water"}
     assert set(c["element_text"]) == {"fire", "earth", "air", "water"}
@@ -178,6 +195,35 @@ def test_folder_gets_the_default_file_name(tmp_path):
 def test_file_path_is_kept(tmp_path):
     target = tmp_path / "mine.html"
     assert pd.resolve_output_path(str(target)) == target.resolve()
+
+
+def test_output_must_be_an_html_file(tmp_path):
+    for bad in (".zshrc", "notes.md", "script.py", "noextension"):
+        with pytest.raises(pd.PlacementDialsError, match=r"\.html"):
+            pd.resolve_output_path(str(tmp_path / bad))
+        assert not (tmp_path / bad).exists()
+    assert pd.resolve_output_path(str(tmp_path / "A.HTM")).name == "A.HTM"
+
+
+def test_refused_path_leaves_an_existing_file_untouched(tmp_path):
+    victim = tmp_path / ".zshrc"
+    victim.write_text("export PATH=1")
+    with pytest.raises(pd.PlacementDialsError):
+        pd.create_placement_dials(CHART, output_path=str(victim))
+    assert victim.read_text() == "export PATH=1"
+
+
+def test_other_profiles_get_their_own_default_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    owner = pd.resolve_output_path()
+    other = pd.resolve_output_path(profile_id=3)
+    assert owner.name == "placement_dials.html"
+    assert other.name == "placement_dials_profile3.html" and other.parent == owner.parent
+    folder = tmp_path / "out"
+    folder.mkdir()
+    assert pd.resolve_output_path(str(folder), profile_id=3).name == "placement_dials_profile3.html"
+    explicit = tmp_path / "mine.html"
+    assert pd.resolve_output_path(str(explicit), profile_id=3) == explicit.resolve()
 
 
 def test_create_writes_file_and_makes_folders_and_overwrites(tmp_path):
@@ -228,7 +274,8 @@ def test_tool_carries_the_stored_chart_data_notice():
 # Opening the page in a browser
 # ---------------------------------------------------------------------------
 
-def test_open_in_default_browser_passes_a_file_uri(tmp_path):
+def test_open_in_default_browser_passes_a_file_uri(monkeypatch, tmp_path):
+    monkeypatch.setenv("DISPLAY", ":0")  # a desktop session, so Linux CI behaves like a Mac
     page = tmp_path / "dials.html"
     page.write_text("x")
     with patch.object(pd.webbrowser, "open", return_value=True) as opener:
@@ -236,11 +283,32 @@ def test_open_in_default_browser_passes_a_file_uri(tmp_path):
     opener.assert_called_once_with(page.resolve().as_uri())
 
 
-def test_open_in_default_browser_reports_false_instead_of_raising(tmp_path):
+def test_open_in_default_browser_reports_false_instead_of_raising(monkeypatch, tmp_path):
+    monkeypatch.setenv("DISPLAY", ":0")  # a desktop session, so Linux CI behaves like a Mac
     with patch.object(pd.webbrowser, "open", return_value=False):
         assert pd.open_in_default_browser(str(tmp_path / "a.html")) is False
     with patch.object(pd.webbrowser, "open", side_effect=RuntimeError("no display")):
         assert pd.open_in_default_browser(str(tmp_path / "a.html")) is False
+
+
+def test_open_in_default_browser_skips_headless_linux(monkeypatch, tmp_path):
+    monkeypatch.setattr(pd.sys, "platform", "linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    with patch.object(pd.webbrowser, "open", return_value=True) as opener:
+        assert pd.open_in_default_browser(str(tmp_path / "a.html")) is False
+    opener.assert_not_called()
+    monkeypatch.setenv("DISPLAY", ":0")
+    with patch.object(pd.webbrowser, "open", return_value=True) as opener:
+        assert pd.open_in_default_browser(str(tmp_path / "a.html")) is True
+    opener.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_handler_reports_a_bad_output_path(tmp_path):
+    with patch.object(server, "get_natal_chart_data", return_value=CHART):
+        result = await server.handle_visualize_placement_dials({"output_path": str(tmp_path / ".zshrc")})
+    assert result[0].text.startswith("Error:") and ".html" in result[0].text
 
 
 @pytest.mark.asyncio

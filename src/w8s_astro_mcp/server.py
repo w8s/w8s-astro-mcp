@@ -33,7 +33,6 @@ from .tools.visualization import create_natal_chart
 from .tools.placement_dials import (
     create_placement_dials,
     open_in_default_browser,
-    DEFAULT_OUTPUT_PATH as PLACEMENT_DIALS_OUTPUT_PATH,
     DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
 )
 from .tools.profile_management import (
@@ -777,7 +776,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "output_path": {
                         "type": "string",
-                        "description": "Where to save the page: a file path, or a folder (the file is then named placement_dials.html). Defaults to ~/Downloads/placement_dials.html. Existing files are overwritten."
+                        "description": "Where to save the page: a file path, or a file path ending in .html or .htm, or a folder (the file is then named placement_dials.html). Defaults to ~/Downloads/placement_dials.html; for a non-owner profile the name is placement_dials_profile<ID>.html. Existing files are overwritten."
                     },
                     "title": {
                         "type": "string",
@@ -842,7 +841,8 @@ async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]
         saved_path = create_placement_dials(
             chart,
             title=arguments.get("title") or PLACEMENT_DIALS_TITLE,
-            output_path=arguments.get("output_path") or PLACEMENT_DIALS_OUTPUT_PATH,
+            output_path=arguments.get("output_path") or None,
+            profile_id=arguments.get("profile_id"),
         )
         how_to_use = (
             "Turn the planet, sign and house dials, or switch a layer off to read it alone. "

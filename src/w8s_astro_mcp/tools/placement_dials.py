@@ -15,11 +15,13 @@ a chart that was recalculated (or not yet) always agrees with its own cusps.
 """
 
 import json
+import os
+import sys
 import webbrowser
 from importlib import resources
 from pathlib import Path
 from string import Template
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 SIGN_NAMES = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -31,6 +33,8 @@ PLANET_ORDER = [
 ]
 
 DEFAULT_OUTPUT_PATH = "~/Downloads/placement_dials.html"
+DEFAULT_FILE_NAME = "placement_dials.html"
+ALLOWED_SUFFIXES = (".html", ".htm")
 DEFAULT_TITLE = "Natal placements"
 
 _PACKAGE = "w8s_astro_mcp"
@@ -105,8 +109,15 @@ def build_chart_data(chart: Dict[str, Any], title: str = DEFAULT_TITLE) -> Dict[
 
 
 def _json_for_script(value: Any) -> str:
-    """JSON that is safe to place inside an inline <script> element."""
-    return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
+    """
+    JSON that is safe to place inside an inline <script> element.
+
+    Every "<", ">" and "&" is written as a unicode escape. That is still the same JSON
+    string to the script, but the HTML parser never sees "</script>" or "<!--<script>"
+    inside the data, either of which can end the script early.
+    """
+    text = json.dumps(value, ensure_ascii=False)
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
 def _read_resource(name: str) -> str:
@@ -127,26 +138,48 @@ def render_placement_dials(chart: Dict[str, Any], title: str = DEFAULT_TITLE) ->
     )
 
 
-def resolve_output_path(output_path: str = DEFAULT_OUTPUT_PATH) -> Path:
+def default_file_name(profile_id: Optional[int] = None) -> str:
+    """
+    File name used when none is given. The owner's chart keeps the plain name; another
+    profile gets its id in the name, so generating one never overwrites another's page.
+    """
+    if profile_id is None:
+        return DEFAULT_FILE_NAME
+    stem, suffix = DEFAULT_FILE_NAME.rsplit(".", 1)
+    return f"{stem}_profile{int(profile_id)}.{suffix}"
+
+
+def resolve_output_path(output_path: Optional[str] = None, profile_id: Optional[int] = None) -> Path:
     """
     Expand the requested path. A folder (an existing directory, or a path ending in a
-    separator) gets the default file name inside it.
+    separator) gets the default file name inside it. With no path at all the file goes
+    to ~/Downloads.
+
+    Only .html and .htm files are written, so a wrong path (a dotfile, a script, a note)
+    can never be overwritten with a web page.
     """
-    raw = output_path or DEFAULT_OUTPUT_PATH
+    name = default_file_name(profile_id)
+    raw = output_path or str(Path(DEFAULT_OUTPUT_PATH).with_name(name))
     path = Path(raw).expanduser()
     if path.is_dir() or raw.endswith(("/", "\\")):
-        path = path / Path(DEFAULT_OUTPUT_PATH).name
+        path = path / name
+    if path.suffix.lower() not in ALLOWED_SUFFIXES:
+        raise PlacementDialsError(
+            f"Output file must end in .html or .htm (got {path.name!r}). "
+            "Give a file name like placement_dials.html, or a folder."
+        )
     return path.resolve()
 
 
 def create_placement_dials(
     chart: Dict[str, Any],
     title: str = DEFAULT_TITLE,
-    output_path: str = DEFAULT_OUTPUT_PATH,
+    output_path: Optional[str] = None,
+    profile_id: Optional[int] = None,
 ) -> str:
     """Write the page to disk (creating folders as needed) and return the saved path."""
+    path = resolve_output_path(output_path, profile_id)
     html = render_placement_dials(chart, title)
-    path = resolve_output_path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html, encoding="utf-8")
     return str(path)
@@ -157,8 +190,14 @@ def open_in_default_browser(path: str) -> bool:
     Open a saved page in the default browser.
 
     Returns whether a browser took the request. It never raises: on a machine with no
-    desktop session the answer is simply False, and the caller says so.
+    desktop session the answer is simply False, and the caller says so. On Linux with no
+    display it does not try at all: Python would fall back to a console browser that
+    blocks this server and shares its input and output.
     """
+    if sys.platform.startswith("linux") and not (
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    ):
+        return False
     try:
         return bool(webbrowser.open(Path(path).resolve().as_uri()))
     except Exception:

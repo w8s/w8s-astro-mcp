@@ -177,6 +177,9 @@ select { padding: 0 10px; width: 100%; font-family: var(--font-body); }
   var ELEMENT_TXT = CONTENT.element_text;
   var MODE_TXT = CONTENT.mode_text;
   var RULER = CONTENT.rulers;
+  var RULER_OLD = CONTENT.rulers_traditional;
+  function rulerList(i) { return RULER[i] === RULER_OLD[i] ? [RULER[i]] : [RULER[i], RULER_OLD[i]]; }
+  function rulerText(i) { return RULER[i] + (RULER[i] === RULER_OLD[i] ? '' : ' (traditionally ' + RULER_OLD[i] + ')'); }
   var DIG = {};
   Object.keys(CONTENT.dignity).forEach(function (k) {
     var d = CONTENT.dignity[k];
@@ -295,22 +298,22 @@ select { padding: 0 10px; width: 100%; font-family: var(--font-body); }
     var out = '';
     if (on.p) out += layerHTML('Planet', 'What', P.g + V + ' ' + P.n, [P.core, { q: 'Keywords: ' + P.kw }]);
     if (on.s) out += layerHTML('Sign', 'How', '<span class="dot" style="background:var(--' + S.el + ')"></span>' + S.n,
-      [cap(S.manner) + '.', ELEMENT_TXT[S.el] + ' ' + MODE_TXT[S.mo], { q: S.el.charAt(0).toUpperCase() + S.el.slice(1) + ' · ' + S.mo + ' · ruled by ' + RULER[state.s] }]);
+      [cap(S.manner) + '.', ELEMENT_TXT[S.el] + ' ' + MODE_TXT[S.mo], { q: S.el.charAt(0).toUpperCase() + S.el.slice(1) + ' · ' + S.mo + ' · ruled by ' + rulerText(state.s) }]);
     if (on.h) {
       var cs = SIGNS[cuspOf(H)], where = state.cusp === 'chart' ? 'In this chart' : 'In the textbook scheme';
       out += layerHTML('House', 'Where', 'House ' + (H + 1), [cap(arena) + '.', ANGULARITY[H % 3 === 0 ? 0 : (H % 3 === 1 ? 1 : 2)][1],
-        { q: where + ', this house begins in ' + cs.n + ', so its default style is ' + cs.manner + '. Ruler: ' + RULER[cuspOf(H)] + '.' }]);
+        { q: where + ', this house begins in ' + cs.n + ', so its default style is ' + cs.manner + '. Ruler: ' + rulerText(cuspOf(H)) + '.' }]);
     }
     var n = (on.p ? 1 : 0) + (on.s ? 1 : 0) + (on.h ? 1 : 0);
     if (n >= 2) {
-      var inter = [], cuspIdx = cuspOf(H), cs2 = SIGNS[cuspIdx], ruler = RULER[cuspIdx];
+      var inter = [], cuspIdx = cuspOf(H), cs2 = SIGNS[cuspIdx], rulers = rulerList(cuspIdx), ruler = rulerText(cuspIdx);
       if (on.p && on.s) inter.push(dignity(P.n, S.n));
       if (on.s && on.h) {
         if (state.s === cuspIdx) inter.push('The sign you picked is the same one the house begins in, so the style is doubled: ' + S.manner + '.');
         else inter.push('The house begins in ' + cs2.n + ' (' + cs2.manner + '), and the sign you picked adds a second layer (' + S.manner + '). When they differ, the house\'s topic runs on one style while whatever sits in it runs on another.');
       }
       if (on.p && on.h) {
-        if (ruler === P.n) inter.push(P.n + ' rules ' + cs2.n + ', where this house begins. It is the house\'s boss and also sits inside it, so the theme and the planet are tightly bound.');
+        if (rulers.indexOf(P.n) > -1) inter.push(P.n + ' rules ' + cs2.n + ', where this house begins. It is the house\'s boss and also sits inside it, so the theme and the planet are tightly bound.');
         else inter.push('This house is run by ' + ruler + ' (ruler of ' + cs2.n + '). ' + P.n + ' here works alongside it, so how ' + ruler + ' is doing colors this house too.');
       }
       out += layerHTML('Together', 'How they interact', 'The interplay', inter);

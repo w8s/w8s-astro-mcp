@@ -1,5 +1,5 @@
 {
-  "_about": "Meaning text for the placement dials page. Edit the wording freely; keep the same keys and counts (10 planets, 12 signs, 12 houses, 12 rulers).",
+  "_about": "Meaning text for the placement dials page. Edit the wording freely; keep the same keys and counts (10 planets, 12 signs, 12 houses, 12 rulers, 12 rulers_traditional). 'rulers' are the modern rulers shown first; 'rulers_traditional' are shown in parentheses where they differ.",
   "planets": [
     {
       "name": "Sun",
@@ -350,5 +350,19 @@
       ],
       "fall": []
     }
-  }
+  },
+  "rulers_traditional": [
+    "Mars",
+    "Venus",
+    "Mercury",
+    "Moon",
+    "Sun",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Saturn",
+    "Jupiter"
+  ]
 }

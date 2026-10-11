@@ -1,0 +1,1 @@
+Error creating visualization: Owner profile not configured. Run setup_owner first.

@@ -1,0 +1,7 @@
+# Current Configuration
+
+## Owner Profile
+Not configured. Run setup_owner to set.
+
+Database: <TMP>/astro.db
+

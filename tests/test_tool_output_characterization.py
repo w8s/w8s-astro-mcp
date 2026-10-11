@@ -204,3 +204,13 @@ async def test_visualize_natal_chart_default_path_is_working_directory(tool):
     text = await tool("visualize_natal_chart")
     assert (tool.tmp / "natal_chart.png").exists()
     assert_golden("visualize_natal_chart_default_path", text)
+
+
+# -- the advertised tool list ------------------------------------------------------------------
+
+async def test_advertised_tools_are_unchanged(tool):
+    """Tool names, their order, descriptions and parameter schemas are what a client sees."""
+    import json
+
+    listed = [t.model_dump(mode="json", exclude_none=True) for t in await srv.list_tools()]
+    assert_golden("tool_schemas", json.dumps(listed, indent=2, ensure_ascii=False))

@@ -4,11 +4,9 @@ These tests verify the full workflow:
 1. Database → Server tools → Response
 2. Real tool calls like setup_astro_config, get_natal_chart, get_transits
 
-Skipped in CI (where no production DB exists) via the CI env var.
-Run locally with no special setup — all tests use a temporary database.
+Runs in CI and locally with no special setup — all tests use a temporary database.
 """
 
-import os
 import pytest
 from pathlib import Path
 import tempfile
@@ -17,13 +15,6 @@ from datetime import datetime
 from w8s_astro_mcp.database import initialize_database, get_session
 from w8s_astro_mcp.models import Profile, Location, HouseSystem
 from w8s_astro_mcp.utils.db_helpers import DatabaseHelper
-
-
-# Skip the entire module in CI environments.
-pytestmark = pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="Integration tests require a local temp DB; skipped in CI"
-)
 
 
 @pytest.fixture

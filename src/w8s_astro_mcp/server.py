@@ -36,20 +36,8 @@ from .tools.placement_dials import (
     slugify as placement_dials_slug,
     DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
 )
-from .tools.profile_management import (
-    get_profile_management_tools,
-    handle_profile_tool
-)
-from .tools.connection_management import (
-    get_connection_tools,
-    handle_connection_tool,
-    CONNECTION_TOOL_NAMES,
-)
-from .tools.event_management import (
-    get_event_tools,
-    handle_event_tool,
-    EVENT_TOOL_NAMES,
-)
+from .registry import ToolContext, ToolRegistry
+from .tools import profile_management, connection_management, event_management
 
 
 # Initialize MCP server
@@ -94,6 +82,16 @@ def init_ephemeris() -> EphemerisEngine:
         ephe_path = os.environ.get("SE_EPHE_PATH") or None
         ephemeris = EphemerisEngine(ephe_path=ephe_path)
     return ephemeris
+
+
+# Tools that have moved into the registry. The rest are still listed in list_tools() and routed
+# in _dispatch_tool(), and move over group by group.
+registry = ToolRegistry([
+    *profile_management.tool_specs(),
+    *connection_management.tool_specs(),
+    *event_management.tool_specs(),
+])
+tool_context = ToolContext(get_db=lambda: init_db(), get_engine=lambda: init_ephemeris())
 
 
 def get_natal_chart_data(profile_id: Optional[int] = None):
@@ -798,16 +796,8 @@ async def list_tools() -> list[Tool]:
         )
     ]
     
-    # Add profile management tools
-    profile_tools = get_profile_management_tools()
-
-    # Add connection management tools (Phase 7)
-    connection_tools = get_connection_tools()
-
-    # Add event chart tools (Phase 8)
-    event_tools = get_event_tools()
-
-    return core_tools + profile_tools + connection_tools + event_tools
+    # Tools that have moved into the registry follow, in their advertised order.
+    return core_tools + registry.tools()
 
 
 
@@ -911,8 +901,8 @@ async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]
 # Tools whose output depends on stored natal charts. Only these can carry a data notice.
 NATAL_NOTICE_TOOLS = {
     "get_natal_chart", "find_house_placements", "compare_charts",
-    "visualize_natal_chart", "visualize_placement_dials", "get_connection_chart",
-}
+    "visualize_natal_chart", "visualize_placement_dials",
+} | registry.natal_notice_tools()
 _notice_gate = DataNoticeGate()
 
 
@@ -1499,25 +1489,11 @@ async def _dispatch_tool(name: str, arguments: Any) -> list[TextContent]:
         except Exception as e:
             return [TextContent(type="text", text=f"Error creating visualization: {e}")]
     
-    # Profile management tools
-    elif name in ["list_profiles", "create_profile", "update_profile", "delete_profile",
-                  "setup_owner", "add_location", "remove_location"]:
-        db = init_db()
-        return await handle_profile_tool(name, arguments, db)
-
-    # Connection management tools (Phase 7)
-    elif name in CONNECTION_TOOL_NAMES:
-        db = init_db()
-        engine = init_ephemeris()
-        return await handle_connection_tool(name, arguments, db, engine)
-
-    # Event chart tools (Phase 8)
-    elif name in EVENT_TOOL_NAMES:
-        db = init_db()
-        return await handle_event_tool(name, arguments, db)
-
     else:
-        return [TextContent(type="text", text=f"Unknown tool: {name}")]
+        result = await registry.call(name, arguments, tool_context)
+        if result is None:
+            return [TextContent(type="text", text=f"Unknown tool: {name}")]
+        return result
 
 
 async def main():

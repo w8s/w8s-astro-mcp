@@ -9,6 +9,8 @@ and as the foundation for electional astrology scanning.
 from typing import Any
 from mcp.types import Tool, TextContent
 
+from ..registry import ToolContext, ToolSpec, bind_handlers
+
 
 # ============================================================================
 # Tool Definitions
@@ -467,25 +469,14 @@ async def handle_find_electional_windows(db_helper, arguments: dict) -> list[Tex
 # Tool name registry + dispatcher
 # ============================================================================
 
-EVENT_TOOL_NAMES = {
-    "cast_event_chart",
-    "list_event_charts",
-    "delete_event_chart",
-    "find_electional_windows",
-}
-
-
-async def handle_event_tool(
-    name: str, arguments: dict, db_helper, swetest=None
-) -> list[TextContent]:
-    """Route event tool calls to the appropriate handler."""
-    if name == "cast_event_chart":
-        return await handle_cast_event_chart(db_helper, arguments)
-    elif name == "list_event_charts":
-        return await handle_list_event_charts(db_helper, arguments)
-    elif name == "delete_event_chart":
-        return await handle_delete_event_chart(db_helper, arguments)
-    elif name == "find_electional_windows":
-        return await handle_find_electional_windows(db_helper, arguments)
-    else:
-        return [TextContent(type="text", text=f"Unknown event tool: {name}")]
+def tool_specs() -> list[ToolSpec]:
+    """The event chart tools, in the order they are advertised."""
+    return bind_handlers(
+        get_event_tools(),
+        {
+            "cast_event_chart": lambda ctx, args: handle_cast_event_chart(ctx.db, args),
+            "list_event_charts": lambda ctx, args: handle_list_event_charts(ctx.db, args),
+            "delete_event_chart": lambda ctx, args: handle_delete_event_chart(ctx.db, args),
+            "find_electional_windows": lambda ctx, args: handle_find_electional_windows(ctx.db, args),
+        },
+    )

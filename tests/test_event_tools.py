@@ -180,13 +180,11 @@ async def test_electional_windows_reject_bad_input(tool, arguments, expected):
 
 # -- known bugs: strict xfail, written as the behaviour we want ----------------------------------
 
-@pytest.mark.xfail(strict=True, reason="an unknown criterion is ignored, so a typo reads as 'no candidates found'")
 async def test_an_unknown_electional_criterion_is_reported(tool):
     reply = await tool("find_electional_windows", {**WINDOW, "criteria": ["moon_waxxing"]})
     assert reply.startswith("Error") and "moon_waxxing" in reply
 
 
-@pytest.mark.xfail(strict=True, reason="casting with an unknown profile_id shows the database's own error, SQL included")
 async def test_casting_for_an_unknown_profile_does_not_show_database_internals(tool):
     reply = await tool("cast_event_chart", {**Y2K, "label": "NoProfile", "profile_id": 99})
     assert "[SQL:" not in reply and "IntegrityError" not in reply

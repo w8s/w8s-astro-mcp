@@ -112,9 +112,9 @@ async def test_adding_an_existing_member_fails_and_changes_nothing(tool, pair):
     owner, other = pair
     await _make_pair_connection(tool, owner, other)
     reply = await tool("add_connection_member", {"connection_id": 1, "profile_id": other.id})
-    # Only the safe-failure contract is pinned. The reply currently includes the database's own
-    # error text (SQL and parameters); that wording is not something to freeze.
     assert reply.startswith("Error adding member:")
+    assert "already a member" in reply
+    assert "[SQL:" not in reply and "IntegrityError" not in reply
     assert "Members: Test Owner, Second Person\n" in await tool("list_connections")
 
 

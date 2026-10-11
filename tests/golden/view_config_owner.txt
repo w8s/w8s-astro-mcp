@@ -1,0 +1,15 @@
+# Current Configuration
+
+## Primary Profile
+Name: Test Owner
+Birth Date: 1981-05-06
+Birth Time: 00:50
+Birth Location: Birth
+Coordinates: 32.9483, -96.7299
+Timezone: America/Chicago
+
+## Saved Locations
+- Birth (current home): 32.9483, -96.7299
+
+Database: <TMP>/astro.db
+

@@ -1,0 +1,5 @@
+Ephemeris mode: sweph
+pysweph version: <VERSION>
+Precision: ~0.001 arcsecond (Swiss Ephemeris files)
+Ephemeris path: <TMP>/home/.w8s-astro-mcp/ephe
+Data files: seas_18.se1, semo_18.se1, sepl_18.se1

@@ -1,0 +1,15 @@
+Swiss Ephemeris data files upgrade
+
+Current mode: moshier
+After upgrade: Swiss Ephemeris (~0.001 arcsecond precision)
+
+Files to download:
+  sepl_18.se1      Planets (Sun–Pluto), 1800–2400 CE        473 KB
+  semo_18.se1      Moon, 1800–2400 CE                       1.3 MB
+  seas_18.se1      Main asteroids, 1800–2400 CE             218 KB
+  Total                                                    ~2.0 MB
+
+Source:      github.com/aloistr/swisseph (official Swiss Ephemeris repository)
+Destination: <TMP>/home/.w8s-astro-mcp/ephe
+
+Call again with confirm=true to proceed.

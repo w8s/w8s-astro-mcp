@@ -1,0 +1,11 @@
+Natal chart visualization created successfully!
+
+Saved to: <TMP>/natal_chart.png
+
+The chart shows:
+- Zodiac wheel with all 12 signs
+- Your 12 houses (Placidus system)
+- All 10 planets positioned by degree
+- Ascendant (red line) and MC (blue line)
+
+You can now view or share this image.

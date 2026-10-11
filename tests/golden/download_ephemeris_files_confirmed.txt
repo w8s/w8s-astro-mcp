@@ -1,0 +1,7 @@
+Downloading Swiss Ephemeris data files...
+
+  ✓ sepl_18.se1  2 KB   saved to <TMP>/home/.w8s-astro-mcp/ephe
+  ✓ semo_18.se1  2 KB   saved to <TMP>/home/.w8s-astro-mcp/ephe
+  ✓ seas_18.se1  2 KB   saved to <TMP>/home/.w8s-astro-mcp/ephe
+
+High-precision mode active. No restart required.

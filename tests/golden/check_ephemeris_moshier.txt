@@ -1,0 +1,4 @@
+Ephemeris mode: moshier
+pysweph version: <VERSION>
+Precision: ~1 arcminute (Moshier built-in, no files needed)
+Use download_ephemeris_files to upgrade to ~0.001 arcsecond precision.

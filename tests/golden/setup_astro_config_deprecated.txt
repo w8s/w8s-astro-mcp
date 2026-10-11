@@ -1,0 +1,7 @@
+⚠️ This tool is deprecated.
+
+The w8s-astro-mcp now uses SQLite database instead of config.json.
+
+Your data has been migrated to: ~/.w8s-astro-mcp/astro.db
+
+To add new profiles or locations, use the database migration script or contact the developer for profile management tools.

@@ -1,0 +1,7 @@
+Downloading Swiss Ephemeris data files...
+
+  ✓ sepl_18.se1  already present — skipped
+  ✓ semo_18.se1  already present — skipped
+  ✓ seas_18.se1  already present — skipped
+
+High-precision mode active. No restart required.

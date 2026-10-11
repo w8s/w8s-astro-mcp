@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 import w8s_astro_mcp.server as srv
+from w8s_astro_mcp.tools import transit_tools
 from w8s_astro_mcp.database import initialize_database
 from w8s_astro_mcp.utils.db_helpers import DatabaseHelper
 
@@ -255,14 +256,14 @@ async def test_get_transits_at_birth_location_for_other_profile(tool):
 
 async def test_get_transits_unknown_place_that_cannot_be_geocoded(tool, monkeypatch):
     _add_owner(tool)
-    monkeypatch.setattr(srv, "geocode_location", lambda place: None)
+    monkeypatch.setattr(transit_tools, "geocode_location", lambda place: None)
     assert_golden("get_transits_unknown_place", await tool("get_transits", {"date": "2026-03-20", "location": "Nowhereville"}))
 
 
 async def test_get_transits_geocoded_place_is_not_logged(tool, monkeypatch):
     _add_owner(tool)
     monkeypatch.setattr(
-        srv, "geocode_location",
+        transit_tools, "geocode_location",
         lambda place: {"name": "Bangkok, Thailand", "latitude": 13.7563, "longitude": 100.5018, "timezone": "Asia/Bangkok"},
     )
     text = await tool("get_transits", {"date": "2026-03-20", "location": "Bangkok"})

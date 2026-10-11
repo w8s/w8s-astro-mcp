@@ -19,12 +19,13 @@ the CHANGELOG: unified error wording (below).
 | Transit tools → `tools/transit_tools.py` | done (#33) |
 | Tools listed sorted by name; naming note in AGENTS.md | done (#34) |
 | Natal chart, compare, house placements, natal image → `tools/chart_tools.py` | done (#35) |
-| `call_tool` tests for connection, profile, event tools | done (#36, this PR) |
-| `visualize_placement_dials` → `chart_tools.py`; retire `get_profile_info` from `server.py` | next |
-| System tools (`check_ephemeris`, `download_ephemeris_files`, `view_config`, `setup_astro_config`, `dismiss_data_notice`) → `tools/system_tools.py` | next |
-| Delete the `elif` chain and the globals; `ctx` owns db and engine | after that |
-| Chart-calculation module (`natal_chart`, `local_chart`; `"P"` literals → house-system lookup) | after that |
-| Unified error wording (below); replace the AGENTS.md "Handler Extraction" convention | with 0.15.2 |
+| `call_tool` tests for connection, profile, event tools | done (#36) |
+| `visualize_placement_dials` → `chart_tools.py`; `get_profile_info` leaves `server.py` | done |
+| System tools (`check_ephemeris`, `download_ephemeris_files`, `view_config`, `setup_astro_config`, `dismiss_data_notice`) → `tools/system_tools.py` | done |
+| Delete the `elif` chain and the globals; `ctx` owns db and engine | done |
+| Chart-calculation module (`natal_chart`, `local_chart`; `"P"` literals → house-system lookup) | after 0.15.2 |
+| Input validation and plain database errors | done (#38) |
+| Unified profile-not-found wording; replace the AGENTS.md "Handler Extraction" convention | done |
 
 ## 0.15.2 scope
 

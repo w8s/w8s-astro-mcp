@@ -1,1 +1,1 @@
-Error: Profile 999 not found.
+Error: Profile 999 not found. Use list_profiles to see available profiles.

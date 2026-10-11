@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Database errors no longer show SQL.** A duplicate location label, adding a connection member twice, or casting an event for a profile that does not exist used to answer with the database's own message (the SQL statement and its parameters). They now say what happened in plain words.
 - **A mistyped electional criterion is reported.** `find_electional_windows` used to ignore an unknown criterion, so a typo read as "no candidates found". It now answers with an error that lists the valid criteria.
 
+### Changed
+
+- **Tools are listed sorted by name** (they were in the order they happened to be registered).
+- **"Profile not found" is worded the same everywhere**: `Profile 99 not found. Use list_profiles to see available profiles.` Connection tools used to say `profile 99 not found` and several tools had no hint.
+- Internal: every tool now lives in a module under `tools/` and is registered in one place, so a tool cannot be listed without a handler (this is what caused the 0.15.1 `setup_owner` bug). No tool names or parameters changed.
+
 ## [0.15.1] — 2026-10-11
 
 ### Fixed

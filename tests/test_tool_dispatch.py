@@ -18,10 +18,12 @@ def server_on_temp_db(tmp_path, monkeypatch):
     """The server module wired to an empty temporary database and a temporary working directory."""
     path = tmp_path / "astro.db"
     initialize_database(path, echo=False)
-    monkeypatch.setattr(srv, "db_helper", DatabaseHelper(db_path=str(path)))
-    monkeypatch.setattr(srv, "ephemeris", None)   # monkeypatch restores whatever init_ephemeris() sets
+    srv.tool_context.set_db(DatabaseHelper(db_path=str(path)))
+    srv.tool_context.set_engine(None)
     monkeypatch.chdir(tmp_path)                    # tools with a default output path write here
-    return srv
+    yield srv
+    srv.tool_context.set_db(None)
+    srv.tool_context.set_engine(None)
 
 
 async def test_every_advertised_tool_is_routable(server_on_temp_db):

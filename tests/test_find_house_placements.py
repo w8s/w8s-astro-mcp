@@ -5,6 +5,7 @@ call it directly without piercing the MCP dispatcher decorator.
 """
 
 import pytest
+from tool_harness import context_db
 from unittest.mock import MagicMock, patch
 
 from w8s_astro_mcp.server import tool_context as CTX
@@ -93,7 +94,7 @@ async def test_natal_default_owner():
     """date=natal with no profile_id uses owner profile."""
     import w8s_astro_mcp.server as srv
     with patch.object(chart_tools, "get_natal_chart_data", return_value=NATAL_CHART) as m, \
-         patch.object(srv, "init_db"):
+         context_db():
         result = await handle_find_house_placements(CTX, {"date": "natal"})
 
     assert "House Placements" in result[0].text
@@ -105,7 +106,7 @@ async def test_natal_explicit_profile():
     """date=natal with profile_id passes that id to get_natal_chart_data."""
     import w8s_astro_mcp.server as srv
     with patch.object(chart_tools, "get_natal_chart_data", return_value=NATAL_CHART) as m, \
-         patch.object(srv, "init_db"):
+         context_db():
         result = await handle_find_house_placements(CTX, {"date": "natal", "profile_id": 3})
 
     assert "House Placements" in result[0].text
@@ -122,7 +123,7 @@ async def test_today_uses_natal_houses():
     import w8s_astro_mcp.server as srv
     with patch.object(chart_tools, "get_chart_for_date", return_value=TRANSIT_CHART) as mt, \
          patch.object(chart_tools, "get_natal_chart_data", return_value=NATAL_CHART) as mn, \
-         patch.object(srv, "init_db"):
+         context_db():
         result = await handle_find_house_placements(CTX, {"date": "today", "profile_id": 1})
 
     assert "House Placements" in result[0].text
@@ -136,7 +137,7 @@ async def test_today_no_profile_uses_owner():
     import w8s_astro_mcp.server as srv
     with patch.object(chart_tools, "get_chart_for_date", return_value=TRANSIT_CHART), \
          patch.object(chart_tools, "get_natal_chart_data", return_value=NATAL_CHART) as mn, \
-         patch.object(srv, "init_db"):
+         context_db():
         result = await handle_find_house_placements(CTX, {"date": "today"})
 
     assert "House Placements" in result[0].text
@@ -149,7 +150,7 @@ async def test_specific_date_uses_natal_houses():
     import w8s_astro_mcp.server as srv
     with patch.object(chart_tools, "get_chart_for_date", return_value=TRANSIT_CHART) as mt, \
          patch.object(chart_tools, "get_natal_chart_data", return_value=NATAL_CHART), \
-         patch.object(srv, "init_db"):
+         context_db():
         result = await handle_find_house_placements(CTX, {"date": "2026-06-14", "profile_id": 1})
 
     assert "House Placements" in result[0].text
@@ -178,7 +179,7 @@ async def test_connection_composite():
     """connection_id + chart_type=composite uses composite house cusps."""
     import w8s_astro_mcp.server as srv
     mock_db = _mock_db_for_connection()
-    with patch.object(srv, "init_db", return_value=mock_db), \
+    with context_db(mock_db), \
          patch.object(chart_tools, "get_chart_for_date", return_value=TRANSIT_CHART):
         result = await handle_find_house_placements(CTX, {
             "date": "today",
@@ -196,7 +197,7 @@ async def test_connection_davison():
     """connection_id + chart_type=davison uses Davison house cusps."""
     import w8s_astro_mcp.server as srv
     mock_db = _mock_db_for_connection()
-    with patch.object(srv, "init_db", return_value=mock_db), \
+    with context_db(mock_db), \
          patch.object(chart_tools, "get_chart_for_date", return_value=TRANSIT_CHART):
         result = await handle_find_house_placements(CTX, {
             "date": "today",
@@ -213,7 +214,7 @@ async def test_connection_label_in_header():
     """Connection label appears in the report header."""
     import w8s_astro_mcp.server as srv
     mock_db = _mock_db_for_connection("My Special Connection")
-    with patch.object(srv, "init_db", return_value=mock_db), \
+    with context_db(mock_db), \
          patch.object(chart_tools, "get_chart_for_date", return_value=TRANSIT_CHART):
         result = await handle_find_house_placements(CTX, {
             "date": "today",
@@ -232,7 +233,7 @@ async def test_connection_label_in_header():
 async def test_mutually_exclusive_error():
     """Both connection_id and profile_id returns a clear error."""
     import w8s_astro_mcp.server as srv
-    with patch.object(srv, "init_db"):
+    with context_db():
         result = await handle_find_house_placements(CTX, {
             "date": "today",
             "profile_id": 1,
@@ -247,7 +248,7 @@ async def test_mutually_exclusive_error():
 async def test_missing_chart_type_error():
     """connection_id without chart_type returns a clear error."""
     import w8s_astro_mcp.server as srv
-    with patch.object(srv, "init_db"):
+    with context_db():
         result = await handle_find_house_placements(CTX, {
             "date": "today",
             "connection_id": 3,
@@ -262,7 +263,7 @@ async def test_connection_not_found():
     import w8s_astro_mcp.server as srv
     mock_db = MagicMock()
     mock_db.get_connection_by_id.return_value = None
-    with patch.object(srv, "init_db", return_value=mock_db):
+    with context_db(mock_db):
         result = await handle_find_house_placements(CTX, {
             "date": "today",
             "connection_id": 999,
@@ -279,7 +280,7 @@ async def test_connection_no_cached_chart():
     mock_db = MagicMock()
     mock_db.get_connection_by_id.return_value = MagicMock(label="Test")
     mock_db.get_connection_chart.return_value = None
-    with patch.object(srv, "init_db", return_value=mock_db):
+    with context_db(mock_db):
         result = await handle_find_house_placements(CTX, {
             "date": "today",
             "connection_id": 3,
@@ -294,7 +295,7 @@ async def test_natal_date_with_connection_rejected():
     """date=natal with connection_id is rejected as ambiguous."""
     import w8s_astro_mcp.server as srv
     mock_db = _mock_db_for_connection()
-    with patch.object(srv, "init_db", return_value=mock_db):
+    with context_db(mock_db):
         result = await handle_find_house_placements(CTX, {
             "date": "natal",
             "connection_id": 3,

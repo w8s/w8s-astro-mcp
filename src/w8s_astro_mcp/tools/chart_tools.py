@@ -4,10 +4,12 @@ Also holds the two chart helpers the other tools share: `get_natal_chart_data` (
 chart, calculated and stored on first use) and `get_chart_for_date` (the sky at a place and moment).
 """
 
-from typing import Any, Optional
+import logging
+from typing import Any, Dict, Optional
 
 from mcp.types import TextContent, Tool
 
+from ..utils.messages import profile_not_found, profiles_not_found
 from ..registry import ToolContext, ToolSpec, bind_handlers
 from ..utils.ephemeris import EphemerisError
 from ..utils.timezones import TimezoneError, utc_engine_args
@@ -20,7 +22,15 @@ from .analysis_tools import (
     format_aspect_report,
     format_house_report,
 )
+from .placement_dials import (
+    DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
+    create_placement_dials,
+    open_in_default_browser,
+    slugify as placement_dials_slug,
+)
 from .visualization import create_natal_chart
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -170,6 +180,38 @@ def get_chart_tools() -> list[Tool]:
                 "required": ["date"]
             }
         ),
+
+        Tool(
+            name="visualize_placement_dials",
+            description=(
+                "Create an interactive page for learning what a planet, a sign and a house mean, "
+                "alone and together. Three dials (planet, sign, house) can be turned or switched "
+                "off, and the reading shows each layer by itself and how the layers combine. "
+                "The chart's own placements and house cusps are loaded as quick picks. "
+                "Saves one HTML file to open in a browser."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "output_path": {
+                        "type": "string",
+                        "description": "Where to save the page: a file path, or a file path ending in .html or .htm, or a folder (the file is then named placement_dials_<profile name>.html). Defaults to ~/Downloads/placement_dials_<profile name>.html (for example placement_dials_todd.html). Existing files are overwritten."
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Heading above the placement quick picks (optional, defaults to 'Natal placements')"
+                    },
+                    "open_in_browser": {
+                        "type": "boolean",
+                        "description": "Open the page in the default browser after saving. Defaults to false; ask the user before turning it on."
+                    },
+                    "profile_id": {
+                        "type": "integer",
+                        "description": "Profile ID to use (from list_profiles). Defaults to owner profile."
+                    }
+                }
+            }
+        )
     ]
 
 
@@ -193,7 +235,7 @@ def get_natal_chart_data(ctx: ToolContext, profile_id: Optional[int] = None):
     if profile_id is not None:
         profile = db.get_profile_by_id(profile_id)
         if not profile:
-            raise EphemerisError(f"Profile {profile_id} not found.")
+            raise EphemerisError(profile_not_found(profile_id))
     else:
         profile = db.get_owner_profile()
         if not profile:
@@ -248,7 +290,7 @@ def get_chart_for_date(ctx: ToolContext, date_str, time_str="12:00", location=No
         if profile_id is not None:
             profile = db.get_profile_by_id(profile_id)
             if not profile:
-                raise EphemerisError(f"Profile {profile_id} not found.")
+                raise EphemerisError(profile_not_found(profile_id))
         else:
             profile = db.get_owner_profile()
             if not profile:
@@ -502,12 +544,83 @@ async def handle_compare_charts(ctx: ToolContext, arguments: dict) -> list[TextC
         return [TextContent(type="text", text=f"Error: {e}")]
 
 
+def get_profile_info(ctx: ToolContext, profile_id: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Name, id and birth time of the given profile (the owner's when None), and whether
+    another profile has the same name. Returns {} if it can't be found, so callers can
+    carry on without it.
+    """
+    try:
+        db = ctx.db
+        profile = db.get_profile_by_id(profile_id) if profile_id is not None else db.get_owner_profile()
+        if not profile:
+            return {}
+        same_name = [
+            p for p in db.list_all_profiles()
+            if p.id != profile.id and placement_dials_slug(p.name) == placement_dials_slug(profile.name)
+        ]
+        return {
+            "id": profile.id,
+            "name": profile.name,
+            "birth_time": profile.birth_time,
+            "name_shared": bool(same_name),
+        }
+    except Exception as e:
+        logger.warning("Could not look up the profile for placement dials: %s", e)
+        return {}
+
+
+def _placement_dials_notices(info: Dict[str, Any]) -> list:
+    """Caveats shown on the page under the quick picks."""
+    notices = []
+    if info.get("birth_time") == "12:00":
+        notices.append(
+            "This profile's birth time is 12:00, which is often a placeholder for an unknown time. "
+            "If it is a guess, the houses and the Moon's degree are not reliable. Planet and sign "
+            "meanings are unaffected."
+        )
+    return notices
+
+
+async def handle_visualize_placement_dials(ctx: ToolContext, arguments: dict) -> list[TextContent]:
+    """Save the placement-dials page for a profile's natal chart."""
+    try:
+        chart = get_natal_chart_data(ctx, profile_id=arguments.get("profile_id"))
+        info = get_profile_info(ctx, arguments.get("profile_id"))
+        # Two profiles with the same name get their ids in the file name so they don't collide.
+        file_label = f"{info['name']} {info['id']}" if info.get("name_shared") else info.get("name")
+        saved_path = create_placement_dials(
+            chart,
+            title=arguments.get("title") or PLACEMENT_DIALS_TITLE,
+            output_path=arguments.get("output_path") or None,
+            profile_name=file_label,
+            profile_id=info.get("id", arguments.get("profile_id")),
+            notices=_placement_dials_notices(info),
+        )
+        how_to_use = (
+            "Turn the planet, sign and house dials, or switch a layer off to read it alone. "
+            "The chart's ten placements are quick picks, and the house toggle switches between "
+            "this chart's house cusps and the textbook scheme."
+        )
+        if arguments.get("open_in_browser"):
+            if open_in_default_browser(saved_path):
+                status = "Opened in your default browser."
+            else:
+                status = "Could not open a browser from here, so open the file yourself."
+            text = f"Placement dials created.\n\nSaved to: {saved_path}\n\n{status} {how_to_use}"
+        else:
+            text = f"Placement dials created.\n\nSaved to: {saved_path}\n\nOpen it in a browser. {how_to_use}"
+        return [TextContent(type="text", text=text)]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
 # ============================================================================
 # Registration
 # ============================================================================
 
 def tool_specs() -> list[ToolSpec]:
-    """The chart tools. All four read stored natal charts, so each can carry a data notice."""
+    """The chart tools. All five read stored natal charts, so each can carry a data notice."""
     return bind_handlers(
         get_chart_tools(),
         {
@@ -515,8 +628,12 @@ def tool_specs() -> list[ToolSpec]:
             "visualize_natal_chart": handle_visualize_natal_chart,
             "compare_charts": handle_compare_charts,
             "find_house_placements": handle_find_house_placements,
+            "visualize_placement_dials": handle_visualize_placement_dials,
         },
         natal_chart_tools=frozenset(
-            {"get_natal_chart", "visualize_natal_chart", "compare_charts", "find_house_placements"}
+            {
+                "get_natal_chart", "visualize_natal_chart", "compare_charts", "find_house_placements",
+                "visualize_placement_dials",
+            }
         ),
     )

@@ -19,10 +19,10 @@ def _ctx() -> ToolContext:
     return ToolContext(get_db=lambda: "db", get_engine=lambda: "engine")
 
 
-def test_tools_keep_registration_order():
+def test_tools_are_listed_sorted_by_name_whatever_the_registration_order():
     registry = ToolRegistry([ToolSpec(_tool(n), _echo) for n in ("b", "a", "c")])
-    assert [t.name for t in registry.tools()] == ["b", "a", "c"]
-    assert registry.names() == ["b", "a", "c"]
+    assert [t.name for t in registry.tools()] == ["a", "b", "c"]
+    assert registry.names() == ["a", "b", "c"]
 
 
 def test_registering_a_name_twice_is_an_error():

@@ -142,6 +142,20 @@ choosing to upgrade. Treat default tool output as an interface:
 - Presentation (glyphs, wikilinks, which results are worth showing) belongs to the caller; the
   server returns data.
 
+### Tool Names
+Tool names are `verb_noun` in snake_case, and the server lists them sorted by name (the registry does
+the sorting; do not hand-order them). That groups tools by leading verb.
+
+The verbs are not yet consistent: besides `get_`, `list_`, `create_`, `update_` and `delete_` there are
+`cast_`, `find_`, `compare_`, `visualize_`, `dismiss_`, `download_`, `check_`, `setup_` and `view_`.
+**Standardising them is planned, not done** (target: 0.16.0 or later; the vocabulary is decided then).
+When it happens, each renamed tool keeps answering to its old name as an alias, because names are part of
+the public surface (see above).
+
+Until then: do not rename a tool. For a new tool, prefer `get_` (read one thing), `list_` (read a
+collection), and `create_` / `update_` / `delete_` (change a record) where they fit, so the later cleanup
+has less to move.
+
 ### Telling the AI and the User
 - **Durable rules** go in `SERVER_INSTRUCTIONS` (sent when the AI connects). Keep it short.
 - **Facts about the user's data** go in tool results as a `Data notice:` (see `utils/chart_health.py`),

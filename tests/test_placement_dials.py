@@ -14,6 +14,8 @@ from unittest.mock import patch
 import pytest
 
 from w8s_astro_mcp import server
+from w8s_astro_mcp.registry import ToolContext
+from w8s_astro_mcp.tools import chart_tools
 from w8s_astro_mcp.tools import placement_dials as pd
 from w8s_astro_mcp.utils.ephemeris import EphemerisError
 
@@ -258,7 +260,7 @@ def test_create_writes_file_and_makes_folders_and_overwrites(tmp_path):
 # Server wiring
 # ---------------------------------------------------------------------------
 
-_REAL_GET_PROFILE_INFO = server.get_profile_info
+_REAL_GET_PROFILE_INFO = chart_tools.get_profile_info
 TODD = {"id": 1, "name": "Todd", "birth_time": "06:30", "name_shared": False}
 
 
@@ -266,7 +268,7 @@ TODD = {"id": 1, "name": "Todd", "birth_time": "06:30", "name_shared": False}
 def _isolated(monkeypatch, tmp_path_factory):
     """No test touches the real database or the real ~/.w8s-astro-mcp content override."""
     monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
-    monkeypatch.setattr(server, "get_profile_info", lambda profile_id=None: dict(TODD))
+    monkeypatch.setattr(chart_tools, "get_profile_info", lambda ctx, profile_id=None: dict(TODD))
 
 
 @pytest.mark.asyncio
@@ -274,11 +276,11 @@ async def test_handler_names_the_default_file_after_the_profile(monkeypatch, tmp
     monkeypatch.setenv("HOME", str(tmp_path))
     seen = []
     monkeypatch.setattr(
-        server, "get_profile_info",
-        lambda profile_id=None: seen.append(profile_id) or {"id": 3, "name": "Liz", "birth_time": "06:30", "name_shared": False},
+        chart_tools, "get_profile_info",
+        lambda ctx, profile_id=None: seen.append(profile_id) or {"id": 3, "name": "Liz", "birth_time": "06:30", "name_shared": False},
     )
-    with patch.object(server, "get_natal_chart_data", return_value=CHART):
-        result = await server.handle_visualize_placement_dials({"profile_id": 3})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART):
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, {"profile_id": 3})
     assert seen == [3]
     assert (tmp_path / "Downloads" / "placement_dials_liz.html").exists()
     assert "placement_dials_liz.html" in result[0].text
@@ -287,8 +289,8 @@ async def test_handler_names_the_default_file_after_the_profile(monkeypatch, tmp
 @pytest.mark.asyncio
 async def test_handler_success_writes_file(tmp_path):
     out = tmp_path / "dials.html"
-    with patch.object(server, "get_natal_chart_data", return_value=CHART) as get_chart:
-        result = await server.handle_visualize_placement_dials({"output_path": str(out), "profile_id": 7})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART) as get_chart:
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, {"output_path": str(out), "profile_id": 7})
     get_chart.assert_called_once_with(server.tool_context, profile_id=7)
     assert "Saved to:" in result[0].text and str(out.resolve()) in result[0].text
     assert out.exists()
@@ -296,8 +298,8 @@ async def test_handler_success_writes_file(tmp_path):
 
 @pytest.mark.asyncio
 async def test_handler_reports_errors_as_text():
-    with patch.object(server, "get_natal_chart_data", side_effect=EphemerisError("Owner profile not configured.")):
-        result = await server.handle_visualize_placement_dials({})
+    with patch.object(chart_tools, "get_natal_chart_data", side_effect=EphemerisError("Owner profile not configured.")):
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, {})
     assert result[0].text.startswith("Error:") and "Owner profile" in result[0].text
 
 
@@ -350,16 +352,16 @@ def test_open_in_default_browser_skips_headless_linux(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_handler_reports_a_bad_output_path(tmp_path):
-    with patch.object(server, "get_natal_chart_data", return_value=CHART):
-        result = await server.handle_visualize_placement_dials({"output_path": str(tmp_path / ".zshrc")})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART):
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, {"output_path": str(tmp_path / ".zshrc")})
     assert result[0].text.startswith("Error:") and ".html" in result[0].text
 
 
 @pytest.mark.asyncio
 async def test_handler_does_not_open_a_browser_unless_asked(tmp_path):
-    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
-         patch.object(server, "open_in_default_browser") as opener:
-        result = await server.handle_visualize_placement_dials({"output_path": str(tmp_path / "d.html")})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART), \
+         patch.object(chart_tools, "open_in_default_browser") as opener:
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, {"output_path": str(tmp_path / "d.html")})
     opener.assert_not_called()
     assert "Open it in a browser" in result[0].text
 
@@ -367,18 +369,18 @@ async def test_handler_does_not_open_a_browser_unless_asked(tmp_path):
 @pytest.mark.asyncio
 async def test_handler_opens_the_page_when_asked(tmp_path):
     out = tmp_path / "d.html"
-    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
-         patch.object(server, "open_in_default_browser", return_value=True) as opener:
-        result = await server.handle_visualize_placement_dials({"output_path": str(out), "open_in_browser": True})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART), \
+         patch.object(chart_tools, "open_in_default_browser", return_value=True) as opener:
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, {"output_path": str(out), "open_in_browser": True})
     opener.assert_called_once_with(str(out.resolve()))
     assert "Opened in your default browser" in result[0].text
 
 
 @pytest.mark.asyncio
 async def test_handler_says_so_when_the_browser_cannot_be_opened(tmp_path):
-    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
-         patch.object(server, "open_in_default_browser", return_value=False):
-        result = await server.handle_visualize_placement_dials(
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART), \
+         patch.object(chart_tools, "open_in_default_browser", return_value=False):
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, 
             {"output_path": str(tmp_path / "d.html"), "open_in_browser": True}
         )
     assert "Could not open a browser" in result[0].text
@@ -389,20 +391,20 @@ async def test_handler_says_so_when_the_browser_cannot_be_opened(tmp_path):
 async def test_handler_adds_the_id_when_two_profiles_share_a_name(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(
-        server, "get_profile_info",
-        lambda profile_id=None: {"id": 4, "name": "Sam", "birth_time": "06:30", "name_shared": True},
+        chart_tools, "get_profile_info",
+        lambda ctx, profile_id=None: {"id": 4, "name": "Sam", "birth_time": "06:30", "name_shared": True},
     )
-    with patch.object(server, "get_natal_chart_data", return_value=CHART):
-        await server.handle_visualize_placement_dials({"profile_id": 4})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART):
+        await chart_tools.handle_visualize_placement_dials(server.tool_context, {"profile_id": 4})
     assert (tmp_path / "Downloads" / "placement_dials_sam_4.html").exists()
 
 
 @pytest.mark.asyncio
 async def test_handler_still_works_when_the_profile_lookup_finds_nothing(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(server, "get_profile_info", lambda profile_id=None: {})
-    with patch.object(server, "get_natal_chart_data", return_value=CHART):
-        result = await server.handle_visualize_placement_dials({})
+    monkeypatch.setattr(chart_tools, "get_profile_info", lambda ctx, profile_id=None: {})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART):
+        result = await chart_tools.handle_visualize_placement_dials(server.tool_context, {})
     assert (tmp_path / "Downloads" / "placement_dials.html").exists()
     assert "Saved to:" in result[0].text
 
@@ -411,23 +413,23 @@ async def test_handler_still_works_when_the_profile_lookup_finds_nothing(monkeyp
 async def test_handler_passes_a_noon_birth_time_caveat_to_the_page(tmp_path):
     out = tmp_path / "d.html"
     noon = dict(TODD, birth_time="12:00")
-    with patch.object(server, "get_natal_chart_data", return_value=CHART), \
-         patch.object(server, "get_profile_info", return_value=noon):
-        await server.handle_visualize_placement_dials({"output_path": str(out)})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART), \
+         patch.object(chart_tools, "get_profile_info", return_value=noon):
+        await chart_tools.handle_visualize_placement_dials(server.tool_context, {"output_path": str(out)})
     chart = json.loads(re.search(r"var CHART = (.*);\n", out.read_text(encoding="utf-8")).group(1))
     assert len(chart["notices"]) == 1 and "12:00" in chart["notices"][0]
     out2 = tmp_path / "e.html"
-    with patch.object(server, "get_natal_chart_data", return_value=CHART):
-        await server.handle_visualize_placement_dials({"output_path": str(out2)})
+    with patch.object(chart_tools, "get_natal_chart_data", return_value=CHART):
+        await chart_tools.handle_visualize_placement_dials(server.tool_context, {"output_path": str(out2)})
     assert json.loads(re.search(r"var CHART = (.*);\n", out2.read_text(encoding="utf-8")).group(1))["notices"] == []
 
 
-def test_get_profile_info_reports_failure_as_empty_and_logs(monkeypatch, caplog):
+def test_get_profile_info_reports_failure_as_empty_and_logs(caplog):
     def boom():
         raise RuntimeError("db locked")
-    monkeypatch.setattr(server, "init_db", boom)
+    broken = ToolContext(get_db=boom, get_engine=lambda: None)
     with caplog.at_level("WARNING"):
-        assert _REAL_GET_PROFILE_INFO(5) == {}
+        assert _REAL_GET_PROFILE_INFO(broken, 5) == {}
     assert "db locked" in caplog.text
 
 

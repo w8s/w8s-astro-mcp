@@ -1,5 +1,8 @@
 """Shared helpers for tests that call tools through `call_tool` (see conftest.py for the fixture)."""
 
+from contextlib import contextmanager
+from unittest.mock import MagicMock
+
 import os
 import re
 from pathlib import Path
@@ -50,3 +53,14 @@ def add_second(tool, name="Second Person", date="1990-01-15", time="12:00"):
         birth_longitude=-122.3321,
         birth_timezone="America/Los_Angeles",
     )
+
+
+@contextmanager
+def context_db(db=None):
+    """Run with `db` (a mock when omitted) as the server's database, then go back to the default."""
+    import w8s_astro_mcp.server as srv
+    srv.tool_context.set_db(db if db is not None else MagicMock())
+    try:
+        yield
+    finally:
+        srv.tool_context.set_db(None)

@@ -17,20 +17,43 @@ from .utils.db_helpers import DatabaseHelper
 from .utils.ephemeris import EphemerisEngine
 
 
-@dataclass
 class ToolContext:
-    """The shared resources a handler may use, created only when first asked for."""
+    """The shared resources a handler may use, created on first use and then kept.
 
-    get_db: Callable[[], DatabaseHelper]
-    get_engine: Callable[[], EphemerisEngine]
+    `get_db` and `get_engine` build the database helper and the ephemeris engine. `set_db` and
+    `set_engine` replace them (the ephemeris download switches to the new data files this way, and a
+    test supplies its own database).
+    """
+
+    def __init__(
+        self,
+        get_db: Callable[[], DatabaseHelper],
+        get_engine: Callable[[], EphemerisEngine],
+    ):
+        self._get_db = get_db
+        self._get_engine = get_engine
+        self._db: Optional[DatabaseHelper] = None
+        self._engine: Optional[EphemerisEngine] = None
 
     @property
     def db(self) -> DatabaseHelper:
-        return self.get_db()
+        if self._db is None:
+            self._db = self._get_db()
+        return self._db
 
     @property
     def engine(self) -> EphemerisEngine:
-        return self.get_engine()
+        if self._engine is None:
+            self._engine = self._get_engine()
+        return self._engine
+
+    def set_db(self, db: Optional[DatabaseHelper]) -> None:
+        """Use `db` from now on (None goes back to building one on demand)."""
+        self._db = db
+
+    def set_engine(self, engine: Optional[EphemerisEngine]) -> None:
+        """Use `engine` from now on (None goes back to building one on demand)."""
+        self._engine = engine
 
 
 Handler = Callable[[ToolContext, Any], Awaitable[list[TextContent]]]

@@ -64,7 +64,7 @@ When adding a phase or significant feature, update **all** of these that apply:
 
 ## Branch Strategy
 
-- `main` — stable releases only
+- `main` — always releasable; releases are tagged from it
 - `feature/*` — all new work; merge with `--no-ff`
 
 ## Key Conventions
@@ -83,26 +83,26 @@ For tools that can target any profile, add an optional `profile_id` parameter th
 defaults to the owner. For tools that compare two natal charts (synastry), use
 `chart1_profile_id` and `chart2_profile_id` as separate parameters.
 
-### Handler Extraction for Testability
-Complex tool handlers should be extracted into standalone `async def handle_*()`
-functions defined **above** `@app.list_tools()`. The MCP dispatcher calls these with
-a single `await`:
+### Where Tools Live
+Every tool is one `ToolSpec` (schema + handler) in a module under `src/w8s_astro_mcp/tools/`.
+Each module exposes `tool_specs()`, and `server.py` only collects them into the `ToolRegistry`,
+so a tool cannot be advertised without a handler. Handlers have the signature
+`async def handle_x(ctx: ToolContext, arguments)`; `ctx.db` and `ctx.engine` supply the database
+and the ephemeris engine.
 
 ```python
-# Standalone — directly importable and testable
-async def handle_find_house_placements(arguments: dict) -> list[TextContent]:
+async def handle_get_natal_chart(ctx: ToolContext, arguments: Any) -> list[TextContent]:
+    chart = get_natal_chart_data(ctx, profile_id=arguments.get("profile_id"))
     ...
-
-# Dispatcher delegates
-@app.call_tool()
-async def call_tool(name: str, arguments: Any) -> list[TextContent]:
-    ...
-    elif name == "find_house_placements":
-        return await handle_find_house_placements(arguments)
 ```
 
-Tests import and call `handle_*()` directly — no need to pierce the MCP decorator.
-See `tests/test_find_house_placements.py` and `tests/test_compare_charts.py` for the pattern.
+Tests:
+- Every tool has a test that calls it through `call_tool` (the `tool` fixture in `tests/conftest.py`:
+  temporary database and home, built-in Moshier ephemeris). Check the reply text, not just that it ran.
+- `tests/test_tool_dispatch.py` asserts that every advertised tool dispatches.
+- A handler can also be called directly with `srv.tool_context`; to supply a database, use
+  `tool_context.set_db(...)` (see `context_db` in `tests/tool_harness.py`) rather than patching globals.
+- Wording shared by several tools lives in `utils/messages.py`.
 
 ### Entry Points Must Be Sync
 `[project.scripts]` entry points in `pyproject.toml` are called directly by pip-generated

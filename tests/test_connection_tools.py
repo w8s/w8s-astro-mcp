@@ -60,7 +60,7 @@ async def test_create_connection_without_optional_fields_omits_their_lines(tool,
     [
         ({"profile_ids": [1, 2]}, "Error: label is required"),
         ({"label": "X", "profile_ids": [1]}, "Error: at least 2 profile_ids are required"),
-        ({"label": "X", "profile_ids": [1, 99]}, "Error: profile(s) not found: [99]"),
+        ({"label": "X", "profile_ids": [1, 99]}, "Error: Profile(s) 99 not found. Use list_profiles to see available profiles."),
     ],
 )
 async def test_create_connection_rejects_bad_input(tool, pair, arguments, expected):
@@ -123,10 +123,10 @@ async def test_adding_an_existing_member_fails_and_changes_nothing(tool, pair):
     [
         ("add_connection_member", {"connection_id": 1}, "Error: connection_id and profile_id are required"),
         ("add_connection_member", {"connection_id": 9, "profile_id": 1}, "Error: connection 9 not found"),
-        ("add_connection_member", {"connection_id": 1, "profile_id": 99}, "Error: profile 99 not found"),
+        ("add_connection_member", {"connection_id": 1, "profile_id": 99}, "Error: Profile 99 not found. Use list_profiles to see available profiles."),
         ("remove_connection_member", {"connection_id": 1}, "Error: connection_id and profile_id are required"),
         ("remove_connection_member", {"connection_id": 9, "profile_id": 1}, "Error: connection 9 not found"),
-        ("remove_connection_member", {"connection_id": 1, "profile_id": 99}, "Error: profile 99 not found"),
+        ("remove_connection_member", {"connection_id": 1, "profile_id": 99}, "Error: Profile 99 not found. Use list_profiles to see available profiles."),
     ],
 )
 async def test_member_tools_reject_bad_input(tool, pair, tool_name, arguments, expected):

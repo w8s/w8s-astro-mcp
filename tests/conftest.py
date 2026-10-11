@@ -24,14 +24,17 @@ def tool(tmp_path, monkeypatch):
 
     db_path = tmp_path / "astro.db"
     initialize_database(db_path, echo=False)
-    monkeypatch.setattr(srv, "db_helper", DatabaseHelper(db_path=str(db_path)))
-    monkeypatch.setattr(srv, "ephemeris", None)
+    db = DatabaseHelper(db_path=str(db_path))
+    srv.tool_context.set_db(db)
+    srv.tool_context.set_engine(None)
 
     async def call(name: str, arguments: dict | None = None) -> str:
         blocks = await srv.call_tool(name, arguments or {})
         return masked("\n---\n".join(b.text for b in blocks), tmp_path)
 
     call.home = home
-    call.db = srv.db_helper
+    call.db = db
     call.tmp = tmp_path
-    return call
+    yield call
+    srv.tool_context.set_db(None)
+    srv.tool_context.set_engine(None)

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tool_harness import context_db
 
 from w8s_astro_mcp.tools.analysis_tools import (
     AnalysisError,
@@ -506,7 +507,7 @@ def _patches(natal=NATAL, transit=TRANSIT, db=None):
     return (
         patch.object(chart_tools, "get_natal_chart_data", return_value=natal),
         patch.object(chart_tools, "get_chart_for_date", return_value=transit),
-        patch.object(srv, "init_db", return_value=db or MagicMock()),
+        context_db(db),
     )
 
 

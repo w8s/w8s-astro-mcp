@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from mcp.types import Tool, TextContent
 
+from ..utils.messages import profile_not_found, profiles_not_found
 from ..registry import ToolContext, ToolSpec, bind_handlers
 
 
@@ -188,7 +189,7 @@ async def handle_create_connection(db_helper, arguments: dict) -> list[TextConte
             else:
                 profiles.append(p)
         if missing:
-            return [TextContent(type="text", text=f"Error: profile(s) not found: {missing}")]
+            return [TextContent(type="text", text=f"Error: {profiles_not_found(missing)}")]
 
         # Create connection
         connection = db_helper.create_connection(
@@ -258,7 +259,7 @@ async def handle_add_connection_member(db_helper, arguments: dict) -> list[TextC
 
         profile = db_helper.get_profile_by_id(profile_id)
         if not profile:
-            return [TextContent(type="text", text=f"Error: profile {profile_id} not found")]
+            return [TextContent(type="text", text=f"Error: {profile_not_found(profile_id)}")]
 
         db_helper.add_connection_member(connection_id, profile_id)
         db_helper.invalidate_connection_charts(connection_id)
@@ -291,7 +292,7 @@ async def handle_remove_connection_member(db_helper, arguments: dict) -> list[Te
 
         profile = db_helper.get_profile_by_id(profile_id)
         if not profile:
-            return [TextContent(type="text", text=f"Error: profile {profile_id} not found")]
+            return [TextContent(type="text", text=f"Error: {profile_not_found(profile_id)}")]
 
         # Guard: must keep at least 2 members
         members = db_helper.get_connection_members(connection)

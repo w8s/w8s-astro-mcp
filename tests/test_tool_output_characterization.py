@@ -20,7 +20,7 @@ import w8s_astro_mcp.server as srv
 from tool_harness import add_owner as _add_owner
 from tool_harness import add_second as _add_second
 from tool_harness import assert_golden
-from w8s_astro_mcp.tools import transit_tools
+from w8s_astro_mcp.tools import system_tools, transit_tools
 
 
 # -- check_ephemeris ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ def fake_download(monkeypatch):
         urls.append(url)
         Path(dest).write_bytes(b"x" * 2048)
 
-    monkeypatch.setattr(srv.urllib.request, "urlretrieve", fake_urlretrieve)
+    monkeypatch.setattr(system_tools.urllib.request, "urlretrieve", fake_urlretrieve)
     return urls
 
 

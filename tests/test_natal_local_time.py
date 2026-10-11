@@ -30,10 +30,10 @@ def srv_and_db(tmp_path):
     path = tmp_path / "astro.db"
     initialize_database(path, echo=False)          # schema + seeded house systems
     db = DatabaseHelper(db_path=str(path))
-    previous = srv.db_helper
-    srv.db_helper = db
+    srv.tool_context.set_db(db)
+    srv.tool_context.set_engine(None)
     yield srv, db
-    srv.db_helper = previous
+    srv.tool_context.set_db(None)
 
 
 def _natal(srv, db, **overrides):

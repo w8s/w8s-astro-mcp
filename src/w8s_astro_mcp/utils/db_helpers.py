@@ -13,6 +13,7 @@ from ..models import (
     NatalPlanet, NatalHouse, NatalPoint,
     TransitLookup, TransitPlanet, TransitHouse, TransitPoint
 )
+from .messages import profile_not_found
 from .transit_logger import save_transit_data_to_db
 
 
@@ -646,7 +647,7 @@ class DatabaseHelper:
             # Verify profile exists
             profile = session.query(Profile).filter_by(id=profile_id).first()
             if not profile:
-                raise ValueError(f"Profile {profile_id} not found")
+                raise ValueError(profile_not_found(profile_id))
             
             # If set_as_home, unset all other current_home flags for this profile
             if set_as_home:
@@ -699,7 +700,7 @@ class DatabaseHelper:
             # Get profile
             profile = session.query(Profile).filter_by(id=profile_id).first()
             if not profile:
-                raise ValueError(f"Profile {profile_id} not found")
+                raise ValueError(profile_not_found(profile_id))
             
             # Update field
             setattr(profile, field, value)

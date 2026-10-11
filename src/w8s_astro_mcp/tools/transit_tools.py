@@ -5,6 +5,7 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
+from ..utils.messages import profile_not_found, profiles_not_found
 from ..registry import ToolContext, ToolSpec, bind_handlers
 from ..utils.ephemeris import EphemerisError
 from ..utils.geocoding import geocode_location
@@ -194,7 +195,7 @@ async def handle_get_transits(ctx: ToolContext, arguments: Any) -> list[TextCont
         if profile_id is not None:
             profile = db.get_profile_by_id(profile_id)
             if not profile:
-                return [TextContent(type="text", text=f"Error: Profile {profile_id} not found.")]
+                return [TextContent(type="text", text=f"Error: {profile_not_found(profile_id)}")]
         else:
             profile = db.get_owner_profile()
             if not profile:
@@ -311,7 +312,7 @@ async def handle_get_transit_history(ctx: ToolContext, arguments: Any) -> list[T
         if profile_id is not None:
             profile = db.get_profile_by_id(profile_id)
             if not profile:
-                return [TextContent(type="text", text=f"Error: Profile {profile_id} not found.")]
+                return [TextContent(type="text", text=f"Error: {profile_not_found(profile_id)}")]
         else:
             profile = db.get_owner_profile()
             if not profile:
@@ -395,7 +396,7 @@ async def handle_find_last_transit(ctx: ToolContext, arguments: Any) -> list[Tex
         if profile_id is not None:
             profile = db.get_profile_by_id(profile_id)
             if not profile:
-                return [TextContent(type="text", text=f"Error: Profile {profile_id} not found.")]
+                return [TextContent(type="text", text=f"Error: {profile_not_found(profile_id)}")]
         else:
             profile = db.get_owner_profile()
             if not profile:

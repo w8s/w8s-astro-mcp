@@ -7,6 +7,7 @@ Enables multi-profile support for friends, family, synastry, etc.
 from typing import Any, Optional
 from mcp.types import Tool, TextContent
 
+from ..utils.messages import profile_not_found, profiles_not_found
 from ..utils import timezones
 from ..registry import ToolContext, ToolSpec, bind_handlers
 
@@ -399,8 +400,7 @@ async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]
         if not profile:
             return [TextContent(
                 type="text",
-                text=f"Error: Profile {profile_id} not found\n\n"
-                     "Use list_profiles to see available profiles."
+                text=f"Error: {profile_not_found(profile_id)}"
             )]
         
         # Save profile details for confirmation message
@@ -414,7 +414,7 @@ async def handle_delete_profile(db_helper, arguments: dict) -> list[TextContent]
             # Shouldn't happen since we checked above, but just in case
             return [TextContent(
                 type="text",
-                text=f"Error: Profile {profile_id} not found"
+                text=f"Error: {profile_not_found(profile_id)}"
             )]
         
         # Format success message
@@ -452,8 +452,7 @@ async def handle_setup_owner(db_helper, arguments: dict) -> list[TextContent]:
         if not success:
             return [TextContent(
                 type="text",
-                text=f"Error: Profile with ID {profile_id} not found.\n\n"
-                     "Use list_profiles to see available profiles."
+                text=f"Error: {profile_not_found(profile_id)}"
             )]
 
         profile = db_helper.get_profile_by_id(profile_id)
@@ -502,7 +501,7 @@ async def handle_add_location(db_helper, arguments: dict) -> list[TextContent]:
         if not profile:
             return [TextContent(
                 type="text",
-                text=f"Error: Profile {profile_id} not found. Use list_profiles to see available profiles."
+                text=f"Error: {profile_not_found(profile_id)}"
             )]
         
         # Create location

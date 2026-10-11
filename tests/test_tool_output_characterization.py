@@ -12,85 +12,15 @@ database and home directory, and no network (`urlretrieve` is replaced). Environ
 values (pysweph version, temporary paths) are masked before comparison.
 """
 
-import os
-import re
 from pathlib import Path
 
 import pytest
 
 import w8s_astro_mcp.server as srv
+from tool_harness import add_owner as _add_owner
+from tool_harness import add_second as _add_second
+from tool_harness import assert_golden
 from w8s_astro_mcp.tools import transit_tools
-from w8s_astro_mcp.database import initialize_database
-from w8s_astro_mcp.utils.db_helpers import DatabaseHelper
-
-GOLDEN_DIR = Path(__file__).parent / "golden"
-
-
-def _masked(text: str, tmp_path: Path) -> str:
-    """Replace values that differ between machines and runs."""
-    text = text.replace(str(tmp_path), "<TMP>")
-    text = re.sub(r"pysweph version: \S+", "pysweph version: <VERSION>", text)
-    return text
-
-
-def assert_golden(name: str, text: str) -> None:
-    path = GOLDEN_DIR / f"{name}.txt"
-    if os.environ.get("UPDATE_GOLDEN") == "1":
-        GOLDEN_DIR.mkdir(exist_ok=True)
-        path.write_text(text + "\n", encoding="utf-8")
-        return
-    assert path.exists(), f"missing golden file {path}; run with UPDATE_GOLDEN=1"
-    assert text + "\n" == path.read_text(encoding="utf-8"), f"output changed for {name}"
-
-
-@pytest.fixture
-def tool(tmp_path, monkeypatch):
-    """Call a tool through `call_tool`; returns its masked text (all content blocks joined)."""
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))              # Path.home() -> temporary home
-    monkeypatch.delenv("SE_EPHE_PATH", raising=False)  # force the built-in Moshier ephemeris
-    monkeypatch.chdir(tmp_path)
-
-    db_path = tmp_path / "astro.db"
-    initialize_database(db_path, echo=False)
-    monkeypatch.setattr(srv, "db_helper", DatabaseHelper(db_path=str(db_path)))
-    monkeypatch.setattr(srv, "ephemeris", None)
-
-    async def call(name: str, arguments: dict | None = None) -> str:
-        blocks = await srv.call_tool(name, arguments or {})
-        return _masked("\n---\n".join(b.text for b in blocks), tmp_path)
-
-    call.home = home
-    call.db = srv.db_helper
-    call.tmp = tmp_path
-    return call
-
-
-def _add_owner(tool, name="Test Owner", date="1981-05-06", time="00:50"):
-    profile = tool.db.create_profile_with_location(
-        name=name,
-        birth_date=date,
-        birth_time=time,
-        birth_location_name="Richardson, TX",
-        birth_latitude=32.9483,
-        birth_longitude=-96.7299,
-        birth_timezone="America/Chicago",
-    )
-    tool.db.set_owner_profile(profile.id)
-    return profile
-
-
-def _add_second(tool):
-    return tool.db.create_profile_with_location(
-        name="Second Person",
-        birth_date="1990-01-15",
-        birth_time="12:00",
-        birth_location_name="Seattle, WA",
-        birth_latitude=47.6062,
-        birth_longitude=-122.3321,
-        birth_timezone="America/Los_Angeles",
-    )
 
 
 # -- check_ephemeris ---------------------------------------------------------------------------

@@ -210,17 +210,11 @@ async def test_visualize_natal_chart_default_path_is_working_directory(tool):
 # -- the advertised tool list ------------------------------------------------------------------
 
 async def test_advertised_tools_are_unchanged(tool):
-    """Tool names, descriptions and parameter schemas are what a client sees.
-
-    The golden is sorted by name: the order tools are listed in is not part of the contract, so the
-    registry migration may reorder it.
-    """
+    """Tool names, descriptions and parameter schemas are what a client sees, listed sorted by name."""
     import json
 
-    listed = sorted(
-        (t.model_dump(mode="json", exclude_none=True) for t in await srv.list_tools()),
-        key=lambda t: t["name"],
-    )
+    listed = [t.model_dump(mode="json", exclude_none=True) for t in await srv.list_tools()]
+    assert [t["name"] for t in listed] == sorted(t["name"] for t in listed), "tools are listed sorted by name"
     assert len({t["name"] for t in listed}) == len(listed), "a tool is listed twice"
     assert_golden("tool_schemas", json.dumps(listed, indent=2, ensure_ascii=False))
 

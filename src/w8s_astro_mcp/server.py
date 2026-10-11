@@ -640,8 +640,8 @@ async def list_tools() -> list[Tool]:
         )
     ]
     
-    # Tools that have moved into the registry follow, in their advertised order.
-    return core_tools + registry.tools()
+    # Listed sorted by name. Once every tool is in the registry this is just registry.tools().
+    return sorted(core_tools + registry.tools(), key=lambda tool: tool.name)
 
 
 

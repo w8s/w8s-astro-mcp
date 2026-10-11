@@ -50,7 +50,7 @@ class ToolSpec:
 
 
 class ToolRegistry:
-    """An ordered set of tools. The order is the order clients see in the tool list."""
+    """A set of tools, listed sorted by name so the order never depends on registration order."""
 
     def __init__(self, specs: Iterable[ToolSpec] = ()):
         self._specs: dict[str, ToolSpec] = {}
@@ -63,10 +63,10 @@ class ToolRegistry:
         self._specs[spec.name] = spec
 
     def tools(self) -> list[Tool]:
-        return [spec.tool for spec in self._specs.values()]
+        return [self._specs[name].tool for name in self.names()]
 
     def names(self) -> list[str]:
-        return list(self._specs)
+        return sorted(self._specs)
 
     def natal_notice_tools(self) -> frozenset[str]:
         """Names of tools whose output depends on stored natal charts."""

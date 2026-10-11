@@ -4,11 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.1] — 2026-10-11
 
 ### Fixed
 
 - **`setup_owner` works again.** Since 0.12.0 the tool was listed to your AI assistant, but every call answered "Unknown tool: setup_owner", so the owner profile could not be set or changed through the server. The server's routing still named `set_current_profile`, the tool 0.12.0 replaced, instead of `setup_owner`. A new test calls every listed tool through the server's routing, so a tool that is listed but not routed now fails the test suite.
+
+### Security
+
+- The locked `PyJWT` (pulled in through the `mcp` package) moves from 2.14.0 to 2.15.1, which fixes two moderate advisories. This server does not verify JWTs, so it was not exposed in practice.
 
 ## [0.15.0] — 2026-10-11
 

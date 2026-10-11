@@ -209,8 +209,122 @@ async def test_visualize_natal_chart_default_path_is_working_directory(tool):
 # -- the advertised tool list ------------------------------------------------------------------
 
 async def test_advertised_tools_are_unchanged(tool):
-    """Tool names, their order, descriptions and parameter schemas are what a client sees."""
+    """Tool names, descriptions and parameter schemas are what a client sees.
+
+    The golden is sorted by name: the order tools are listed in is not part of the contract, so the
+    registry migration may reorder it.
+    """
     import json
 
-    listed = [t.model_dump(mode="json", exclude_none=True) for t in await srv.list_tools()]
+    listed = sorted(
+        (t.model_dump(mode="json", exclude_none=True) for t in await srv.list_tools()),
+        key=lambda t: t["name"],
+    )
+    assert len({t["name"] for t in listed}) == len(listed), "a tool is listed twice"
     assert_golden("tool_schemas", json.dumps(listed, indent=2, ensure_ascii=False))
+
+
+# -- transit tools: get_transits, get_transit_history, find_last_transit, get_ingresses --------
+
+async def _log_two_lookups(tool):
+    """Two logged lookups at fixed dates, so history and last-transit have rows to report."""
+    await tool("get_transits", {"date": "2026-03-20", "time": "12:00"})
+    await tool("get_transits", {"date": "2026-06-21", "time": "12:00"})
+
+
+async def test_get_transits_without_owner(tool):
+    assert_golden("get_transits_no_owner", await tool("get_transits", {"date": "2026-03-20"}))
+
+
+async def test_get_transits_unknown_profile(tool):
+    _add_owner(tool)
+    assert_golden("get_transits_unknown_profile", await tool("get_transits", {"date": "2026-03-20", "profile_id": 999}))
+
+
+async def test_get_transits_at_current_home(tool):
+    _add_owner(tool)
+    assert_golden("get_transits_home", await tool("get_transits", {"date": "2026-03-20", "time": "09:00"}))
+
+
+async def test_get_transits_at_birth_location_for_other_profile(tool):
+    _add_owner(tool)
+    other = _add_second(tool)
+    text = await tool("get_transits", {"date": "2026-03-20", "location": "birth", "profile_id": other.id})
+    assert_golden("get_transits_birth_other_profile", text)
+
+
+async def test_get_transits_unknown_place_that_cannot_be_geocoded(tool, monkeypatch):
+    _add_owner(tool)
+    monkeypatch.setattr(srv, "geocode_location", lambda place: None)
+    assert_golden("get_transits_unknown_place", await tool("get_transits", {"date": "2026-03-20", "location": "Nowhereville"}))
+
+
+async def test_get_transits_geocoded_place_is_not_logged(tool, monkeypatch):
+    _add_owner(tool)
+    monkeypatch.setattr(
+        srv, "geocode_location",
+        lambda place: {"name": "Bangkok, Thailand", "latitude": 13.7563, "longitude": 100.5018, "timezone": "Asia/Bangkok"},
+    )
+    text = await tool("get_transits", {"date": "2026-03-20", "location": "Bangkok"})
+    assert_golden("get_transits_geocoded", text)
+    assert "No transit history" in await tool("get_transit_history")   # nothing was logged
+
+
+async def test_get_transit_history(tool):
+    _add_owner(tool)
+    await _log_two_lookups(tool)
+    assert_golden("get_transit_history_all", await tool("get_transit_history"))
+    assert_golden("get_transit_history_saturn_after_april", await tool("get_transit_history", {"planet": "Saturn", "after": "2026-04-01"}))
+    assert_golden("get_transit_history_limit_one", await tool("get_transit_history", {"limit": 1}))
+
+
+async def test_get_transit_history_empty_and_errors(tool):
+    assert_golden("get_transit_history_no_owner", await tool("get_transit_history"))
+    _add_owner(tool)
+    assert_golden("get_transit_history_none_logged", await tool("get_transit_history", {"planet": "Mars", "sign": "Aries"}))
+    assert_golden("get_transit_history_unknown_profile", await tool("get_transit_history", {"profile_id": 999}))
+
+
+async def test_find_last_transit(tool):
+    _add_owner(tool)
+    await _log_two_lookups(tool)
+    assert_golden("find_last_transit_sun_in_cancer", await tool("find_last_transit", {"planet": "Sun", "sign": "Cancer"}))
+    assert_golden("find_last_transit_not_found", await tool("find_last_transit", {"planet": "Sun", "sign": "Capricorn"}))
+    assert_golden("find_last_transit_direct_in_house", await tool("find_last_transit", {"planet": "Moon", "retrograde": False, "house": 1}))
+
+
+async def test_find_last_transit_errors(tool):
+    assert_golden("find_last_transit_no_owner", await tool("find_last_transit", {"planet": "Sun", "sign": "Leo"}))
+    _add_owner(tool)
+    assert_golden("find_last_transit_unknown_profile", await tool("find_last_transit", {"planet": "Sun", "sign": "Leo", "profile_id": 999}))
+    assert_golden("find_last_transit_no_planet", await tool("find_last_transit", {"sign": "Leo"}))
+    assert_golden("find_last_transit_no_filter", await tool("find_last_transit", {"planet": "Sun"}))
+
+
+@pytest.fixture
+def frozen_today(monkeypatch):
+    """Make date.today() return 2026-10-11 for code that imports `date` from datetime at call time."""
+    import datetime as dt
+
+    class FrozenDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 10, 11)
+
+    monkeypatch.setattr(dt, "date", FrozenDate)
+
+
+async def test_get_ingresses_without_owner(tool, frozen_today):
+    assert_golden("get_ingresses_no_owner", await tool("get_ingresses"))
+
+
+async def test_get_ingresses_upcoming(tool, frozen_today):
+    _add_owner(tool)
+    assert_golden("get_ingresses_30_days", await tool("get_ingresses"))
+    assert_golden("get_ingresses_past_14_days", await tool("get_ingresses", {"days": 14, "future": False}))
+
+
+async def test_get_ingresses_extended_outer_planets_with_offset(tool, frozen_today):
+    _add_owner(tool)
+    text = await tool("get_ingresses", {"extended": True, "days": 400, "offset": 365})
+    assert_golden("get_ingresses_extended_offset", text)

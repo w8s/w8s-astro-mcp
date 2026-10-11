@@ -1,15 +1,116 @@
 [
   {
-    "name": "dismiss_data_notice",
-    "description": "Stop the 'Data notice' about stored natal charts that need recalculating, until a different chart becomes affected. Call this ONLY when the user asks not to be reminded; it does not fix anything. Use undo=true to bring the notice back.",
+    "name": "add_connection_member",
+    "description": "Add a profile to an existing connection. Note: adding a member invalidates any cached charts for this connection.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "undo": {
-          "type": "boolean",
-          "description": "If true, bring the notice back instead of dismissing it (default false)"
+        "connection_id": {
+          "type": "integer",
+          "description": "Connection ID (from list_connections)"
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to add (from list_profiles)"
         }
-      }
+      },
+      "required": [
+        "connection_id",
+        "profile_id"
+      ]
+    }
+  },
+  {
+    "name": "add_location",
+    "description": "Add a saved location (home, office, travel destination, etc.) for a profile. Every location must belong to a specific profile.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID this location belongs to (required)"
+        },
+        "label": {
+          "type": "string",
+          "description": "Location label (e.g., 'Office', 'Vacation Home')"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude in decimal degrees"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude in decimal degrees"
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone (e.g., 'America/Los_Angeles')"
+        },
+        "set_as_home": {
+          "type": "boolean",
+          "description": "Optional: Set as current home location for this profile"
+        }
+      },
+      "required": [
+        "profile_id",
+        "label",
+        "latitude",
+        "longitude",
+        "timezone"
+      ]
+    }
+  },
+  {
+    "name": "cast_event_chart",
+    "description": "Cast an astrological chart for any date, time, and location. No profile required — useful for historical events, mundane astrology, and electional work.\n\nIf 'label' is provided, the chart is saved to the database and can be referenced later via compare_charts using 'event:<label>'.\n\nIf 'label' is omitted, the chart is calculated and returned but not saved.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Date in YYYY-MM-DD format"
+        },
+        "time": {
+          "type": "string",
+          "description": "Time in HH:MM format, local time at the given location (converted to UT using the timezone)"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude in decimal degrees"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude in decimal degrees"
+        },
+        "timezone": {
+          "type": "string",
+          "description": "IANA timezone name (e.g., 'America/Chicago'); used to convert the local time to UT"
+        },
+        "location_name": {
+          "type": "string",
+          "description": "Human-readable location name (e.g., 'Chicago, IL')"
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional unique name to save this chart for later reference. If omitted, chart is calculated but not saved. Must be unique among all saved event charts."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional notes about this event"
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Optional profile ID to associate this event with a person"
+        }
+      },
+      "required": [
+        "date",
+        "time",
+        "latitude",
+        "longitude",
+        "timezone",
+        "location_name"
+      ]
     }
   },
   {
@@ -18,196 +119,6 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
-    }
-  },
-  {
-    "name": "download_ephemeris_files",
-    "description": "Download Swiss Ephemeris data files for higher-precision calculations. Upgrades from built-in Moshier ephemeris (~1 arcminute) to full Swiss Ephemeris files (~0.001 arcsecond). Downloads ~2 MB from the official Swiss Ephemeris GitHub repository to ~/.w8s-astro-mcp/ephe/. Use check_ephemeris first to see current precision mode.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "confirm": {
-          "type": "boolean",
-          "description": "Must be true to proceed. Omit or set false to preview file details (names, sizes, source, destination) first."
-        }
-      }
-    }
-  },
-  {
-    "name": "setup_astro_config",
-    "description": "Configure birth data and location for transit calculations. IMPORTANT: Ask the user for information conversationally in steps:\n1. Ask: 'What's your birthday?' (get YYYY-MM-DD)\n2. Ask: 'Do you know what time you were born? (If not, we can use 12:00)' (get HH:MM)\n3. Ask: 'Where were you born?' (get city, state/country)\nThen look up coordinates and confirm with user before saving.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "birth_date": {
-          "type": "string",
-          "description": "Birth date in YYYY-MM-DD format"
-        },
-        "birth_time": {
-          "type": "string",
-          "description": "Birth time in HH:MM format (24-hour), local time at the birth location (converted to UT using the timezone)"
-        },
-        "birth_location_name": {
-          "type": "string",
-          "description": "Location name (e.g., 'Richardson, TX')"
-        },
-        "birth_latitude": {
-          "type": "number",
-          "description": "Latitude in decimal degrees"
-        },
-        "birth_longitude": {
-          "type": "number",
-          "description": "Longitude in decimal degrees"
-        },
-        "birth_timezone": {
-          "type": "string",
-          "description": "IANA timezone of the birth location (e.g., 'America/Chicago'); used to convert the local birth time to UT"
-        }
-      },
-      "required": [
-        "birth_date",
-        "birth_time",
-        "birth_location_name",
-        "birth_latitude",
-        "birth_longitude",
-        "birth_timezone"
-      ]
-    }
-  },
-  {
-    "name": "view_config",
-    "description": "View current astrological configuration (birth data and saved locations)",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    }
-  },
-  {
-    "name": "get_natal_chart",
-    "description": "Get the natal chart (birth chart) planetary positions for a profile. Defaults to the owner profile if no profile_id is supplied.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
-        }
-      }
-    }
-  },
-  {
-    "name": "get_transits",
-    "description": "Get planetary transits for a specific date and location. Location can be a saved label ('home', 'work', 'birth'), or any city/place name ('Seattle', 'Bangkok, Thailand', 'Paris') — unknown names are geocoded automatically. Defaults to current home location if omitted.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "date": {
-          "type": "string",
-          "description": "Date in YYYY-MM-DD format (optional, defaults to today)"
-        },
-        "time": {
-          "type": "string",
-          "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
-        },
-        "location": {
-          "type": "string",
-          "description": "Saved label ('home', 'work', 'birth') or any city name ('Bangkok, Thailand', 'Seattle, WA'). Defaults to 'current'."
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
-        }
-      }
-    }
-  },
-  {
-    "name": "get_transit_history",
-    "description": "Query historical transit lookups stored in the database for a profile. Defaults to the owner profile. Supports filtering by date range, planet, and sign. Examples: 'show me last month\\'s transits', 'when was Mercury in Capricorn?', 'what sign was Jupiter in last year?'",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "after": {
-          "type": "string",
-          "description": "Return lookups on or after this date (YYYY-MM-DD, optional)"
-        },
-        "before": {
-          "type": "string",
-          "description": "Return lookups on or before this date (YYYY-MM-DD, optional)"
-        },
-        "planet": {
-          "type": "string",
-          "description": "Filter by planet name, e.g. 'Mercury' (optional)"
-        },
-        "sign": {
-          "type": "string",
-          "description": "Filter by zodiac sign, e.g. 'Capricorn' — requires planet (optional)"
-        },
-        "limit": {
-          "type": "integer",
-          "description": "Max number of results to return (default 20, max 100)"
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
-        }
-      }
-    }
-  },
-  {
-    "name": "find_last_transit",
-    "description": "Find the most recent logged transit where a planet met specific conditions. Examples: 'when was Mercury last retrograde?', 'when was the Moon last in Scorpio?', 'when was Mars last in my 7th house?'. Requires at least one of: sign, retrograde, or house.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "planet": {
-          "type": "string",
-          "description": "Planet name, e.g. 'Mercury', 'Mars'"
-        },
-        "sign": {
-          "type": "string",
-          "description": "Zodiac sign to match, e.g. 'Capricorn' (optional)"
-        },
-        "retrograde": {
-          "type": "boolean",
-          "description": "If true, find last retrograde; if false, find last direct (optional)"
-        },
-        "house": {
-          "type": "integer",
-          "description": "Natal house number to match, 1-12 (optional)"
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
-        }
-      },
-      "required": [
-        "planet"
-      ]
-    }
-  },
-  {
-    "name": "get_ingresses",
-    "description": "Scan the ephemeris for upcoming or recent planetary sign ingresses and stations (retrograde/direct). Examples: 'what transits are coming up this month?', 'when does Mercury go retrograde?', 'show me major transits next April', 'what were the outer planet movements during the Renaissance?'. Use offset to shift the window from today. Use extended=true for historical or far-future windows (outer planets only).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "days": {
-          "type": "integer",
-          "description": "Number of days to scan. Normal mode: default 30, max 365. Extended mode: default 30, max 3650."
-        },
-        "future": {
-          "type": "boolean",
-          "description": "True = scan forward from today+offset (default), False = backward"
-        },
-        "offset": {
-          "type": "integer",
-          "description": "Days from today to start the scan window (default 0). Normal mode: max 36500 (~100 years). Extended mode: uncapped."
-        },
-        "extended": {
-          "type": "boolean",
-          "description": "If true, removes offset cap and raises scan cap to 3650 days, but only returns outer planets (Jupiter through Pluto). Inner planets are excluded in extended mode — they produce thousands of events over long windows and become unreadable. See docs/ARCHITECTURE.md for rationale and how to request changes."
-        }
-      }
     }
   },
   {
@@ -274,93 +185,36 @@
     }
   },
   {
-    "name": "find_house_placements",
-    "description": "Determine which house each planet occupies in a chart. Can use a natal chart (via profile_id or owner default) or a connection chart (composite/Davison via connection_id + chart_type) as the house reference frame. Shows both which planets are in each house and which house each planet is in.",
+    "name": "create_connection",
+    "description": "Create a new connection between two or more profiles for synastry or composite/Davison chart analysis. Requires at least 2 profile IDs. Use list_profiles to find profile IDs first.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "date": {
+        "label": {
           "type": "string",
-          "description": "Date for the planets to place (YYYY-MM-DD), 'natal' for birth chart planets, or 'today' for current sky"
+          "description": "Name for this connection (e.g., 'Alice & Bob', 'Family Trio')"
         },
-        "time": {
+        "profile_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "List of profile IDs to include (minimum 2)",
+          "minItems": 2
+        },
+        "type": {
           "type": "string",
-          "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
+          "description": "Optional connection type (e.g., 'romantic', 'family', 'business')"
         },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID whose natal houses to use as the reference frame (from list_profiles). Defaults to owner profile. Mutually exclusive with connection_id."
-        },
-        "connection_id": {
-          "type": "integer",
-          "description": "Connection ID whose composite/Davison houses to use as the reference frame (from list_connections). Requires chart_type. Mutually exclusive with profile_id."
-        },
-        "chart_type": {
+        "start_date": {
           "type": "string",
-          "enum": [
-            "composite",
-            "davison"
-          ],
-          "description": "Which connection chart to use as the house reference frame. Required when connection_id is supplied."
+          "description": "Optional date the relationship began (YYYY-MM-DD)"
         }
       },
       "required": [
-        "date"
+        "label",
+        "profile_ids"
       ]
-    }
-  },
-  {
-    "name": "visualize_natal_chart",
-    "description": "Generate a circular natal chart visualization and save to file. Creates a traditional astrological chart wheel with zodiac signs, houses, planets, and angles.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "output_path": {
-          "type": "string",
-          "description": "Path where to save the chart image (e.g., '~/Downloads/natal_chart.png'). Defaults to 'natal_chart.png' in current directory."
-        },
-        "title": {
-          "type": "string",
-          "description": "Custom title for the chart (optional, defaults to 'Natal Chart')"
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to visualize (from list_profiles). Defaults to owner profile."
-        }
-      }
-    }
-  },
-  {
-    "name": "visualize_placement_dials",
-    "description": "Create an interactive page for learning what a planet, a sign and a house mean, alone and together. Three dials (planet, sign, house) can be turned or switched off, and the reading shows each layer by itself and how the layers combine. The chart's own placements and house cusps are loaded as quick picks. Saves one HTML file to open in a browser.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "output_path": {
-          "type": "string",
-          "description": "Where to save the page: a file path, or a file path ending in .html or .htm, or a folder (the file is then named placement_dials_<profile name>.html). Defaults to ~/Downloads/placement_dials_<profile name>.html (for example placement_dials_todd.html). Existing files are overwritten."
-        },
-        "title": {
-          "type": "string",
-          "description": "Heading above the placement quick picks (optional, defaults to 'Natal placements')"
-        },
-        "open_in_browser": {
-          "type": "boolean",
-          "description": "Open the page in the default browser after saving. Defaults to false; ask the user before turning it on."
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to use (from list_profiles). Defaults to owner profile."
-        }
-      }
-    }
-  },
-  {
-    "name": "list_profiles",
-    "description": "List all astrological profiles in the database. Shows profile names, birth dates, and which is currently active. Use this to see all available profiles before creating, updating, or switching.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
     }
   },
   {
@@ -410,33 +264,44 @@
     }
   },
   {
-    "name": "update_profile",
-    "description": "Update a profile field (name, birth date, birth time, etc.). Use with caution - changing birth data invalidates cached natal chart. Valid fields: name, birth_date, birth_time",
+    "name": "delete_connection",
+    "description": "Delete a connection and all its cached charts. WARNING: Permanent and cannot be undone. Does not affect the member profiles themselves.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "profile_id": {
+        "connection_id": {
           "type": "integer",
-          "description": "Profile ID to update (get from list_profiles)"
+          "description": "Connection ID to delete"
         },
-        "field": {
-          "type": "string",
-          "description": "Field to update (name, birth_date, birth_time)",
-          "enum": [
-            "name",
-            "birth_date",
-            "birth_time"
-          ]
-        },
-        "value": {
-          "type": "string",
-          "description": "New value for the field"
+        "confirm": {
+          "type": "boolean",
+          "description": "Must be true to confirm deletion"
         }
       },
       "required": [
-        "profile_id",
-        "field",
-        "value"
+        "connection_id",
+        "confirm"
+      ]
+    }
+  },
+  {
+    "name": "delete_event_chart",
+    "description": "Delete a saved event chart by label. WARNING: Permanent and cannot be undone.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Label of the event chart to delete"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "Must be true to confirm deletion"
+        }
+      },
+      "required": [
+        "label",
+        "confirm"
       ]
     }
   },
@@ -462,295 +327,29 @@
     }
   },
   {
-    "name": "setup_owner",
-    "description": "Set who you are — the human operating this server. This is a one-time setup step, not a session operation. The owner profile is the stable identity used as the default for get_natal_chart, get_transits, and all other tools when no profile_id is supplied. Use list_profiles to find your profile_id.",
+    "name": "dismiss_data_notice",
+    "description": "Stop the 'Data notice' about stored natal charts that need recalculating, until a different chart becomes affected. Call this ONLY when the user asks not to be reminded; it does not fix anything. Use undo=true to bring the notice back.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to set as owner (get from list_profiles)"
-        }
-      },
-      "required": [
-        "profile_id"
-      ]
-    }
-  },
-  {
-    "name": "add_location",
-    "description": "Add a saved location (home, office, travel destination, etc.) for a profile. Every location must belong to a specific profile.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID this location belongs to (required)"
-        },
-        "label": {
-          "type": "string",
-          "description": "Location label (e.g., 'Office', 'Vacation Home')"
-        },
-        "latitude": {
-          "type": "number",
-          "description": "Latitude in decimal degrees"
-        },
-        "longitude": {
-          "type": "number",
-          "description": "Longitude in decimal degrees"
-        },
-        "timezone": {
-          "type": "string",
-          "description": "Timezone (e.g., 'America/Los_Angeles')"
-        },
-        "set_as_home": {
+        "undo": {
           "type": "boolean",
-          "description": "Optional: Set as current home location for this profile"
-        }
-      },
-      "required": [
-        "profile_id",
-        "label",
-        "latitude",
-        "longitude",
-        "timezone"
-      ]
-    }
-  },
-  {
-    "name": "remove_location",
-    "description": "Remove a saved location. WARNING: Cannot remove locations that are set as birth locations for profiles.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "location_id": {
-          "type": "integer",
-          "description": "Location ID to remove (get from view_config)"
-        }
-      },
-      "required": [
-        "location_id"
-      ]
-    }
-  },
-  {
-    "name": "create_connection",
-    "description": "Create a new connection between two or more profiles for synastry or composite/Davison chart analysis. Requires at least 2 profile IDs. Use list_profiles to find profile IDs first.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "label": {
-          "type": "string",
-          "description": "Name for this connection (e.g., 'Alice & Bob', 'Family Trio')"
-        },
-        "profile_ids": {
-          "type": "array",
-          "items": {
-            "type": "integer"
-          },
-          "description": "List of profile IDs to include (minimum 2)",
-          "minItems": 2
-        },
-        "type": {
-          "type": "string",
-          "description": "Optional connection type (e.g., 'romantic', 'family', 'business')"
-        },
-        "start_date": {
-          "type": "string",
-          "description": "Optional date the relationship began (YYYY-MM-DD)"
-        }
-      },
-      "required": [
-        "label",
-        "profile_ids"
-      ]
-    }
-  },
-  {
-    "name": "list_connections",
-    "description": "List all connections with their member names and IDs. Use this to find connection IDs before requesting charts.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {}
-    }
-  },
-  {
-    "name": "add_connection_member",
-    "description": "Add a profile to an existing connection. Note: adding a member invalidates any cached charts for this connection.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "connection_id": {
-          "type": "integer",
-          "description": "Connection ID (from list_connections)"
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to add (from list_profiles)"
-        }
-      },
-      "required": [
-        "connection_id",
-        "profile_id"
-      ]
-    }
-  },
-  {
-    "name": "remove_connection_member",
-    "description": "Remove a profile from a connection. Connection must retain at least 2 members. Note: removing a member invalidates any cached charts.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "connection_id": {
-          "type": "integer",
-          "description": "Connection ID (from list_connections)"
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Profile ID to remove"
-        }
-      },
-      "required": [
-        "connection_id",
-        "profile_id"
-      ]
-    }
-  },
-  {
-    "name": "get_connection_chart",
-    "description": "Calculate (or retrieve cached) a composite or Davison chart for a connection.\n\nCOMPOSITE: Each planet position is the circular mean of all members' natal positions. No swetest call needed — pure math on cached natal data.\n\nDAVISON: A real chart cast for the midpoint datetime and location of all members' births. Requires a swetest call. Birth times are converted to UTC before averaging, so timezone data in each profile's birth location is used.\n\nResults are cached in the database. Use invalidate=true to force recalculation.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "connection_id": {
-          "type": "integer",
-          "description": "Connection ID (from list_connections)"
-        },
-        "chart_type": {
-          "type": "string",
-          "enum": [
-            "composite",
-            "davison"
-          ],
-          "description": "Type of chart to calculate"
-        },
-        "invalidate": {
-          "type": "boolean",
-          "description": "Force recalculation even if cached (default: false)"
-        }
-      },
-      "required": [
-        "connection_id",
-        "chart_type"
-      ]
-    }
-  },
-  {
-    "name": "delete_connection",
-    "description": "Delete a connection and all its cached charts. WARNING: Permanent and cannot be undone. Does not affect the member profiles themselves.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "connection_id": {
-          "type": "integer",
-          "description": "Connection ID to delete"
-        },
-        "confirm": {
-          "type": "boolean",
-          "description": "Must be true to confirm deletion"
-        }
-      },
-      "required": [
-        "connection_id",
-        "confirm"
-      ]
-    }
-  },
-  {
-    "name": "cast_event_chart",
-    "description": "Cast an astrological chart for any date, time, and location. No profile required — useful for historical events, mundane astrology, and electional work.\n\nIf 'label' is provided, the chart is saved to the database and can be referenced later via compare_charts using 'event:<label>'.\n\nIf 'label' is omitted, the chart is calculated and returned but not saved.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "date": {
-          "type": "string",
-          "description": "Date in YYYY-MM-DD format"
-        },
-        "time": {
-          "type": "string",
-          "description": "Time in HH:MM format, local time at the given location (converted to UT using the timezone)"
-        },
-        "latitude": {
-          "type": "number",
-          "description": "Latitude in decimal degrees"
-        },
-        "longitude": {
-          "type": "number",
-          "description": "Longitude in decimal degrees"
-        },
-        "timezone": {
-          "type": "string",
-          "description": "IANA timezone name (e.g., 'America/Chicago'); used to convert the local time to UT"
-        },
-        "location_name": {
-          "type": "string",
-          "description": "Human-readable location name (e.g., 'Chicago, IL')"
-        },
-        "label": {
-          "type": "string",
-          "description": "Optional unique name to save this chart for later reference. If omitted, chart is calculated but not saved. Must be unique among all saved event charts."
-        },
-        "description": {
-          "type": "string",
-          "description": "Optional notes about this event"
-        },
-        "profile_id": {
-          "type": "integer",
-          "description": "Optional profile ID to associate this event with a person"
-        }
-      },
-      "required": [
-        "date",
-        "time",
-        "latitude",
-        "longitude",
-        "timezone",
-        "location_name"
-      ]
-    }
-  },
-  {
-    "name": "list_event_charts",
-    "description": "List all saved event charts. Shows label, date/time, location, and optional description. Saved charts can be used in compare_charts via 'event:<label>'.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "profile_id": {
-          "type": "integer",
-          "description": "Optional: filter to events associated with a specific profile"
+          "description": "If true, bring the notice back instead of dismissing it (default false)"
         }
       }
     }
   },
   {
-    "name": "delete_event_chart",
-    "description": "Delete a saved event chart by label. WARNING: Permanent and cannot be undone.",
+    "name": "download_ephemeris_files",
+    "description": "Download Swiss Ephemeris data files for higher-precision calculations. Upgrades from built-in Moshier ephemeris (~1 arcminute) to full Swiss Ephemeris files (~0.001 arcsecond). Downloads ~2 MB from the official Swiss Ephemeris GitHub repository to ~/.w8s-astro-mcp/ephe/. Use check_ephemeris first to see current precision mode.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "label": {
-          "type": "string",
-          "description": "Label of the event chart to delete"
-        },
         "confirm": {
           "type": "boolean",
-          "description": "Must be true to confirm deletion"
+          "description": "Must be true to proceed. Omit or set false to preview file details (names, sizes, source, destination) first."
         }
-      },
-      "required": [
-        "label",
-        "confirm"
-      ]
+      }
     }
   },
   {
@@ -823,6 +422,407 @@
         "location_name",
         "criteria"
       ]
+    }
+  },
+  {
+    "name": "find_house_placements",
+    "description": "Determine which house each planet occupies in a chart. Can use a natal chart (via profile_id or owner default) or a connection chart (composite/Davison via connection_id + chart_type) as the house reference frame. Shows both which planets are in each house and which house each planet is in.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Date for the planets to place (YYYY-MM-DD), 'natal' for birth chart planets, or 'today' for current sky"
+        },
+        "time": {
+          "type": "string",
+          "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID whose natal houses to use as the reference frame (from list_profiles). Defaults to owner profile. Mutually exclusive with connection_id."
+        },
+        "connection_id": {
+          "type": "integer",
+          "description": "Connection ID whose composite/Davison houses to use as the reference frame (from list_connections). Requires chart_type. Mutually exclusive with profile_id."
+        },
+        "chart_type": {
+          "type": "string",
+          "enum": [
+            "composite",
+            "davison"
+          ],
+          "description": "Which connection chart to use as the house reference frame. Required when connection_id is supplied."
+        }
+      },
+      "required": [
+        "date"
+      ]
+    }
+  },
+  {
+    "name": "find_last_transit",
+    "description": "Find the most recent logged transit where a planet met specific conditions. Examples: 'when was Mercury last retrograde?', 'when was the Moon last in Scorpio?', 'when was Mars last in my 7th house?'. Requires at least one of: sign, retrograde, or house.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "planet": {
+          "type": "string",
+          "description": "Planet name, e.g. 'Mercury', 'Mars'"
+        },
+        "sign": {
+          "type": "string",
+          "description": "Zodiac sign to match, e.g. 'Capricorn' (optional)"
+        },
+        "retrograde": {
+          "type": "boolean",
+          "description": "If true, find last retrograde; if false, find last direct (optional)"
+        },
+        "house": {
+          "type": "integer",
+          "description": "Natal house number to match, 1-12 (optional)"
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
+        }
+      },
+      "required": [
+        "planet"
+      ]
+    }
+  },
+  {
+    "name": "get_connection_chart",
+    "description": "Calculate (or retrieve cached) a composite or Davison chart for a connection.\n\nCOMPOSITE: Each planet position is the circular mean of all members' natal positions. No swetest call needed — pure math on cached natal data.\n\nDAVISON: A real chart cast for the midpoint datetime and location of all members' births. Requires a swetest call. Birth times are converted to UTC before averaging, so timezone data in each profile's birth location is used.\n\nResults are cached in the database. Use invalidate=true to force recalculation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "connection_id": {
+          "type": "integer",
+          "description": "Connection ID (from list_connections)"
+        },
+        "chart_type": {
+          "type": "string",
+          "enum": [
+            "composite",
+            "davison"
+          ],
+          "description": "Type of chart to calculate"
+        },
+        "invalidate": {
+          "type": "boolean",
+          "description": "Force recalculation even if cached (default: false)"
+        }
+      },
+      "required": [
+        "connection_id",
+        "chart_type"
+      ]
+    }
+  },
+  {
+    "name": "get_ingresses",
+    "description": "Scan the ephemeris for upcoming or recent planetary sign ingresses and stations (retrograde/direct). Examples: 'what transits are coming up this month?', 'when does Mercury go retrograde?', 'show me major transits next April', 'what were the outer planet movements during the Renaissance?'. Use offset to shift the window from today. Use extended=true for historical or far-future windows (outer planets only).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "integer",
+          "description": "Number of days to scan. Normal mode: default 30, max 365. Extended mode: default 30, max 3650."
+        },
+        "future": {
+          "type": "boolean",
+          "description": "True = scan forward from today+offset (default), False = backward"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Days from today to start the scan window (default 0). Normal mode: max 36500 (~100 years). Extended mode: uncapped."
+        },
+        "extended": {
+          "type": "boolean",
+          "description": "If true, removes offset cap and raises scan cap to 3650 days, but only returns outer planets (Jupiter through Pluto). Inner planets are excluded in extended mode — they produce thousands of events over long windows and become unreadable. See docs/ARCHITECTURE.md for rationale and how to request changes."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_natal_chart",
+    "description": "Get the natal chart (birth chart) planetary positions for a profile. Defaults to the owner profile if no profile_id is supplied.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_transit_history",
+    "description": "Query historical transit lookups stored in the database for a profile. Defaults to the owner profile. Supports filtering by date range, planet, and sign. Examples: 'show me last month\\'s transits', 'when was Mercury in Capricorn?', 'what sign was Jupiter in last year?'",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "Return lookups on or after this date (YYYY-MM-DD, optional)"
+        },
+        "before": {
+          "type": "string",
+          "description": "Return lookups on or before this date (YYYY-MM-DD, optional)"
+        },
+        "planet": {
+          "type": "string",
+          "description": "Filter by planet name, e.g. 'Mercury' (optional)"
+        },
+        "sign": {
+          "type": "string",
+          "description": "Filter by zodiac sign, e.g. 'Capricorn' — requires planet (optional)"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max number of results to return (default 20, max 100)"
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_transits",
+    "description": "Get planetary transits for a specific date and location. Location can be a saved label ('home', 'work', 'birth'), or any city/place name ('Seattle', 'Bangkok, Thailand', 'Paris') — unknown names are geocoded automatically. Defaults to current home location if omitted.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Date in YYYY-MM-DD format (optional, defaults to today)"
+        },
+        "time": {
+          "type": "string",
+          "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
+        },
+        "location": {
+          "type": "string",
+          "description": "Saved label ('home', 'work', 'birth') or any city name ('Bangkok, Thailand', 'Seattle, WA'). Defaults to 'current'."
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
+        }
+      }
+    }
+  },
+  {
+    "name": "list_connections",
+    "description": "List all connections with their member names and IDs. Use this to find connection IDs before requesting charts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_event_charts",
+    "description": "List all saved event charts. Shows label, date/time, location, and optional description. Saved charts can be used in compare_charts via 'event:<label>'.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "profile_id": {
+          "type": "integer",
+          "description": "Optional: filter to events associated with a specific profile"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_profiles",
+    "description": "List all astrological profiles in the database. Shows profile names, birth dates, and which is currently active. Use this to see all available profiles before creating, updating, or switching.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "remove_connection_member",
+    "description": "Remove a profile from a connection. Connection must retain at least 2 members. Note: removing a member invalidates any cached charts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "connection_id": {
+          "type": "integer",
+          "description": "Connection ID (from list_connections)"
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to remove"
+        }
+      },
+      "required": [
+        "connection_id",
+        "profile_id"
+      ]
+    }
+  },
+  {
+    "name": "remove_location",
+    "description": "Remove a saved location. WARNING: Cannot remove locations that are set as birth locations for profiles.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "location_id": {
+          "type": "integer",
+          "description": "Location ID to remove (get from view_config)"
+        }
+      },
+      "required": [
+        "location_id"
+      ]
+    }
+  },
+  {
+    "name": "setup_astro_config",
+    "description": "Configure birth data and location for transit calculations. IMPORTANT: Ask the user for information conversationally in steps:\n1. Ask: 'What's your birthday?' (get YYYY-MM-DD)\n2. Ask: 'Do you know what time you were born? (If not, we can use 12:00)' (get HH:MM)\n3. Ask: 'Where were you born?' (get city, state/country)\nThen look up coordinates and confirm with user before saving.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "birth_date": {
+          "type": "string",
+          "description": "Birth date in YYYY-MM-DD format"
+        },
+        "birth_time": {
+          "type": "string",
+          "description": "Birth time in HH:MM format (24-hour), local time at the birth location (converted to UT using the timezone)"
+        },
+        "birth_location_name": {
+          "type": "string",
+          "description": "Location name (e.g., 'Richardson, TX')"
+        },
+        "birth_latitude": {
+          "type": "number",
+          "description": "Latitude in decimal degrees"
+        },
+        "birth_longitude": {
+          "type": "number",
+          "description": "Longitude in decimal degrees"
+        },
+        "birth_timezone": {
+          "type": "string",
+          "description": "IANA timezone of the birth location (e.g., 'America/Chicago'); used to convert the local birth time to UT"
+        }
+      },
+      "required": [
+        "birth_date",
+        "birth_time",
+        "birth_location_name",
+        "birth_latitude",
+        "birth_longitude",
+        "birth_timezone"
+      ]
+    }
+  },
+  {
+    "name": "setup_owner",
+    "description": "Set who you are — the human operating this server. This is a one-time setup step, not a session operation. The owner profile is the stable identity used as the default for get_natal_chart, get_transits, and all other tools when no profile_id is supplied. Use list_profiles to find your profile_id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to set as owner (get from list_profiles)"
+        }
+      },
+      "required": [
+        "profile_id"
+      ]
+    }
+  },
+  {
+    "name": "update_profile",
+    "description": "Update a profile field (name, birth date, birth time, etc.). Use with caution - changing birth data invalidates cached natal chart. Valid fields: name, birth_date, birth_time",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to update (get from list_profiles)"
+        },
+        "field": {
+          "type": "string",
+          "description": "Field to update (name, birth_date, birth_time)",
+          "enum": [
+            "name",
+            "birth_date",
+            "birth_time"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "New value for the field"
+        }
+      },
+      "required": [
+        "profile_id",
+        "field",
+        "value"
+      ]
+    }
+  },
+  {
+    "name": "view_config",
+    "description": "View current astrological configuration (birth data and saved locations)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "visualize_natal_chart",
+    "description": "Generate a circular natal chart visualization and save to file. Creates a traditional astrological chart wheel with zodiac signs, houses, planets, and angles.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string",
+          "description": "Path where to save the chart image (e.g., '~/Downloads/natal_chart.png'). Defaults to 'natal_chart.png' in current directory."
+        },
+        "title": {
+          "type": "string",
+          "description": "Custom title for the chart (optional, defaults to 'Natal Chart')"
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to visualize (from list_profiles). Defaults to owner profile."
+        }
+      }
+    }
+  },
+  {
+    "name": "visualize_placement_dials",
+    "description": "Create an interactive page for learning what a planet, a sign and a house mean, alone and together. Three dials (planet, sign, house) can be turned or switched off, and the reading shows each layer by itself and how the layers combine. The chart's own placements and house cusps are loaded as quick picks. Saves one HTML file to open in a browser.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string",
+          "description": "Where to save the page: a file path, or a file path ending in .html or .htm, or a folder (the file is then named placement_dials_<profile name>.html). Defaults to ~/Downloads/placement_dials_<profile name>.html (for example placement_dials_todd.html). Existing files are overwritten."
+        },
+        "title": {
+          "type": "string",
+          "description": "Heading above the placement quick picks (optional, defaults to 'Natal placements')"
+        },
+        "open_in_browser": {
+          "type": "boolean",
+          "description": "Open the page in the default browser after saving. Defaults to false; ask the user before turning it on."
+        },
+        "profile_id": {
+          "type": "integer",
+          "description": "Profile ID to use (from list_profiles). Defaults to owner profile."
+        }
+      }
     }
   }
 ]

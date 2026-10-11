@@ -14,6 +14,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 
@@ -111,6 +112,22 @@ def get_session_factory(engine: Engine) -> sessionmaker:
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
+def describe_database_error(error: SQLAlchemyError) -> str:
+    """A short, plain-language reason for a database failure (no SQL, no parameters)."""
+    if isinstance(error, IntegrityError):
+        detail = str(getattr(error, "orig", error))
+        if "UNIQUE" in detail:
+            if "locations.profile_id" in detail and "locations.label" in detail:
+                return "That location label is already used for this profile."
+            if "connection_members" in detail:
+                return "That profile is already a member of this connection."
+            return "That conflicts with a record that already exists."
+        if "FOREIGN KEY" in detail:
+            return "A record this refers to does not exist (check the profile or connection ID)."
+        return "That conflicts with existing data."
+    return "The database could not complete the operation."
+
+
 @contextmanager
 def get_session(engine: Engine | None = None) -> Generator[Session, None, None]:
     """
@@ -138,6 +155,10 @@ def get_session(engine: Engine | None = None) -> Generator[Session, None, None]:
     try:
         yield session
         session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        # str(e) would include the SQL statement and its parameters; say what went wrong instead.
+        raise DatabaseError(describe_database_error(e)) from e
     except Exception as e:
         session.rollback()
         raise DatabaseError(f"Database operation failed: {e}") from e

@@ -40,6 +40,17 @@ def _absolute_position(sign: str, degree: float) -> float:
     return idx * 30.0 + degree
 
 
+KNOWN_CRITERIA = (
+    "moon_not_void", "no_retrograde_inner", "no_retrograde_outer", "no_retrograde_all",
+    "moon_waxing", "moon_waning", "benefic_angular", "asc_not_late",
+)
+
+
+def unknown_criteria(criteria: list[str]) -> list[str]:
+    """The names in ``criteria`` that score_chart does not know."""
+    return [c for c in criteria if c not in KNOWN_CRITERIA]
+
+
 def score_chart(chart: dict, criteria: list[str]) -> tuple[list[str], dict[str, str]]:
     """Evaluate a chart against electional criteria.
 

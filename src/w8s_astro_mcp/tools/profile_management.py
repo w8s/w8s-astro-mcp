@@ -7,6 +7,7 @@ Enables multi-profile support for friends, family, synastry, etc.
 from typing import Any, Optional
 from mcp.types import Tool, TextContent
 
+from ..utils import timezones
 from ..registry import ToolContext, ToolSpec, bind_handlers
 
 
@@ -280,6 +281,14 @@ async def handle_create_profile(db_helper, arguments: dict) -> list[TextContent]
                      "birth_location_name, birth_latitude, birth_longitude, birth_timezone)"
             )]
         
+        try:
+            birth_date = timezones.validate_birth_date(birth_date)
+            birth_time = timezones.validate_birth_time(birth_time)
+            birth_timezone = timezones.validate_timezone(birth_timezone)
+            timezones.validate_coordinates(birth_latitude, birth_longitude)
+        except ValueError as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
         # Create profile with birth location
         profile = db_helper.create_profile_with_location(
             name=name,
@@ -325,6 +334,14 @@ async def handle_update_profile(db_helper, arguments: dict) -> list[TextContent]
                 text="Error: Missing required fields (profile_id, field, value)"
             )]
         
+        try:
+            if field == "birth_date":
+                value = timezones.validate_birth_date(value)
+            elif field == "birth_time":
+                value = timezones.validate_birth_time(value)
+        except ValueError as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
         # Update profile (this validates profile exists and field is allowed)
         profile = db_helper.update_profile_field(profile_id, field, value)
         
@@ -474,6 +491,12 @@ async def handle_add_location(db_helper, arguments: dict) -> list[TextContent]:
                 text="Error: Missing required fields (profile_id, label, latitude, longitude, timezone)"
             )]
         
+        try:
+            timezone = timezones.validate_timezone(timezone)
+            timezones.validate_coordinates(latitude, longitude)
+        except ValueError as e:
+            return [TextContent(type="text", text=f"Error: {e}")]
+
         # Verify profile exists
         profile = db_helper.get_profile_by_id(profile_id)
         if not profile:

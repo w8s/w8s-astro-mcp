@@ -241,14 +241,12 @@ INVALID_PROFILE_FIELDS = [
 ]
 
 
-@pytest.mark.xfail(strict=True, reason="create_profile does not validate its input; it stores whatever it is given")
 @pytest.mark.parametrize("field, value", INVALID_PROFILE_FIELDS)
 async def test_create_profile_rejects_invalid_values(tool, field, value):
     assert_fails(await tool("create_profile", {**ALICE, field: value}))
     assert (await tool("list_profiles")).startswith("No profiles found")
 
 
-@pytest.mark.xfail(strict=True, reason="update_profile accepts any text for a birth date or time, corrupting the profile")
 @pytest.mark.parametrize("field, value", [("birth_date", "nope"), ("birth_time", "99:99")])
 async def test_update_profile_rejects_an_invalid_date_or_time(tool, field, value):
     add_owner(tool)
@@ -256,7 +254,6 @@ async def test_update_profile_rejects_an_invalid_date_or_time(tool, field, value
     assert value not in await tool("list_profiles")
 
 
-@pytest.mark.xfail(strict=True, reason="add_location does not validate the timezone name")
 async def test_add_location_rejects_an_unknown_timezone(tool):
     add_owner(tool)
     reply = await tool(
@@ -266,7 +263,6 @@ async def test_add_location_rejects_an_unknown_timezone(tool):
     assert_fails(reply)
 
 
-@pytest.mark.xfail(strict=True, reason="a duplicate label shows the database's own error, SQL and parameters included")
 async def test_a_taken_location_label_does_not_show_database_internals(tool):
     add_owner(tool)
     args = {"profile_id": 1, "label": "Work", "latitude": 40.7, "longitude": -74.0, "timezone": "America/New_York"}

@@ -59,6 +59,34 @@ def _local(date_str: str, time_str: str, tz_name: str) -> datetime:
     return day.replace(hour=hour, minute=minute, tzinfo=zone)  # fold=0: first occurrence
 
 
+def validate_timezone(tz_name: str) -> str:
+    """Return the cleaned IANA name, or raise ``TimezoneError``."""
+    return _zone(tz_name).key
+
+
+def validate_birth_date(date_str: str) -> str:
+    """Return ``date_str`` if it is a real YYYY-MM-DD date, or raise ``TimezoneError``."""
+    return _local(date_str, "00:00", "UTC").strftime("%Y-%m-%d")
+
+
+def validate_birth_time(time_str: str) -> str:
+    """Return ``time_str`` as HH:MM if it is a valid 24-hour time, or raise ``TimezoneError``."""
+    hour, minute = _parse_time(time_str)
+    return f"{hour:02d}:{minute:02d}"
+
+
+def validate_coordinates(latitude, longitude) -> None:
+    """Raise ``ValueError`` unless latitude is in -90..90 and longitude in -180..180."""
+    try:
+        lat, lon = float(latitude), float(longitude)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Latitude and longitude must be numbers.") from exc
+    if not -90 <= lat <= 90:
+        raise ValueError(f"Latitude {latitude} is out of range (-90 to 90).")
+    if not -180 <= lon <= 180:
+        raise ValueError(f"Longitude {longitude} is out of range (-180 to 180).")
+
+
 def local_to_utc(date_str: str, time_str: str, tz_name: str) -> datetime:
     """Convert a local date and time in ``tz_name`` to a timezone-aware UTC datetime."""
     return _local(date_str, time_str, tz_name).astimezone(timezone.utc)

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Bad profile and location input is refused.** `create_profile` and `add_location` now check the timezone name and the coordinates, `create_profile` also checks the birth date and time, and `update_profile` checks a new `birth_date` or `birth_time`. Before, a value like `1985-13-45`, `25:99` or `Mars/Base` was stored and broke charts later. The error says what was wrong.
+- **Database errors no longer show SQL.** A duplicate location label, adding a connection member twice, or casting an event for a profile that does not exist used to answer with the database's own message (the SQL statement and its parameters). They now say what happened in plain words.
+- **A mistyped electional criterion is reported.** `find_electional_windows` used to ignore an unknown criterion, so a typo read as "no candidates found". It now answers with an error that lists the valid criteria.
+
 ## [0.15.1] — 2026-10-11
 
 ### Fixed

@@ -381,6 +381,15 @@ async def handle_find_electional_windows(db_helper, arguments: dict) -> list[Tex
     if not criteria:
         return [TextContent(type="text", text="Error: at least one criterion is required")]
 
+    from ..utils.electional import KNOWN_CRITERIA, unknown_criteria
+    unknown = unknown_criteria(criteria)
+    if unknown:
+        return [TextContent(
+            type="text",
+            text=f"Error: Unknown criterion {', '.join(map(repr, unknown))}. "
+                 f"Valid criteria: {', '.join(KNOWN_CRITERIA)}",
+        )]
+
     interval_minutes = max(15, min(360, interval_minutes))
     max_results = max(1, min(50, max_results))
 

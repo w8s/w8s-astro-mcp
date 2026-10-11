@@ -1501,7 +1501,7 @@ async def _dispatch_tool(name: str, arguments: Any) -> list[TextContent]:
     
     # Profile management tools
     elif name in ["list_profiles", "create_profile", "update_profile", "delete_profile",
-                  "set_current_profile", "add_location", "remove_location"]:
+                  "setup_owner", "add_location", "remove_location"]:
         db = init_db()
         return await handle_profile_tool(name, arguments, db)
 

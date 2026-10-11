@@ -38,7 +38,7 @@ def srv_and_db(tmp_path):
 
 def _natal(srv, db, **overrides):
     profile = db.create_profile_with_location(**{**REFERENCE, **overrides})
-    return profile, srv.get_natal_chart_data(profile_id=profile.id)
+    return profile, srv.chart_tools.get_natal_chart_data(srv.tool_context, profile_id=profile.id)
 
 
 def test_reference_chart_matches_independent_site(srv_and_db):
@@ -99,7 +99,7 @@ def test_unknown_timezone_gives_a_clear_error(srv_and_db):
     srv, db = srv_and_db
     profile = db.create_profile_with_location(**{**REFERENCE, "birth_timezone": "Mars/Olympus"})
     with pytest.raises(EphemerisError, match="timezone"):
-        srv.get_natal_chart_data(profile_id=profile.id)
+        srv.chart_tools.get_natal_chart_data(srv.tool_context, profile_id=profile.id)
 
 
 def test_editing_the_birth_time_recalculates_with_the_conversion(srv_and_db):
@@ -108,7 +108,7 @@ def test_editing_the_birth_time_recalculates_with_the_conversion(srv_and_db):
     assert before["points"]["Ascendant"]["sign"] == "Capricorn"
 
     db.update_profile_field(profile.id, "birth_time", "05:50")   # invalidates the cached chart
-    after = srv.get_natal_chart_data(profile_id=profile.id)
+    after = srv.chart_tools.get_natal_chart_data(srv.tool_context, profile_id=profile.id)
 
     expected = EphemerisEngine().get_chart(38.627, -90.199, "1981-05-06", "10:50", "P")   # 05:50 CDT = 10:50 UT
     assert after["points"]["Ascendant"]["sign"] == expected["points"]["Ascendant"]["sign"]

@@ -142,6 +142,12 @@ choosing to upgrade. Treat default tool output as an interface:
 - Presentation (glyphs, wikilinks, which results are worth showing) belongs to the caller; the
   server returns data.
 
+### Code Style
+Follow PEP 8, but not religiously: match the code around you, and keep a change focused. `black` is
+configured (line length 100) and is a dev dependency, but it is not enforced in CI and the code base is
+not reformatted wholesale. In new and moved code: group imports (standard library, third party, local),
+drop unused ones, and use type hints on new functions. Run `python -m pyflakes <file>` on files you touch.
+
 ### Tool Names
 Tool names are `verb_noun` in snake_case, and the server lists them sorted by name (the registry does
 the sorting; do not hand-order them). That groups tools by leading verb.

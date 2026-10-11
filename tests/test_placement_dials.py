@@ -289,7 +289,7 @@ async def test_handler_success_writes_file(tmp_path):
     out = tmp_path / "dials.html"
     with patch.object(server, "get_natal_chart_data", return_value=CHART) as get_chart:
         result = await server.handle_visualize_placement_dials({"output_path": str(out), "profile_id": 7})
-    get_chart.assert_called_once_with(profile_id=7)
+    get_chart.assert_called_once_with(server.tool_context, profile_id=7)
     assert "Saved to:" in result[0].text and str(out.resolve()) in result[0].text
     assert out.exists()
 

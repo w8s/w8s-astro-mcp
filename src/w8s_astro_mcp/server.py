@@ -3,40 +3,33 @@
 import asyncio
 import json
 import logging
-import sys
-from datetime import datetime
-from typing import Any, Dict, Optional
-
-from mcp.server import Server
-from mcp.types import Tool, TextContent
-
 import os
 import urllib.request
 from pathlib import Path
+from typing import Any, Dict, Optional
 
-from .utils.ephemeris import EphemerisEngine, EphemerisError
-from .utils.db_helpers import DatabaseHelper
-from .utils.timezones import TimezoneError, utc_engine_args
-from .utils import chart_health
-from .utils.chart_health import DataNoticeGate, data_notice
-from .tools.analysis_tools import (
-    compare_charts,
-    find_planets_in_houses,
-    format_aspect_json,
-    format_aspect_report,
-    format_house_report,
-    INCLUDE_ANGLES_MODES,
-    AnalysisError
+from mcp.server import Server
+from mcp.types import TextContent, Tool
+
+from .registry import ToolContext, ToolRegistry
+from .tools import (
+    chart_tools,
+    connection_management,
+    event_management,
+    profile_management,
+    transit_tools,
 )
-from .tools.visualization import create_natal_chart
+from .tools.chart_tools import get_natal_chart_data
 from .tools.placement_dials import (
+    DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
     create_placement_dials,
     open_in_default_browser,
     slugify as placement_dials_slug,
-    DEFAULT_TITLE as PLACEMENT_DIALS_TITLE,
 )
-from .registry import ToolContext, ToolRegistry
-from .tools import profile_management, connection_management, event_management, transit_tools
+from .utils import chart_health
+from .utils.chart_health import DataNoticeGate, data_notice
+from .utils.db_helpers import DatabaseHelper
+from .utils.ephemeris import EphemerisEngine
 
 
 # Initialize MCP server
@@ -86,277 +79,13 @@ def init_ephemeris() -> EphemerisEngine:
 # Tools that have moved into the registry. The rest are still listed in list_tools() and routed
 # in _dispatch_tool(), and move over group by group.
 registry = ToolRegistry([
+    *chart_tools.tool_specs(),
     *transit_tools.tool_specs(),
     *profile_management.tool_specs(),
     *connection_management.tool_specs(),
     *event_management.tool_specs(),
 ])
 tool_context = ToolContext(get_db=lambda: init_db(), get_engine=lambda: init_ephemeris())
-
-
-def get_natal_chart_data(profile_id: Optional[int] = None):
-    """
-    Get natal chart for a profile, calculating and caching on demand.
-
-    If profile_id is supplied, uses that profile. Otherwise falls back to
-    the owner profile. Raises if neither is configured.
-
-    If the profile has no cached natal data (e.g. newly created profiles or
-    existing profiles migrated from v0.8), the chart is calculated via
-    EphemerisEngine and saved to the database before returning.
-    """
-    db = init_db()
-
-    if profile_id is not None:
-        profile = db.get_profile_by_id(profile_id)
-        if not profile:
-            raise EphemerisError(f"Profile {profile_id} not found.")
-    else:
-        profile = db.get_owner_profile()
-        if not profile:
-            raise EphemerisError("Owner profile not configured. Run setup_owner first.")
-
-    chart = db.get_natal_chart_data(profile)
-
-    # Auto-calculate if cache is empty (new profile or pre-v0.9 migration)
-    if not chart["planets"]:
-        birth_loc = db.get_location_by_id(profile.birth_location_id)
-        if not birth_loc:
-            raise EphemerisError(
-                f"Birth location not found for profile '{profile.name}'. "
-                "Cannot calculate natal chart."
-            )
-
-        # birth_time is the local time on the birth record; the ephemeris needs UT.
-        try:
-            ut_date, ut_time = utc_engine_args(
-                profile.birth_date, profile.birth_time, birth_loc.timezone
-            )
-        except TimezoneError as e:
-            raise EphemerisError(
-                f"Cannot calculate natal chart for '{profile.name}': {e}"
-            ) from e
-
-        engine = init_ephemeris()
-        calculated = engine.get_chart(
-            birth_loc.latitude,
-            birth_loc.longitude,
-            ut_date,
-            ut_time,
-            "P",  # Placidus; matches preferred_house_system_id=1
-        )
-
-        house_system_id = profile.preferred_house_system_id or 1
-        db.save_natal_chart(profile, calculated, house_system_id)
-
-        # Re-read from DB so format is consistent
-        chart = db.get_natal_chart_data(profile)
-
-    return chart
-
-
-def get_chart_for_date(date_str, time_str="12:00", location=None, profile_id: Optional[int] = None):
-    """Get chart for specific date at a location."""
-    engine = init_ephemeris()
-    db = init_db()
-
-    # Get location
-    if location is None:
-        if profile_id is not None:
-            profile = db.get_profile_by_id(profile_id)
-            if not profile:
-                raise EphemerisError(f"Profile {profile_id} not found.")
-        else:
-            profile = db.get_owner_profile()
-            if not profile:
-                raise EphemerisError("Owner profile not configured. Run setup_owner first.")
-        location = db.get_current_home_location(profile)
-        if not location:
-            raise EphemerisError("No current home location found")
-
-    return engine.get_chart(
-        latitude=location.latitude,
-        longitude=location.longitude,
-        date_str=date_str,
-        time_str=time_str,
-        house_system_code='P'  # TODO: Get from profile
-    )
-
-
-async def handle_find_house_placements(arguments: dict) -> list[TextContent]:
-    """Handle find_house_placements tool call. Extracted for testability."""
-    try:
-        date = arguments["date"]
-        time = arguments.get("time", "12:00")
-        profile_id = arguments.get("profile_id")
-        connection_id = arguments.get("connection_id")
-        chart_type = arguments.get("chart_type")
-        db = init_db()
-
-        # connection_id and profile_id are mutually exclusive
-        if connection_id is not None and profile_id is not None:
-            return [TextContent(
-                type="text",
-                text="Error: connection_id and profile_id are mutually exclusive. "
-                     "Supply one or the other, not both."
-            )]
-
-        if connection_id is not None:
-            # --- Connection chart as house reference frame ---
-            if not chart_type:
-                return [TextContent(
-                    type="text",
-                    text="Error: chart_type ('composite' or 'davison') is required when connection_id is supplied."
-                )]
-
-            connection = db.get_connection_by_id(connection_id)
-            if not connection:
-                return [TextContent(type="text", text=f"Error: connection {connection_id} not found.")]
-
-            cached = db.get_connection_chart(connection_id, chart_type)
-            if not cached or not cached.is_valid:
-                return [TextContent(
-                    type="text",
-                    text=f"Error: no valid {chart_type} chart for connection {connection_id}. "
-                         "Run get_connection_chart first."
-                )]
-
-            raw_houses = db.get_connection_houses(cached.id)
-            if not raw_houses:
-                return [TextContent(type="text", text=f"Error: no house data for {chart_type} chart.")]
-
-            houses = {
-                str(h.house_number): {
-                    "degree": h.degree + (h.minutes or 0) / 60.0,
-                    "sign": h.sign,
-                }
-                for h in raw_houses
-            }
-            reference_label = f"{connection.label} ({chart_type.title()})"
-
-            if date == "natal":
-                return [TextContent(
-                    type="text",
-                    text="Error: 'natal' date is ambiguous with a connection_id. "
-                         "Supply a specific date or 'today'."
-                )]
-            transit_chart = get_chart_for_date(None if date == "today" else date, time)
-            planets = transit_chart["planets"]
-
-        else:
-            # --- Natal chart as house reference frame ---
-            if date == "natal":
-                # Natal planets in natal houses
-                chart = get_natal_chart_data(profile_id=profile_id)
-                planets = chart["planets"]
-                houses = chart["houses"]
-            else:
-                # Transit planets placed against the profile's natal houses
-                transit_chart = get_chart_for_date(None if date == "today" else date, time)
-                natal = get_natal_chart_data(profile_id=profile_id)
-                planets = transit_chart["planets"]
-                houses = natal["houses"]
-            reference_label = None
-
-        result = find_planets_in_houses(planets, houses)
-        report = format_house_report(result)
-        if reference_label:
-            report = report.replace(
-                "# House Placements",
-                f"# House Placements \u2014 {reference_label}"
-            )
-        return [TextContent(type="text", text=report)]
-
-    except AnalysisError as e:
-        return [TextContent(type="text", text=f"Analysis error: {e}")]
-    except EphemerisError as e:
-        return [TextContent(type="text", text=f"Ephemeris error: {e}")]
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error: {e}")]
-
-
-class _ChartNotFound(Exception):
-    """A referenced chart (e.g. a saved event chart) does not exist."""
-
-
-def _profile_name(db, profile_id: Optional[int]) -> Optional[str]:
-    """Best-effort profile name for chart labels (owner profile when no id is given)."""
-    try:
-        profile = db.get_profile_by_id(profile_id) if profile_id is not None else db.get_owner_profile()
-    except Exception:  # labels are cosmetic; never fail a comparison over one
-        return None
-    name = getattr(profile, "name", None)
-    return name if isinstance(name, str) else None
-
-
-async def handle_compare_charts(arguments: dict) -> list[TextContent]:
-    """Handle compare_charts tool call. Extracted for testability."""
-    try:
-        output_format = arguments.get("format", "text")
-        if output_format not in ("text", "json"):
-            return [TextContent(type="text", text="Error: format must be 'text' or 'json'.")]
-
-        include_angles = arguments.get("include_angles")
-        if include_angles is not None and include_angles not in INCLUDE_ANGLES_MODES:
-            return [TextContent(
-                type="text",
-                text="Error: include_angles must be one of: " + ", ".join(INCLUDE_ANGLES_MODES) + ".",
-            )]
-
-        # chart retrieval goes through get_chart_for_date which calls init_ephemeris()
-        db = init_db()
-
-        def resolve_chart(prefix: str):
-            """Return (chart, meta) for chart1 / chart2. meta feeds labels and include_angles."""
-            date = arguments[f"{prefix}_date"]
-            time = arguments.get(f"{prefix}_time", "12:00")
-            profile_id = arguments.get(f"{prefix}_profile_id")
-
-            if date == "natal":
-                return (
-                    get_natal_chart_data(profile_id=profile_id),
-                    {"kind": "natal", "profile_id": profile_id},
-                )
-            if date == "today":
-                return get_chart_for_date(None, time), {"kind": "transit"}
-            if date.startswith("event:"):
-                label = date[len("event:"):]
-                ev = db.get_event_chart_by_label(label)
-                if not ev:
-                    raise _ChartNotFound(f"no saved event chart with label '{label}'")
-                return db.get_event_chart_positions(ev.id), {"kind": f"event:{label}"}
-            return get_chart_for_date(date, time), {"kind": "transit"}
-
-        chart1, meta1 = resolve_chart("chart1")
-        chart2, meta2 = resolve_chart("chart2")
-
-        # Profile names only matter when both charts are natal (synastry) and would
-        # otherwise carry identical labels.
-        if meta1["kind"] == "natal" and meta2["kind"] == "natal":
-            meta1["name"] = _profile_name(db, meta1.get("profile_id"))
-            meta2["name"] = _profile_name(db, meta2.get("profile_id"))
-
-        result = compare_charts(
-            chart1,
-            chart2,
-            orb_multiplier=arguments.get("orb_multiplier", 1.0),
-            planets_only=arguments.get("planets_only", True),
-            include_angles=include_angles,
-            chart1_meta=meta1,
-            chart2_meta=meta2,
-        )
-
-        report = format_aspect_json(result) if output_format == "json" else format_aspect_report(result)
-        return [TextContent(type="text", text=report)]
-
-    except _ChartNotFound as e:
-        return [TextContent(type="text", text=f"Error: {e}")]
-    except AnalysisError as e:
-        return [TextContent(type="text", text=f"Analysis error: {e}")]
-    except EphemerisError as e:
-        return [TextContent(type="text", text=f"Ephemeris error: {e}")]
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error: {e}")]
 
 
 @app.list_tools()
@@ -467,147 +196,6 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="get_natal_chart",
-            description="Get the natal chart (birth chart) planetary positions for a profile. Defaults to the owner profile if no profile_id is supplied.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "profile_id": {
-                        "type": "integer",
-                        "description": "Profile ID to query (from list_profiles). Defaults to owner profile."
-                    }
-                }
-            }
-        ),
-        Tool(
-            name="compare_charts",
-            description=(
-                "Calculate aspects between two charts. "
-                "Use for synastry (comparing two natal charts), transits (comparing natal chart with current positions), "
-                "or event chart analysis. "
-                "Finds conjunctions, oppositions, trines, squares, sextiles, and minor aspects. "
-                "Each aspect names the chart each body belongs to (natal, transit, event) and, "
-                "when a chart carries planet speeds (transit charts), whether the aspect is applying "
-                "or separating with an estimated time of exactness. "
-                "Times are UT. Transit-chart angles use the owner's current home location."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "chart1_date": {
-                        "type": "string",
-                        "description": "Date for first chart (YYYY-MM-DD), use 'natal' for a natal chart, or 'event:<label>' for a saved event chart"
-                    },
-                    "chart1_time": {
-                        "type": "string",
-                        "description": "Time for first chart in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
-                    },
-                    "chart1_profile_id": {
-                        "type": "integer",
-                        "description": "Profile ID for chart1 when chart1_date is 'natal' (from list_profiles). Defaults to owner profile."
-                    },
-                    "chart2_date": {
-                        "type": "string",
-                        "description": "Date for second chart (YYYY-MM-DD), use 'natal' for a natal chart, 'today' for current, or 'event:<label>' for a saved event chart"
-                    },
-                    "chart2_time": {
-                        "type": "string",
-                        "description": "Time for second chart in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
-                    },
-                    "chart2_profile_id": {
-                        "type": "integer",
-                        "description": "Profile ID for chart2 when chart2_date is 'natal' (from list_profiles). Defaults to owner profile."
-                    },
-                    "orb_multiplier": {
-                        "type": "number",
-                        "description": "Multiplier for aspect orbs (optional, default 1.0)"
-                    },
-                    "planets_only": {
-                        "type": "boolean",
-                        "description": (
-                            "Legacy switch, kept for compatibility: true (default) compares planets only; "
-                            "false also compares the angles of both charts. Prefer include_angles, which overrides this."
-                        )
-                    },
-                    "include_angles": {
-                        "type": "string",
-                        "enum": ["none", "natal", "transit", "both"],
-                        "description": (
-                            "Which charts contribute their angles (Ascendant, MC, etc.). 'natal' uses only the natal "
-                            "chart's angles - the usual choice for transits, since the transit sky's own angles change "
-                            "every few minutes and add noise. Overrides planets_only. Default: none."
-                        )
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["text", "json"],
-                        "description": (
-                            "Output format. 'text' (default) is human-readable. 'json' returns structured data "
-                            "with numeric orb, applying, days_to_exact and exact_utc fields."
-                        )
-                    }
-                },
-                "required": ["chart1_date", "chart2_date"]
-            }
-        ),
-        Tool(
-            name="find_house_placements",
-            description=(
-                "Determine which house each planet occupies in a chart. "
-                "Can use a natal chart (via profile_id or owner default) or a connection chart "
-                "(composite/Davison via connection_id + chart_type) as the house reference frame. "
-                "Shows both which planets are in each house and which house each planet is in."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "date": {
-                        "type": "string",
-                        "description": "Date for the planets to place (YYYY-MM-DD), 'natal' for birth chart planets, or 'today' for current sky"
-                    },
-                    "time": {
-                        "type": "string",
-                        "description": "Time in HH:MM format, interpreted as UT (optional, defaults to 12:00)"
-                    },
-                    "profile_id": {
-                        "type": "integer",
-                        "description": "Profile ID whose natal houses to use as the reference frame (from list_profiles). Defaults to owner profile. Mutually exclusive with connection_id."
-                    },
-                    "connection_id": {
-                        "type": "integer",
-                        "description": "Connection ID whose composite/Davison houses to use as the reference frame (from list_connections). Requires chart_type. Mutually exclusive with profile_id."
-                    },
-                    "chart_type": {
-                        "type": "string",
-                        "enum": ["composite", "davison"],
-                        "description": "Which connection chart to use as the house reference frame. Required when connection_id is supplied."
-                    }
-                },
-                "required": ["date"]
-            }
-        ),
-        Tool(
-            name="visualize_natal_chart",
-            description="Generate a circular natal chart visualization and save to file. Creates a traditional astrological chart wheel with zodiac signs, houses, planets, and angles.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "output_path": {
-                        "type": "string",
-                        "description": "Path where to save the chart image (e.g., '~/Downloads/natal_chart.png'). Defaults to 'natal_chart.png' in current directory."
-                    },
-                    "title": {
-                        "type": "string",
-                        "description": "Custom title for the chart (optional, defaults to 'Natal Chart')"
-                    },
-                    "profile_id": {
-                        "type": "integer",
-                        "description": "Profile ID to visualize (from list_profiles). Defaults to owner profile."
-                    }
-                }
-            }
-        ),
-        Tool(
             name="visualize_placement_dials",
             description=(
                 "Create an interactive page for learning what a planet, a sign and a house mean, "
@@ -712,7 +300,7 @@ def _placement_dials_notices(info: Dict[str, Any]) -> list:
 async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]:
     """Handle visualize_placement_dials tool call. Extracted for testability."""
     try:
-        chart = get_natal_chart_data(profile_id=arguments.get("profile_id"))
+        chart = get_natal_chart_data(tool_context, profile_id=arguments.get("profile_id"))
         info = get_profile_info(arguments.get("profile_id"))
         # Two profiles with the same name get their ids in the file name so they don't collide.
         file_label = f"{info['name']} {info['id']}" if info.get("name_shared") else info.get("name")
@@ -743,10 +331,7 @@ async def handle_visualize_placement_dials(arguments: dict) -> list[TextContent]
 
 
 # Tools whose output depends on stored natal charts. Only these can carry a data notice.
-NATAL_NOTICE_TOOLS = {
-    "get_natal_chart", "find_house_placements", "compare_charts",
-    "visualize_natal_chart", "visualize_placement_dials",
-} | registry.natal_notice_tools()
+NATAL_NOTICE_TOOLS = {"visualize_placement_dials"} | registry.natal_notice_tools()
 _notice_gate = DataNoticeGate()
 
 
@@ -925,69 +510,10 @@ async def _dispatch_tool(name: str, arguments: Any) -> list[TextContent]:
         except Exception as e:
             return [TextContent(type="text", text=f"Error: {e}")]
     
-    elif name == "get_natal_chart":
-        try:
-            profile_id = arguments.get("profile_id")
-            result = get_natal_chart_data(profile_id=profile_id)
-            
-            # Format response
-            response = f"# Natal Chart for {result['metadata']['date']} at {result['metadata']['time']}\n"
-            response += f"Location: {result['metadata']['latitude']}, {result['metadata']['longitude']}\n"
-            response += f"House System: {result['metadata']['house_system']}\n\n"
-            
-            response += "## Planetary Positions\n"
-            for planet_name, data in result['planets'].items():
-                response += f"- **{planet_name}**: {data['formatted']}\n"
-            
-            response += "\n## House Cusps\n"
-            for house_num in sorted(result['houses'].keys(), key=lambda x: int(x)):
-                data = result['houses'][house_num]
-                response += f"- House {house_num}: {data['formatted']}\n"
-            
-            if result['points']:
-                response += "\n## Angles\n"
-                for point, data in result['points'].items():
-                    response += f"- **{point}**: {data['formatted']}\n"
-            
-            return [TextContent(type="text", text=response)]
-        except Exception as e:
-            return [TextContent(type="text", text=f"Error: {e}")]
-
-    elif name == "compare_charts":
-        return await handle_compare_charts(arguments)
-
-    elif name == "find_house_placements":
-        return await handle_find_house_placements(arguments)
     
     elif name == "visualize_placement_dials":
         return await handle_visualize_placement_dials(arguments)
 
-    elif name == "visualize_natal_chart":
-        try:
-            profile_id = arguments.get("profile_id")
-            natal_chart = get_natal_chart_data(profile_id=profile_id)
-            
-            # Get output path
-            output_path = arguments.get("output_path", "natal_chart.png")
-            chart_title = arguments.get("title", "Natal Chart")
-            
-            # Create visualization
-            saved_path = create_natal_chart(
-                planets=natal_chart["planets"],
-                houses=natal_chart["houses"],
-                points=natal_chart["points"],
-                chart_title=chart_title,
-                output_path=output_path
-            )
-            
-            return [TextContent(
-                type="text",
-                text=f"Natal chart visualization created successfully!\n\nSaved to: {saved_path}\n\nThe chart shows:\n- Zodiac wheel with all 12 signs\n- Your 12 houses (Placidus system)\n- All 10 planets positioned by degree\n- Ascendant (red line) and MC (blue line)\n\nYou can now view or share this image."
-            )]
-            
-        except Exception as e:
-            return [TextContent(type="text", text=f"Error creating visualization: {e}")]
-    
     else:
         result = await registry.call(name, arguments, tool_context)
         if result is None:

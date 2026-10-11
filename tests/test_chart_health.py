@@ -61,7 +61,7 @@ def _add_stale(db, **person):
 
 def _add_correct(srv, db, **person):
     profile = db.create_profile_with_location(**person)
-    srv.get_natal_chart_data(profile_id=profile.id)          # calculates the chart correctly
+    srv.chart_tools.get_natal_chart_data(srv.tool_context, profile_id=profile.id)          # calculates the chart correctly
     return profile
 
 

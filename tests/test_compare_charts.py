@@ -496,14 +496,16 @@ class TestJsonFormat:
 # handle_compare_charts (extracted handler)
 # ---------------------------------------------------------------------------
 
-from w8s_astro_mcp.server import handle_compare_charts  # noqa: E402
+from w8s_astro_mcp.server import tool_context as CTX  # noqa: E402
+from w8s_astro_mcp.tools import chart_tools  # noqa: E402
+from w8s_astro_mcp.tools.chart_tools import handle_compare_charts  # noqa: E402
 
 
 def _patches(natal=NATAL, transit=TRANSIT, db=None):
     import w8s_astro_mcp.server as srv
     return (
-        patch.object(srv, "get_natal_chart_data", return_value=natal),
-        patch.object(srv, "get_chart_for_date", return_value=transit),
+        patch.object(chart_tools, "get_natal_chart_data", return_value=natal),
+        patch.object(chart_tools, "get_chart_for_date", return_value=transit),
         patch.object(srv, "init_db", return_value=db or MagicMock()),
     )
 
@@ -512,7 +514,7 @@ def _patches(natal=NATAL, transit=TRANSIT, db=None):
 async def test_handler_defaults_keep_original_text_layout():
     pn, pt, pd = _patches()
     with pn, pt, pd:
-        result = await handle_compare_charts({"chart1_date": "natal", "chart2_date": "today"})
+        result = await handle_compare_charts(CTX, {"chart1_date": "natal", "chart2_date": "today"})
     text = result[0].text
     assert text.startswith("# Aspect Analysis\n\nChart 1: 1981-05-06\nChart 2: 2026-09-19\n")
     assert "Total Aspects Found:" in text
@@ -524,7 +526,7 @@ async def test_handler_defaults_keep_original_text_layout():
 async def test_handler_json_format():
     pn, pt, pd = _patches()
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart2_date": "today", "format": "json", "orb_multiplier": 0.6}
         )
     payload = json.loads(result[0].text)
@@ -537,7 +539,7 @@ async def test_handler_json_format():
 async def test_handler_include_angles_natal_uses_only_natal_angles():
     pn, pt, pd = _patches()
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart2_date": "today", "format": "json",
              "orb_multiplier": 0.6, "include_angles": "natal"}
         )
@@ -553,7 +555,7 @@ async def test_handler_include_angles_natal_uses_only_natal_angles():
 async def test_handler_planets_only_false_still_means_both_charts_angles():
     pn, pt, pd = _patches()
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart2_date": "today", "format": "json",
              "orb_multiplier": 0.6, "planets_only": False}
         )
@@ -570,7 +572,7 @@ async def test_handler_planets_only_false_still_means_both_charts_angles():
 async def test_handler_invalid_format_is_a_clear_error():
     pn, pt, pd = _patches()
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart2_date": "today", "format": "yaml"}
         )
     assert result[0].text.startswith("Error:")
@@ -581,7 +583,7 @@ async def test_handler_invalid_format_is_a_clear_error():
 async def test_handler_invalid_include_angles_is_a_clear_error():
     pn, pt, pd = _patches()
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart2_date": "today", "include_angles": "sideways"}
         )
     assert result[0].text.startswith("Error:")
@@ -594,7 +596,7 @@ async def test_handler_unknown_event_label():
     db.get_event_chart_by_label.return_value = None
     pn, pt, pd = _patches(db=db)
     with pn, pt, pd:
-        result = await handle_compare_charts({"chart1_date": "natal", "chart2_date": "event:nope"})
+        result = await handle_compare_charts(CTX, {"chart1_date": "natal", "chart2_date": "event:nope"})
     assert "no saved event chart with label 'nope'" in result[0].text
 
 
@@ -610,7 +612,7 @@ async def test_handler_event_chart_gets_event_label_and_no_direction():
     db.get_event_chart_positions.return_value = event_chart
     pn, pt, pd = _patches(db=db)
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart2_date": "event:full-moon", "orb_multiplier": 0.6}
         )
     text = result[0].text
@@ -624,7 +626,7 @@ async def test_handler_synastry_labels_use_profile_names():
     db.get_profile_by_id.side_effect = lambda pid: SimpleNamespace(name={1: "Todd", 3: "Liz"}[pid])
     pn, pt, pd = _patches(db=db)
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart1_profile_id": 1,
              "chart2_date": "natal", "chart2_profile_id": 3, "orb_multiplier": 0.6}
         )
@@ -637,7 +639,7 @@ async def test_handler_synastry_labels_use_profile_names():
 async def test_handler_synastry_without_resolvable_names_uses_chart_numbers():
     pn, pt, pd = _patches()  # db is a bare MagicMock: names are not strings
     with pn, pt, pd:
-        result = await handle_compare_charts(
+        result = await handle_compare_charts(CTX, 
             {"chart1_date": "natal", "chart2_date": "natal", "orb_multiplier": 0.6}
         )
     text = result[0].text

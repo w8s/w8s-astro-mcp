@@ -1,0 +1,34 @@
+Transits for 2026-03-20 at 12:00:00
+Location: Bangkok (13.7563, 100.5018)
+House System: Placidus
+
+Planets:
+  Sun: 29.89° Pisces
+  Moon: 18.86° Aries
+  Mercury: 8.50° Pisces
+  Venus: 17.44° Aries
+  Mars: 14.10° Pisces
+  Jupiter: 15.23° Cancer
+  Saturn: 4.11° Aries
+  Uranus: 28.30° Taurus
+  Neptune: 1.77° Aries
+  Pluto: 5.00° Aquarius
+
+Houses:
+  House 1: 8.41° Libra
+  House 2: 8.52° Scorpio
+  House 3: 8.41° Sagittarius
+  House 4: 7.84° Capricorn
+  House 5: 7.68° Aquarius
+  House 6: 8.29° Pisces
+  House 7: 8.41° Aries
+  House 8: 8.52° Taurus
+  House 9: 8.41° Gemini
+  House 10: 7.84° Cancer
+  House 11: 7.68° Leo
+  House 12: 8.29° Virgo
+
+Special Points:
+  Ascendant: 8.41° Libra
+  MC: 7.84° Cancer
+

@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import Any
 from mcp.types import Tool, TextContent
 
+from ..registry import ToolContext, ToolSpec, bind_handlers
+
 
 # ============================================================================
 # Tool Definitions
@@ -553,34 +555,20 @@ def _fmt_with_sign(data: dict) -> str:
 
 
 # ============================================================================
-# Router
+# Registration
 # ============================================================================
 
-CONNECTION_TOOL_NAMES = {
-    "create_connection",
-    "list_connections",
-    "add_connection_member",
-    "remove_connection_member",
-    "get_connection_chart",
-    "delete_connection",
-}
-
-
-async def handle_connection_tool(
-    name: str, arguments: Any, db_helper, swetest=None
-) -> list[TextContent]:
-    """Route connection tool calls to appropriate handlers."""
-    if name == "create_connection":
-        return await handle_create_connection(db_helper, arguments)
-    elif name == "list_connections":
-        return await handle_list_connections(db_helper)
-    elif name == "add_connection_member":
-        return await handle_add_connection_member(db_helper, arguments)
-    elif name == "remove_connection_member":
-        return await handle_remove_connection_member(db_helper, arguments)
-    elif name == "get_connection_chart":
-        return await handle_get_connection_chart(db_helper, swetest, arguments)
-    elif name == "delete_connection":
-        return await handle_delete_connection(db_helper, arguments)
-    else:
-        return [TextContent(type="text", text=f"Unknown connection tool: {name}")]
+def tool_specs() -> list[ToolSpec]:
+    """The connection tools, in the order they are advertised."""
+    return bind_handlers(
+        get_connection_tools(),
+        {
+            "create_connection": lambda ctx, args: handle_create_connection(ctx.db, args),
+            "list_connections": lambda ctx, args: handle_list_connections(ctx.db),
+            "add_connection_member": lambda ctx, args: handle_add_connection_member(ctx.db, args),
+            "remove_connection_member": lambda ctx, args: handle_remove_connection_member(ctx.db, args),
+            "get_connection_chart": lambda ctx, args: handle_get_connection_chart(ctx.db, ctx.engine, args),
+            "delete_connection": lambda ctx, args: handle_delete_connection(ctx.db, args),
+        },
+        natal_chart_tools=frozenset({"get_connection_chart"}),
+    )

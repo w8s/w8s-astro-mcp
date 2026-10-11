@@ -23,7 +23,7 @@ from w8s_astro_mcp.tools.event_management import (
     handle_list_event_charts,
     handle_delete_event_chart,
     handle_find_electional_windows,
-    EVENT_TOOL_NAMES,
+    tool_specs as event_tool_specs,
 )
 
 
@@ -684,10 +684,10 @@ class TestHandleFindElectionalWindows:
 
 
 # ============================================================================
-# EVENT_TOOL_NAMES registry
+# Event tool registration
 # ============================================================================
 
-class TestEventToolNames:
+class TestEventToolSpecs:
     def test_all_expected_tools_registered(self):
         expected = {
             "cast_event_chart",
@@ -695,4 +695,4 @@ class TestEventToolNames:
             "delete_event_chart",
             "find_electional_windows",
         }
-        assert EVENT_TOOL_NAMES == expected
+        assert {spec.name for spec in event_tool_specs()} == expected

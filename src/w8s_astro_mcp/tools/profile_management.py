@@ -7,6 +7,8 @@ Enables multi-profile support for friends, family, synastry, etc.
 from typing import Any, Optional
 from mcp.types import Tool, TextContent
 
+from ..registry import ToolContext, ToolSpec, bind_handlers
+
 
 # ============================================================================
 # Tool Definitions
@@ -569,27 +571,20 @@ async def handle_remove_location(db_helper, arguments: dict) -> list[TextContent
 
 
 # ============================================================================
-# Router
+# Registration
 # ============================================================================
 
-async def handle_profile_tool(name: str, arguments: Any, db_helper) -> list[TextContent]:
-    """Route profile management tool calls to appropriate handlers."""
-    
-    handlers = {
-        "list_profiles": handle_list_profiles,
-        "create_profile": handle_create_profile,
-        "update_profile": handle_update_profile,
-        "delete_profile": handle_delete_profile,
-        "setup_owner": handle_setup_owner,
-        "add_location": handle_add_location,
-        "remove_location": handle_remove_location,
-    }
-
-    handler = handlers.get(name)
-    if not handler:
-        return [TextContent(type="text", text=f"Unknown profile tool: {name}")]
-
-    if name == "list_profiles":
-        return await handler(db_helper)
-    else:
-        return await handler(db_helper, arguments)
+def tool_specs() -> list[ToolSpec]:
+    """The profile tools, in the order they are advertised."""
+    return bind_handlers(
+        get_profile_management_tools(),
+        {
+            "list_profiles": lambda ctx, args: handle_list_profiles(ctx.db),
+            "create_profile": lambda ctx, args: handle_create_profile(ctx.db, args),
+            "update_profile": lambda ctx, args: handle_update_profile(ctx.db, args),
+            "delete_profile": lambda ctx, args: handle_delete_profile(ctx.db, args),
+            "setup_owner": lambda ctx, args: handle_setup_owner(ctx.db, args),
+            "add_location": lambda ctx, args: handle_add_location(ctx.db, args),
+            "remove_location": lambda ctx, args: handle_remove_location(ctx.db, args),
+        },
+    )
